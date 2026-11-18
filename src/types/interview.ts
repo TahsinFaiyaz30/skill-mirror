@@ -1,0 +1,134 @@
+import type { z } from "zod";
+import type { ROLE_FAMILIES, SENIORITIES, PHASES, QUESTION_PHASES, OPTIONAL_PHASES, THEMES, DIMENSIONS, CompetencyKey } from "@/lib/config/taxonomy";
+import type { parsedCvSchema, blueprintSchema, planQuestionSchema, p4Schema, toneSchema } from "@/lib/ai/schemas";
+import type { MAX_ANSWER_MS } from "@/lib/config/constants";
+
+export const SESSION_KINDS = ["practice", "company", "preview"] as const;
+export const SESSION_STATUSES = ["draft", "planning", "ready", "in_progress", "ended", "processing", "completed", "failed", "discarded", "superseded"] as const;
+export const END_REASONS = ["completed", "hard_cap", "user_ended", "connection_lost", "interrupted"] as const;
+export const INVITE_STATUSES = ["pending", "accepted", "started", "completed", "expired", "revoked"] as const;
+export const CATEGORIES = ["nonverbal", "vocal", "integrity", "live_vision", "positive"] as const;
+export const QUESTION_SOURCES = ["company", "ai_plan", "ai_followup", "system"] as const;
+export const ITEM_KINDS = ["intro", "calibration", "cv_deep_dive", "behavioral", "technical", "presentation", "presentation_followup", "candidate_questions", "close"] as const;
+export const ANSWER_STATUSES = ["complete", "time_cap", "no_response", "skipped", "interrupted_presentation"] as const;
+export const DIRECTIVE_MODES = ["ask", "presentation_prompt", "presentation_begin", "presentation_interrupt", "candidate_questions", "close"] as const;
+export const STRATEGIST_EVENTS = ["answer_end", "presentation_prep_done", "presentation_interrupt", "presentation_end", "force_close"] as const;
+export type SessionKind = (typeof SESSION_KINDS)[number];
+export type SessionStatus = (typeof SESSION_STATUSES)[number];
+export type EndReason = (typeof END_REASONS)[number];
+export type EventCategory = (typeof CATEGORIES)[number];
+export type QuestionSource = (typeof QUESTION_SOURCES)[number];
+export type Phase = (typeof PHASES)[number];
+export type QuestionPhase = (typeof QUESTION_PHASES)[number];
+export type OptionalPhase = (typeof OPTIONAL_PHASES)[number];
+export type Seniority = (typeof SENIORITIES)[number];
+export type RoleFamily = (typeof ROLE_FAMILIES)[number];
+export type Theme = (typeof THEMES)[number];
+export type Dimension = (typeof DIMENSIONS)[number];
+export type ItemKind = (typeof ITEM_KINDS)[number];
+export type AnswerStatus = (typeof ANSWER_STATUSES)[number];
+export type DirectiveMode = (typeof DIRECTIVE_MODES)[number];
+export type VoiceName = "Kore" | "Charon";
+export type InterviewMode = "scripted" | "hybrid" | "auto";
+export type NonverbalPolicy = "scored" | "coaching_only" | "off";
+export type Strictness = "lenient" | "balanced" | "strict";
+export type Intensity = "low" | "medium" | "high";
+export type FeedbackVisibility = "none" | "summary" | "full";
+export type Weights = { technical: number; behavioral: number; cv: number; soft: number };
+export type PresentationScenario = { title: string; scenario: string; audience: string; goal: string; interrupt_challenge: string; pushback_angles: string[] };
+export type CompetencySelection = { selection: "auto" | "manual"; items: { key: CompetencyKey; sub_label: string | null; weight: number }[] };
+export type InterviewAI = { instructions: string; toneInstructions: string; interviewerName: string | null; voiceName: VoiceName; strictness: Strictness; adversarialIntensity: Intensity; allowFollowUps: boolean };
+export interface OpeningConfig {
+  mode: InterviewMode;
+  lengthMinutes: 15 | 20 | 30 | 45;
+  phases: Record<OptionalPhase, boolean>;
+  competencies: CompetencySelection;
+  presentation: { custom: PresentationScenario | null };
+  ai: InterviewAI;
+  cv: { required: boolean; useGithub: boolean };
+  evaluation: { weights: Weights; nonverbalPolicy: NonverbalPolicy; passThreshold: number };
+  candidate: { feedbackVisibility: FeedbackVisibility; requireEmailMatch: boolean; inviteExpiryDays: number };
+  integrity: { requireHeadphones: boolean };
+}
+export type OpeningQuestionInput = { id?: string; phase: QuestionPhase; text: string; competencyKey?: CompetencyKey | null; subLabel?: string | null; difficulty?: number | null; mustAsk: boolean; maxFollowUps: number; idealPoints: string[]; redFlags: string[]; expectedMinutes: number; origin: "manual" | "imported" | "ai_generated" };
+export type OpeningQuestion = OpeningQuestionInput & { id: string; orderIdx: number };
+export type PhaseBudgets = Partial<Record<Phase, number>>;
+export type CompanyBrand = { name: string; logoUrl: string | null };
+export type PresentationTiming = { prepMs: number; talkMs: number; interruptAtMs: number | null };
+export interface InterviewConfig {
+  kind: SessionKind;
+  mode: InterviewMode;
+  lengthMinutes: number;
+  hardCapMs: number;
+  phaseOrder: Phase[];
+  phaseBudgetsMs: PhaseBudgets;
+  techCount: number;
+  techMaxItems: number;
+  behavioralCount: number;
+  cvQuestionCount: number;
+  maxAnswerMs: Record<keyof typeof MAX_ANSWER_MS, number>;
+  presentation: PresentationTiming & { custom: PresentationScenario | null };
+  ai: InterviewAI;
+  evaluation: { weights: Weights; nonverbalPolicy: NonverbalPolicy; passThreshold: number | null };
+  competencies: CompetencySelection;
+  customQuestions: OpeningQuestion[];
+  cvRequired: boolean;
+  useGithub: boolean;
+  requireHeadphones: boolean;
+  feedbackVisibility: FeedbackVisibility;
+  company: CompanyBrand | null;
+  maxStrategistCalls: number;
+}
+export type InterviewConfigPublic = Pick<InterviewConfig, "kind" | "lengthMinutes" | "hardCapMs" | "phaseOrder" | "phaseBudgetsMs" | "maxAnswerMs" | "company" | "feedbackVisibility" | "requireHeadphones"> & {
+  presentation: PresentationTiming; voiceName: VoiceName; interviewerName: string | null;
+};
+export type ParsedCV = z.infer<typeof parsedCvSchema> & { skills_removed: string[] };
+export type PlanQuestion = z.infer<typeof planQuestionSchema> & { id: string };
+export type PlanBlueprint = z.infer<typeof blueprintSchema>;
+export type PlanCompetency = PlanBlueprint["technical"][number] & { ladder: Record<number, PlanQuestion[]> };
+export type InterviewPlan = Omit<PlanBlueprint, "technical"> & {
+  technical: PlanCompetency[]; expected_level: number; github_projects?: GithubProject[];
+};
+export type GithubProject = { url: string; name: string; summary: string };
+export type PlanSummary = { interviewerName: string; competencies: { key: string; displayName: string; subLabel: string | null }[]; phases: { key: Phase; budgetMs: number }[] };
+export type VisionTier = "full" | "degraded" | "severe";
+export interface Calibration {
+  gaze: { yaw0: number; pitch0: number; h0: number; v0: number };
+  posture: { neckRatio0: number; shoulderWidth0: number; shoulderMidX0: number; shoulderMidY0: number };
+  audio: { noiseFloorDb: number; micPeakDb: number };
+  headphones: boolean;
+  echoSafe: boolean;
+  device: { userAgent: string; gpu: string; visionTier: VisionTier };
+}
+export type Consent = { recording: boolean; coachingOnly: boolean; freeTierData: boolean; retention: boolean; shareWithCompany?: boolean; acceptedAt: string };
+export type RecordingSegment = { index: number; path: string; startMs: number; endMs: number; bytes: number; uploaded: boolean };
+type MediaFile = { path: string; bytes: number };
+export type SessionMedia = { videoSegments?: RecordingSegment[]; micAudio?: MediaFile & { durationMs: number; startOffsetMs: number }; timeline?: MediaFile; landmarks?: MediaFile; pitch?: MediaFile; snapshotsCount?: number; deleted?: boolean };
+export type BaselineFields = { eyeContact: number; blinkPerMin: number; smile: number; browTension: number; lipPress: number; expressiveness: number; fidgetFrac: number; gestureFrac: number; selfTouchPerMin: number; neckRatio: number; swayStd: number; rmsDb: number; pitchMedianSt: number | null; pitchRangeSt: number; wpm: number; fillerPerMin: number; hedgePerMin: number };
+export type Baseline = { fields: BaselineFields; source: "measured" | "default"; window: { startMs: number; endMs: number } };
+export type SessionEvent = { id: string; category: EventCategory; type: string; startMs: number; endMs: number; severity: number; turnIdx: number | null; data: Record<string, unknown>; snapshotPath: string | null };
+export type MetricState = "A" | "L" | "E" | "P" | "R" | "X";
+export type MetricSecond = {
+  t: number; fv: number | null; mf: number | null; ec: number | null;
+  gy: number | null; gp: number | null; hy: number | null; hp: number | null; hr: number | null;
+  bl: number; nd: number; sm: number | null; bt: number | null; lp: number | null; jo: number | null; xv: number[] | null;
+  pv: number | null; nr: number | null; sl: number | null; lr: number | null; st: number | null; sw: number | null;
+  ac: number | null; hv: number | null; gs: number | null; fg: number | null; tc: number | null;
+  rms: number | null; vad: number | null; f0: number | null; vf: number | null; s: MetricState; ti: number | null;
+};
+export type TimelineFile = { version: 1; t0EpochMs: number; visionTier: VisionTier; calibration: Calibration; seconds: MetricSecond[] };
+export type VisionSummary = { faceVisiblePct: number | null; eyeContactPct: number | null; gazeAversionCount: number; blinkPerMin: number | null; smileMean: number | null; browTensionMean: number | null; lipPressMean: number | null; expressiveness: number | null; postureOkPct: number | null; swayPct: number | null; armsCrossedPct: number | null; gesturePct: number | null; fidgetPct: number | null; selfTouchCount: number; multiFacePct: number | null };
+export type VoiceSummary = { answerMs: number; speechMs: number; responseLatencyMs: number | null; longPauseCount: number; rmsMedianDb: number | null; pitchMedianSt: number | null; pitchRangeSt: number | null; liveWordCount: number; liveWpm: number | null };
+export type TurnMetricSummary = { vision: VisionSummary | null; voice: VoiceSummary | null };
+export type TurnTone = z.infer<typeof toneSchema>["turns"][number];
+export type P4Output = z.infer<typeof p4Schema>;
+export type ScoreOutcome = "pass" | "partial" | "fail" | "na";
+export type TurnScores = { kind: ItemKind; rubric: Record<string, number>; star: P4Output["star"]; total: number; outcome: ScoreOutcome; intent: P4Output["intent"]; evidence: string[]; strengths: string[]; gaps: string[]; note: string; cvClaimSignal: P4Output["cv_claim_signal"]; scoringFailed: boolean; source: "groq" | "gemini" | "fallback" | "mock" };
+export interface Directive {
+  seq: number; turnIdx: number; phase: Phase; phaseIndex: number; mode: DirectiveMode; sayText: string;
+  questionText: string | null; cardLabel: string; expectAnswer: boolean; maxAnswerMs: number;
+  presentation: (PresentationTiming & { title: string; scenario: string }) | null; endInterview: boolean;
+}
+export type StrategistInput = { event: (typeof STRATEGIST_EVENTS)[number]; directiveSeq: number; turnIdx: number; answerStatus: AnswerStatus; transcript: string; timings: { askStartMs: number; askEndMs: number; answerStartMs: number | null; answerEndMs: number }; metrics: TurnMetricSummary | null; elapsedMs: number };
+export type SessionPublic = { session: { id: string; kind: SessionKind; status: SessionStatus; company: string; roleTitle: string; seniority: Seniority; lengthMinutes: number; voiceName: VoiceName; aiMode: "mock" | "live" | "pipeline"; cvId: string | null; calibration: Calibration | null; startedAt: string | null; endedAt: string | null; durationMs: number | null; endReason: EndReason | null }; config: InterviewConfigPublic; planSummary: PlanSummary | null };
+export type Playback = { segments: { index: number; startMs: number; endMs: number; url: string }[]; landmarksUrl: string | null; snapshots: Record<string, string>; deleted: boolean };
