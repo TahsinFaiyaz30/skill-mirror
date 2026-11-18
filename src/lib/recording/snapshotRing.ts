@@ -7,6 +7,12 @@ export class SnapshotRing {
   }
   nearest(time: number) {
     if (time < (this.frames[0]?.time ?? 0)) return this.frames.at(-1)?.jpeg;
-    return this.frames.reduce<{ time: number; jpeg: Blob } | undefined>((best, frame) => !best || Math.abs(frame.time - time) < Math.abs(best.time - time) ? frame : best, undefined)?.jpeg;
+    return this.frames.reduce<{ time: number; jpeg: Blob } | undefined>(
+      (best, frame) =>
+        !best || Math.abs(frame.time - time) < Math.abs(best.time - time)
+          ? frame
+          : best,
+      undefined,
+    )?.jpeg;
   }
 }

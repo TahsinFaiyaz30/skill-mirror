@@ -9,6 +9,8 @@ SkillMirror runs adaptive practice and company interviews in desktop Chrome or E
 3. Run `npm run dev` and open http://localhost:3000.
 4. Sign up and choose Practice or Hiring. The local mock store uses `.skill-mirror/`. Mock mode also works with a configured Supabase project.
 
+The browser tests use mock AI and the camera and microphone files in `tests/fixtures/`. Practice passes through the full setup wizard. Hiring uses the mock calibration option. The tests exercise media recording, signed playback, and report generation without provider calls.
+
 ## Supabase and provider setup
 
 1. Copy `.env.example` to `.env.local`. Fill in the Supabase URL, anon key, service-role key, and transaction-pooler database URL (port 6543). The recommended Supabase region is Mumbai (`ap-south-1`).
@@ -17,6 +19,10 @@ SkillMirror runs adaptive practice and company interviews in desktop Chrome or E
 4. Set `GEMINI_API_KEY`, `GROQ_API_KEY`, `CERT_SIGNING_SECRET` (32+ random bytes), and `CRON_SECRET`. Verify access to the model IDs in `.env.example`. Set `NEXT_PUBLIC_AI_MODE=pipeline` when Live is unavailable.
 5. For Vercel, configure the same variables and set `NEXT_PUBLIC_APP_URL` to the deployment URL. Configure Resend and a verified sender if you want invitation delivery by email. Recruiters can always copy invitation links.
 
+Run `npm run audio:previews` with a configured Gemini key to generate the Kore and Charon WAV assets. Local mock mode uses installed browser voices for previews.
+
 ## Checks
 
 `npm run lint`, `npm run typecheck`, `npm test`, and `npm run test:e2e`. The Playwright suite starts its own local mock server.
+
+The golden report fixture includes the expected JSON and a scoring workbook under `tests/fixtures/session-01/`. The database tests apply the same SQL migrations to embedded PostgreSQL and exercise authenticated row-level access.

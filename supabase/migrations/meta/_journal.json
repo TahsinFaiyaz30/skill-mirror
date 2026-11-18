@@ -8,6 +8,27 @@
       "when": 1795037454400,
       "tag": "0000_lean_rhodey",
       "breakpoints": true
+    },
+    {
+      "version": "7",
+      "when": 1795037454401,
+      "tag": "0001_skill_mirror_policies",
+      "breakpoints": false,
+      "idx": 1
+    },
+    {
+      "version": "7",
+      "when": 1795037454402,
+      "tag": "0002_harden_interview_access",
+      "breakpoints": false,
+      "idx": 2
+    },
+    {
+      "version": "7",
+      "idx": 3,
+      "when": 1795037454403,
+      "tag": "0003_respect_candidate_playback_visibility",
+      "breakpoints": false
     }
   ]
 }

@@ -1,11 +1,46 @@
-export const ROLE_FAMILIES = ["software_engineering", "data_ml", "product", "design", "other"] as const;
-export const SENIORITIES = ["intern", "junior", "mid", "senior", "staff"] as const;
-export const PHASES = ["intro_calibration", "cv_deep_dive", "behavioral", "technical", "presentation", "candidate_questions", "close"] as const;
-export const QUESTION_PHASES = ["cv_deep_dive", "behavioral", "technical"] as const;
-export const OPTIONAL_PHASES = ["cv_deep_dive", "behavioral", "technical", "presentation", "candidate_questions"] as const;
+export const ROLE_FAMILIES = [
+  "software_engineering",
+  "data_ml",
+  "product",
+  "design",
+  "other",
+] as const;
+export const SENIORITIES = [
+  "intern",
+  "junior",
+  "mid",
+  "senior",
+  "staff",
+] as const;
+export const PHASES = [
+  "intro_calibration",
+  "cv_deep_dive",
+  "behavioral",
+  "technical",
+  "presentation",
+  "candidate_questions",
+  "close",
+] as const;
+export const QUESTION_PHASES = [
+  "cv_deep_dive",
+  "behavioral",
+  "technical",
+] as const;
+export const OPTIONAL_PHASES = [
+  "cv_deep_dive",
+  "behavioral",
+  "technical",
+  "presentation",
+  "candidate_questions",
+] as const;
 export const PHASE_LABELS = {
-  intro_calibration: "Intro", cv_deep_dive: "Your experience", behavioral: "Behavioral",
-  technical: "Technical", presentation: "Presentation", candidate_questions: "Your questions", close: "Wrap-up",
+  intro_calibration: "Intro",
+  cv_deep_dive: "Your experience",
+  behavioral: "Behavioral",
+  technical: "Technical",
+  presentation: "Presentation",
+  candidate_questions: "Your questions",
+  close: "Wrap-up",
 };
 const engineering = "software_engineering";
 const data = "data_ml";
@@ -38,6 +73,22 @@ export const TAXONOMY = {
 } as const;
 export type CompetencyKey = keyof typeof TAXONOMY;
 export const COMPETENCY_KEYS = Object.keys(TAXONOMY) as CompetencyKey[];
-export const THEMES = ["leadership", "ownership", "conflict", "failure_learning", "ambiguity", "collaboration"] as const;
-export const DIMENSIONS = ["executive_presence", "composure", "clarity_structure", "engagement", "ownership", "persuasion", "vocal_confidence"] as const;
-export const readable = (value: string) => value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
+export const THEMES = [
+  "leadership",
+  "ownership",
+  "conflict",
+  "failure_learning",
+  "ambiguity",
+  "collaboration",
+] as const;
+export const DIMENSIONS = [
+  "executive_presence",
+  "composure",
+  "clarity_structure",
+  "engagement",
+  "ownership",
+  "persuasion",
+  "vocal_confidence",
+] as const;
+export const readable = (value: string) =>
+  value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());

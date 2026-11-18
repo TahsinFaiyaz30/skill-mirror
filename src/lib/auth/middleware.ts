@@ -10,32 +10,51 @@ export async function guardRequest(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const authScreen = pathname === "/login" || pathname === "/signup";
   const api = pathname.startsWith("/api/");
-  const protectedPage = /^\/(onboarding|dashboard|progress|settings|interview|hiring)(\/|$)/.test(pathname);
+  const protectedPage =
+    /^\/(onboarding|dashboard|progress|settings|interview|hiring)(\/|$)/.test(
+      pathname,
+    );
   if (!authScreen && !protectedPage && !api) return response;
   let userId: string | undefined;
   if (localMock) userId = (await mockUser())?.id;
   else if (publicEnv.supabaseUrl && publicEnv.supabaseAnonKey) {
-    const client = createServerClient(publicEnv.supabaseUrl, publicEnv.supabaseAnonKey, {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll(values) {
-          for (const { name, value } of values) request.cookies.set(name, value);
-          response = NextResponse.next({ request });
-          for (const { name, value, options } of values) response.cookies.set(name, value, options);
+    const client = createServerClient(
+      publicEnv.supabaseUrl,
+      publicEnv.supabaseAnonKey,
+      {
+        cookies: {
+          getAll: () => request.cookies.getAll(),
+          setAll(values) {
+            for (const { name, value } of values)
+              request.cookies.set(name, value);
+            response = NextResponse.next({ request });
+            for (const { name, value, options } of values)
+              response.cookies.set(name, value, options);
+          },
         },
       },
-    });
+    );
     userId = (await client.auth.getUser()).data.user?.id;
   }
   const redirect = (path: string) => {
     const redirection = NextResponse.redirect(new URL(path, request.url));
-    for (const cookie of response.cookies.getAll()) redirection.cookies.set(cookie);
+    for (const cookie of response.cookies.getAll())
+      redirection.cookies.set(cookie);
     return redirection;
   };
-  if (authScreen && userId) return redirect(authPath("/auth/continue", request.nextUrl.searchParams.get("next"), request.nextUrl.searchParams.get("intent")));
+  if (authScreen && userId)
+    return redirect(
+      authPath(
+        "/auth/continue",
+        request.nextUrl.searchParams.get("next"),
+        request.nextUrl.searchParams.get("intent"),
+      ),
+    );
   if (!protectedPage) return response;
   if (!userId) return redirect(authPath("/login", pathname + search));
-  if (pathname.startsWith("/hiring") && !(await getOrg(userId))) return redirect("/dashboard");
-  if (pathname !== "/onboarding" && !(await getProfile(userId))?.onboardedAt) return redirect(authPath("/onboarding", pathname + search));
+  if (pathname.startsWith("/hiring") && !(await getOrg(userId)))
+    return redirect("/dashboard");
+  if (pathname !== "/onboarding" && !(await getProfile(userId))?.onboardedAt)
+    return redirect(authPath("/onboarding", pathname + search));
   return response;
 }

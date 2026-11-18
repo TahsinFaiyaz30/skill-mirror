@@ -4,49 +4,6 @@
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "auth.users": {
-      "name": "users",
-      "schema": "auth",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "encrypted_password": {
-          "name": "encrypted_password",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "email_confirmed_at": {
-          "name": "email_confirmed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "raw_user_meta_data": {
-          "name": "raw_user_meta_data",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.candidate_cvs": {
       "name": "candidate_cvs",
       "schema": "",
@@ -132,12 +89,8 @@
           "name": "candidate_cvs_user_id_profiles_id_fk",
           "tableFrom": "candidate_cvs",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -204,12 +157,8 @@
           "name": "candidate_reviews_session_id_interview_sessions_id_fk",
           "tableFrom": "candidate_reviews",
           "tableTo": "interview_sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -217,12 +166,8 @@
           "name": "candidate_reviews_org_id_organizations_id_fk",
           "tableFrom": "candidate_reviews",
           "tableTo": "organizations",
-          "columnsFrom": [
-            "org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["org_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -230,12 +175,8 @@
           "name": "candidate_reviews_reviewer_id_profiles_id_fk",
           "tableFrom": "candidate_reviews",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "reviewer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["reviewer_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -301,12 +242,8 @@
           "name": "certificates_session_id_interview_sessions_id_fk",
           "tableFrom": "certificates",
           "tableTo": "interview_sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -314,12 +251,8 @@
           "name": "certificates_user_id_profiles_id_fk",
           "tableFrom": "certificates",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -329,9 +262,7 @@
         "certificates_session_id_unique": {
           "name": "certificates_session_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "session_id"
-          ]
+          "columns": ["session_id"]
         }
       },
       "policies": {},
@@ -439,12 +370,8 @@
           "name": "competency_results_session_id_interview_sessions_id_fk",
           "tableFrom": "competency_results",
           "tableTo": "interview_sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -452,12 +379,8 @@
           "name": "competency_results_user_id_profiles_id_fk",
           "tableFrom": "competency_results",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -563,12 +486,8 @@
           "name": "events_session_id_interview_sessions_id_fk",
           "tableFrom": "events",
           "tableTo": "interview_sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -808,12 +727,8 @@
           "name": "interview_sessions_user_id_profiles_id_fk",
           "tableFrom": "interview_sessions",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -821,12 +736,8 @@
           "name": "interview_sessions_org_id_organizations_id_fk",
           "tableFrom": "interview_sessions",
           "tableTo": "organizations",
-          "columnsFrom": [
-            "org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["org_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -834,12 +745,8 @@
           "name": "interview_sessions_opening_id_openings_id_fk",
           "tableFrom": "interview_sessions",
           "tableTo": "openings",
-          "columnsFrom": [
-            "opening_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["opening_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -847,12 +754,8 @@
           "name": "interview_sessions_cv_id_candidate_cvs_id_fk",
           "tableFrom": "interview_sessions",
           "tableTo": "candidate_cvs",
-          "columnsFrom": [
-            "cv_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["cv_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -860,12 +763,8 @@
           "name": "interview_sessions_invitation_fk",
           "tableFrom": "interview_sessions",
           "tableTo": "invitations",
-          "columnsFrom": [
-            "invitation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["invitation_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1013,12 +912,8 @@
           "name": "invitations_opening_id_openings_id_fk",
           "tableFrom": "invitations",
           "tableTo": "openings",
-          "columnsFrom": [
-            "opening_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["opening_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1026,12 +921,8 @@
           "name": "invitations_org_id_organizations_id_fk",
           "tableFrom": "invitations",
           "tableTo": "organizations",
-          "columnsFrom": [
-            "org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["org_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1039,12 +930,8 @@
           "name": "invitations_candidate_user_id_profiles_id_fk",
           "tableFrom": "invitations",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "candidate_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["candidate_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1052,12 +939,8 @@
           "name": "invitations_session_id_interview_sessions_id_fk",
           "tableFrom": "invitations",
           "tableTo": "interview_sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1065,12 +948,8 @@
           "name": "invitations_created_by_profiles_id_fk",
           "tableFrom": "invitations",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1080,9 +959,7 @@
         "invitations_token_unique": {
           "name": "invitations_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -1218,12 +1095,8 @@
           "name": "opening_questions_opening_id_openings_id_fk",
           "tableFrom": "opening_questions",
           "tableTo": "openings",
-          "columnsFrom": [
-            "opening_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["opening_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1359,12 +1232,8 @@
           "name": "openings_org_id_organizations_id_fk",
           "tableFrom": "openings",
           "tableTo": "organizations",
-          "columnsFrom": [
-            "org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["org_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1372,12 +1241,8 @@
           "name": "openings_created_by_profiles_id_fk",
           "tableFrom": "openings",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1425,12 +1290,8 @@
           "name": "org_members_org_id_organizations_id_fk",
           "tableFrom": "org_members",
           "tableTo": "organizations",
-          "columnsFrom": [
-            "org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["org_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1438,12 +1299,8 @@
           "name": "org_members_user_id_profiles_id_fk",
           "tableFrom": "org_members",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1451,19 +1308,14 @@
       "compositePrimaryKeys": {
         "org_members_org_id_user_id_pk": {
           "name": "org_members_org_id_user_id_pk",
-          "columns": [
-            "org_id",
-            "user_id"
-          ]
+          "columns": ["org_id", "user_id"]
         }
       },
       "uniqueConstraints": {
         "org_members_user_id_unique": {
           "name": "org_members_user_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id"
-          ]
+          "columns": ["user_id"]
         }
       },
       "policies": {},
@@ -1525,12 +1377,8 @@
           "name": "organizations_created_by_profiles_id_fk",
           "tableFrom": "organizations",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1540,9 +1388,7 @@
         "organizations_slug_unique": {
           "name": "organizations_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -1598,12 +1444,8 @@
           "tableFrom": "profiles",
           "tableTo": "users",
           "schemaTo": "auth",
-          "columnsFrom": [
-            "id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1703,12 +1545,8 @@
           "name": "reports_session_id_interview_sessions_id_fk",
           "tableFrom": "reports",
           "tableTo": "interview_sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1790,12 +1628,8 @@
           "name": "soft_skill_results_session_id_interview_sessions_id_fk",
           "tableFrom": "soft_skill_results",
           "tableTo": "interview_sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1803,12 +1637,8 @@
           "name": "soft_skill_results_user_id_profiles_id_fk",
           "tableFrom": "soft_skill_results",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1902,12 +1732,8 @@
           "name": "transcript_segments_session_id_interview_sessions_id_fk",
           "tableFrom": "transcript_segments",
           "tableTo": "interview_sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2119,12 +1945,8 @@
           "name": "turns_session_id_interview_sessions_id_fk",
           "tableFrom": "turns",
           "tableTo": "interview_sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2151,13 +1973,7 @@
     "public.event_category": {
       "name": "event_category",
       "schema": "public",
-      "values": [
-        "nonverbal",
-        "vocal",
-        "integrity",
-        "live_vision",
-        "positive"
-      ]
+      "values": ["nonverbal", "vocal", "integrity", "live_vision", "positive"]
     },
     "public.invitation_status": {
       "name": "invitation_status",
@@ -2174,29 +1990,17 @@
     "public.opening_status": {
       "name": "opening_status",
       "schema": "public",
-      "values": [
-        "draft",
-        "active",
-        "closed"
-      ]
+      "values": ["draft", "active", "closed"]
     },
     "public.org_role": {
       "name": "org_role",
       "schema": "public",
-      "values": [
-        "owner",
-        "recruiter"
-      ]
+      "values": ["owner", "recruiter"]
     },
     "public.parse_status": {
       "name": "parse_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "parsing",
-        "parsed",
-        "failed"
-      ]
+      "values": ["pending", "parsing", "parsed", "failed"]
     },
     "public.phase_key": {
       "name": "phase_key",
@@ -2214,31 +2018,17 @@
     "public.question_source": {
       "name": "question_source",
       "schema": "public",
-      "values": [
-        "company",
-        "ai_plan",
-        "ai_followup",
-        "system"
-      ]
+      "values": ["company", "ai_plan", "ai_followup", "system"]
     },
     "public.report_status": {
       "name": "report_status",
       "schema": "public",
-      "values": [
-        "queued",
-        "running",
-        "completed",
-        "failed"
-      ]
+      "values": ["queued", "running", "completed", "failed"]
     },
     "public.review_decision": {
       "name": "review_decision",
       "schema": "public",
-      "values": [
-        "advance",
-        "hold",
-        "reject"
-      ]
+      "values": ["advance", "hold", "reject"]
     },
     "public.role_family": {
       "name": "role_family",
@@ -2254,22 +2044,12 @@
     "public.seniority": {
       "name": "seniority",
       "schema": "public",
-      "values": [
-        "intern",
-        "junior",
-        "mid",
-        "senior",
-        "staff"
-      ]
+      "values": ["intern", "junior", "mid", "senior", "staff"]
     },
     "public.session_kind": {
       "name": "session_kind",
       "schema": "public",
-      "values": [
-        "practice",
-        "company",
-        "preview"
-      ]
+      "values": ["practice", "company", "preview"]
     },
     "public.session_status": {
       "name": "session_status",
@@ -2290,19 +2070,12 @@
     "public.speaker": {
       "name": "speaker",
       "schema": "public",
-      "values": [
-        "ai",
-        "candidate"
-      ]
+      "values": ["ai", "candidate"]
     },
     "public.transcript_source": {
       "name": "transcript_source",
       "schema": "public",
-      "values": [
-        "live",
-        "whisper",
-        "pipeline"
-      ]
+      "values": ["live", "whisper", "pipeline"]
     }
   },
   "schemas": {},

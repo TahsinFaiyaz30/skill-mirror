@@ -43,11 +43,11 @@ export const LEAN_BACK_RATIO = 0.87;
 export const SWAY_STD_SW = 0.06;
 export const SWAY_MIN_MS = 4000;
 export const FIDGET_JERK_THRESHOLD = 0.015;
-export const FIDGET_MAX_RANGE_SW = 0.30;
+export const FIDGET_MAX_RANGE_SW = 0.3;
 export const FIDGET_MIN_MS = 3000;
 export const GESTURE_SPEED_MIN = 0.2;
 export const GESTURE_SPEED_MAX = 2;
-export const SMILE_THRESHOLD = 0.30;
+export const SMILE_THRESHOLD = 0.3;
 export const NOD_PITCH_RANGE_DEG = 6;
 export const READING_SWEEPS = 3;
 export const LANDMARK_LOG_FPS = 10;
@@ -55,7 +55,7 @@ export const SNAPSHOT_RING_SECONDS = 12;
 export const MAX_SNAPSHOTS = 40;
 export const PITCH_WINDOW = 1024;
 export const PITCH_HOP = 512;
-export const PITCH_CLARITY_MIN = 0.90;
+export const PITCH_CLARITY_MIN = 0.9;
 export const PITCH_MIN_HZ = 70;
 export const PITCH_MAX_HZ = 400;
 export const VOICED_RMS_MIN_DB = -45;
@@ -74,28 +74,108 @@ export const MIC_PASS_PEAK_DB = -35;
 export const NOISY_FLOOR_DB = -40;
 export const VIDEO_SEGMENT_MS = 120_000;
 export const VIDEO_OVERLAP_MS = 300;
-export const VIDEO_RECORD_SIZE = { width: 854, height: 480, frameRate: 30, mimeType: "video/webm;codecs=vp8,opus", videoBitsPerSecond: 450000, audioBitsPerSecond: 48000 };
-export const MIC_RECORD = { mimeType: "audio/webm;codecs=opus", audioBitsPerSecond: 32000 };
+export const VIDEO_RECORD_SIZE = {
+  width: 854,
+  height: 480,
+  frameRate: 30,
+  mimeType: "video/webm;codecs=vp8,opus",
+  videoBitsPerSecond: 450000,
+  audioBitsPerSecond: 48000,
+};
+export const MIC_RECORD = {
+  mimeType: "audio/webm;codecs=opus",
+  audioBitsPerSecond: 32000,
+};
 export const PERIODIC_UPLOAD_MS = 60_000;
 export const INTERRUPTED_AFTER_MS = 600_000;
 export const PARTIAL_MIN_MS = 300_000;
-export const MAX_ANSWER_MS = { intro: 0, calibration: 90000, cv_deep_dive: 180000, behavioral: 180000, technical: 180000, presentation: 0, presentation_followup: 120000, candidate_questions: 90000, close: 0 };
+export const MAX_ANSWER_MS = {
+  intro: 0,
+  calibration: 90000,
+  cv_deep_dive: 180000,
+  behavioral: 180000,
+  technical: 180000,
+  presentation: 0,
+  presentation_followup: 120000,
+  candidate_questions: 90000,
+  close: 0,
+};
 export const PRACTICE_TEMPLATES = {
-  10: { budgets: { intro_calibration: 90000, behavioral: 120000, technical: 240000, presentation: 120000, close: 30000 }, behavioralCount: 1, techCount: 2, techMaxItems: 3, talkMs: 60000, interruptAtMs: null },
-  20: { budgets: { intro_calibration: 120000, behavioral: 270000, technical: 480000, presentation: 210000, candidate_questions: 90000, close: 30000 }, behavioralCount: 2, techCount: 3, techMaxItems: 4, talkMs: 120000, interruptAtMs: 70000 },
+  10: {
+    budgets: {
+      intro_calibration: 90000,
+      behavioral: 120000,
+      technical: 240000,
+      presentation: 120000,
+      close: 30000,
+    },
+    behavioralCount: 1,
+    techCount: 2,
+    techMaxItems: 3,
+    talkMs: 60000,
+    interruptAtMs: null,
+  },
+  20: {
+    budgets: {
+      intro_calibration: 120000,
+      behavioral: 270000,
+      technical: 480000,
+      presentation: 210000,
+      candidate_questions: 90000,
+      close: 30000,
+    },
+    behavioralCount: 2,
+    techCount: 3,
+    techMaxItems: 4,
+    talkMs: 120000,
+    interruptAtMs: 70000,
+  },
 } as const;
 export const COMPANY_BUDGET = {
-  weights: { cv_deep_dive: 2, behavioral: 3, technical: 5, presentation: 2.5, candidate_questions: 1 },
-  safetyMs: 30000, closingMs: 30000, shortIntroMs: 90000, longIntroMs: 120000,
-  questionsCapMs: 120000, presentationMinMs: 120000, presentationLongMs: 210000,
-  roundMs: 15000, behavioralItemMs: 135000, cvItemMs: 150000, technicalItemMs: 75000,
+  weights: {
+    cv_deep_dive: 2,
+    behavioral: 3,
+    technical: 5,
+    presentation: 2.5,
+    candidate_questions: 1,
+  },
+  safetyMs: 30000,
+  closingMs: 30000,
+  shortIntroMs: 90000,
+  longIntroMs: 120000,
+  questionsCapMs: 120000,
+  presentationMinMs: 120000,
+  presentationLongMs: 210000,
+  roundMs: 15000,
+  behavioralItemMs: 135000,
+  cvItemMs: 150000,
+  technicalItemMs: 75000,
 };
-export const PRESENTATION_TIMING = { prepMs: 30000, shortTalkMs: 60000, longTalkMs: 120000, interruptAtMs: 70000 };
+export const PRESENTATION_TIMING = {
+  prepMs: 30000,
+  shortTalkMs: 60000,
+  longTalkMs: 120000,
+  interruptAtMs: 70000,
+};
 export const SCORING = {
-  strictness: { lenient: { pass: 2.5, fail: 1.5 }, balanced: { pass: 2.75, fail: 1.75 }, strict: { pass: 3, fail: 2 } },
+  strictness: {
+    lenient: { pass: 2.5, fail: 1.5 },
+    balanced: { pass: 2.75, fail: 1.75 },
+    strict: { pass: 3, fail: 2 },
+  },
   practiceWeights: { technical: 55, behavioral: 15, cv: 0, soft: 30 },
   companyWeights: { technical: 45, behavioral: 20, cv: 15, soft: 20 },
-  stressWeights: { blink: .1, brow: .1, lip: .1, fidget: .15, touch: .1, gaze: .15, pitch: .1, filler: .15, latency: .05 },
+  stressWeights: {
+    blink: 0.1,
+    brow: 0.1,
+    lip: 0.1,
+    fidget: 0.15,
+    touch: 0.1,
+    gaze: 0.15,
+    pitch: 0.1,
+    filler: 0.15,
+    latency: 0.05,
+  },
   levelMinimums: [0, 40, 55, 70, 85],
   levels: ["Emerging", "Developing", "Proficient", "Advanced", "Exemplary"],
   recommendationMargin: 15,

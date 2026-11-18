@@ -3,6 +3,10 @@ import { Shell } from "@/components/shell/shell";
 import { Dashboard } from "@/components/interview/dashboard";
 export default async function Page() {
   const user = await getUser();
-  const profile = user && await getProfile(user.id);
-  return <Shell><Dashboard firstName={profile?.fullName.trim().split(/\s+/)[0] ?? ""} /></Shell>;
+  const profile = user && (await getProfile(user.id));
+  return (
+    <Shell>
+      <Dashboard firstName={profile?.fullName.trim().split(/\s+/)[0] ?? ""} />
+    </Shell>
+  );
 }

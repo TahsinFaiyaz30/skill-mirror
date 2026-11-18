@@ -1,5 +1,25 @@
 {
-  "scored": { "overallScore": 57, "technical": 41, "behavioral": 75, "soft": 75, "maturityScore": 75 },
-  "coaching_only": { "overallScore": 58, "technical": 41, "behavioral": 75, "soft": 78, "maturityScore": 75 },
-  "dimensions": { "executive_presence": 100, "composure": 75, "clarity_structure": 92, "engagement": 40, "ownership": 75, "persuasion": 75, "vocal_confidence": 71 }
+  "scored": {
+    "overallScore": 57,
+    "technical": 41,
+    "behavioral": 75,
+    "soft": 75,
+    "maturityScore": 75
+  },
+  "coaching_only": {
+    "overallScore": 58,
+    "technical": 41,
+    "behavioral": 75,
+    "soft": 78,
+    "maturityScore": 75
+  },
+  "dimensions": {
+    "executive_presence": 100,
+    "composure": 75,
+    "clarity_structure": 92,
+    "engagement": 40,
+    "ownership": 75,
+    "persuasion": 75,
+    "vocal_confidence": 71
+  }
 }

@@ -16,7 +16,10 @@ tone.write("data", 36);
 tone.writeUInt32LE(rate * 2, 40);
 for (let i = 0; i < rate; i++) {
   const envelope = Math.min(1, i / 480, (rate - i) / 480);
-  tone.writeInt16LE(Math.round(Math.sin(2 * Math.PI * 440 * i / rate) * 6000 * envelope), 44 + i * 2);
+  tone.writeInt16LE(
+    Math.round(Math.sin((2 * Math.PI * 440 * i) / rate) * 6000 * envelope),
+    44 + i * 2,
+  );
 }
 await mkdir("public/audio", { recursive: true });
 await writeFile("public/audio/tone-check.wav", tone);
