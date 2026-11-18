@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { CompanyInvites } from "./company-invites";
 import { ClipboardList } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { errorMessage, requestJSON, send, showError } from "@/lib/utils/client";
@@ -13,6 +14,8 @@ export function Dashboard({ firstName }: { firstName: string }) {
   const router = useRouter();
   const sessions = useQuery({ queryKey: ["sessions"], queryFn: () => requestJSON<{ items: DashboardSession[] }>("/api/sessions") });
   const items = sessions.data?.items ?? [];
+  const progress = useQuery({ queryKey: ["progress"], queryFn: () => requestJSON<{ competencies: Record<string, { ceiling: number | null }[]> }>("/api/progress") });
+  const ceilings = Object.values(progress.data?.competencies ?? {}).flat().map((item) => item.ceiling).filter((value): value is number => value !== null);
   const completed = items.filter((item) => item.displayStatus === "completed");
   const latest = completed[0]?.overallScore, first = completed.at(-1)?.overallScore;
   const gain = latest != null && first != null && completed.length > 1 ? latest - first : null;
@@ -25,8 +28,9 @@ export function Dashboard({ firstName }: { firstName: string }) {
     <div className="grid-3">
       <div className="card stack-sm"><small>Interviews completed</small><strong className="mono text-2xl">{completed.length}</strong></div>
       <div className="card stack-sm"><small>Latest overall score</small><strong className="mono text-2xl">{latest ?? "—"} {gain !== null && <span className="badge accent">{gain >= 0 ? "+" : ""}{gain} since first</span>}</strong></div>
-      <div className="card stack-sm"><small>Best technical ceiling</small><strong className="mono text-2xl">—</strong></div>
+      <div className="card stack-sm"><small>Best technical ceiling</small><strong className="mono text-2xl">{ceilings.length ? Math.max(...ceilings) : "—"}</strong></div>
     </div>
+    <CompanyInvites />
     <section className="stack"><h2>Practice sessions</h2>
       {sessions.isPending ? <p role="status">Loading interviews…</p> : sessions.isError ? <div className="card stack"><p role="alert" className="danger">{errorMessage(sessions.error)}</p><button className="button secondary" onClick={() => void sessions.refetch()}>Retry</button></div> : !items.length ? <div className="card stack center"><ClipboardList className="mx-auto" size={32} /><h3>No interviews yet</h3><div><Link className="button" href="/interview/new">New interview</Link></div></div> :
       <div className="card scroll"><table><thead><tr>{["Role", "Company", "Date", "Length", "Status", "Score", "Action"].map((label) => <th key={label} scope="col">{label}</th>)}</tr></thead>
