@@ -22,6 +22,7 @@ export type LiveEvent =
       name: string;
       args: Record<string, unknown>;
     }
+  | { type: "toolCallCancelled"; ids: string[] }
   | { type: "goAway"; timeLeftMs: number }
   | { type: "resumptionHandle"; handle: string }
   | { type: "closed"; intentional: boolean }
@@ -36,6 +37,7 @@ export interface InterviewerClient {
   sendAudio(frame: Int16Array): void;
   sendFrame(jpegBase64: string): void;
   sendText(text: string): void;
+  sendAudioStreamEnd?(): void;
   close(): void;
   respond?(id: string, name: string, response: Record<string, unknown>): void;
   transcribe?(): Promise<string>;

@@ -164,7 +164,6 @@ export async function generatePlan(
           }),
           blueprintResponseSchema,
           {
-            temperature: 0.4,
             thinking: "high",
             validate: (plan) => {
               if (
@@ -243,7 +242,6 @@ export async function generatePlan(
       if (!mock) {
         try {
           const response = await geminiJSON(prompt, ladderSchema, {
-            temperature: 0.5,
             thinking: "medium",
             validate: (response) => {
               for (const level of levels) {

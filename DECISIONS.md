@@ -16,6 +16,10 @@
 - The browser keeps a separate microphone-only Web Audio destination so a replacement mic can resume the recording without changing the track already owned by the recorder.
 - The candidate question phase starts its 90-second cap as soon as the interviewer finishes the handoff. If the provider returns zero usable ladder questions after two attempts, the interview uses local competency questions. When any generated questions are usable, empty slots are filled from nearby levels.
 - Mock question import uses a sample question for PDFs. Pasted text, plain-text files, and DOCX files use their supplied text. Live and pipeline mode pass the PDF content to the configured importer.
+- `@google/genai` (v3.6.0) uses the default API version (`v1`) for Interactions API calls (`gemini-3.8-flash` and `gemini-3.8-flash-lite-tts`), while `v1alpha` is restricted to ephemeral Live auth tokens (`authTokens.create` and browser `live.connect`).
+- `gemini-3.8-flash` Interactions API calls (`P1`, `P2`, `P3`, `P4` fallback, `P7`, `P8`, `P9`, `P10`) omit deprecated sampling parameters (`temperature`, `top_p`, `top_k`) from `generation_config` and pass `response_format` at the top level with a sanitized JSON Schema (`$schema` and `maxItems > 10` omitted for constrained decoding, while full Zod validation remains enforced on parsed output). Groq calls retain their specified `temperature` settings.
+- `gemini-3.8-flash-lite-tts` calls (`speakGemini` and `scripts/voice-previews.mjs`) keep `input` text strictly verbatim inside `user_input` content blocks, supply the delivery style via `speech_metadata` annotations, request `response_format: { type: "audio", mime_type: "audio/wav" }`, and verify the `RIFF`/`WAVE` header.
+- `gemini-3.8-live` ephemeral tokens lock the full session config (`Modality.AUDIO`, `speechConfig`, `systemInstruction` via `P5`, input/output transcription, `MEDIA_RESOLUTION_LOW`, low-sensitivity VAD, echo-safe `NO_INTERRUPTION` when applicable, sliding-window context compression, session resumption, and `NON_BLOCKING` `next_step` / `flag_observation` tools) while omitting `thinkingConfig`, `proactiveAudio`, and `enableAffectiveDialog`. The Live client races `live.connect` against a 12 s handshake timeout, handles `toolCallCancellation` and `audioStreamEnd`, and the turn engine ignores pre-audio `modelTurnComplete` frames before a directive's speech is relayed.
 
 ## Camera fixture
 
@@ -25,7 +29,7 @@ The built-in image generation tool produced the fictional webcam frame for `test
 
 ## Local verification
 
-- On 19 November 2026, lint, typecheck, the production build, 90 Vitest tests, and both mock Playwright flows passed. The browser tests checked Light and Dark baselines, a recorded clip, candidate feedback visibility, and recruiter comparisons.
+- On 19 November 2026, lint, typecheck, the production build, 98 Vitest tests (90 existing + 8 Gemini/Live contract tests), and both mock Playwright flows passed. The browser tests checked Light and Dark baselines, a recorded clip, candidate feedback visibility, and recruiter comparisons.
 - Lighthouse accessibility scored 100 for the landing page, 100 for the dashboard, and 97 for the practice report in both themes on the production build. Short timeline bars are flagged as small targets. The timeline seek control and the question list also open clips.
 - The production build issued a mock practice certificate and verified its signature through the public endpoint. Excel treated an exported candidate name beginning with `=` as text.
 

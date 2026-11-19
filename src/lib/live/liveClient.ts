@@ -14,6 +14,8 @@ import {
   type LiveListener,
 } from "./directives";
 
+export const CONNECT_TIMEOUT_MS = 12_000;
+
 export class LiveInterviewerClient implements InterviewerClient {
   private socket: Session | null = null;
   private intentional = false;
@@ -30,37 +32,70 @@ export class LiveInterviewerClient implements InterviewerClient {
       apiKey: token,
       httpOptions: { apiVersion: "v1alpha" },
     });
-    let ready: () => void, reject: (error: unknown) => void;
-    const setup = new Promise<void>((resolve, fail) => {
+    let ready!: () => void;
+    let failSetup!: (error: unknown) => void;
+    let failRace!: (error: unknown) => void;
+    const setup = new Promise<void>((resolve, reject) => {
       ready = resolve;
-      reject = fail;
+      failSetup = reject;
+    });
+    const aborted = new Promise<never>((_, reject) => {
+      failRace = reject;
     });
     void setup.catch(() => {});
-    const timer = setTimeout(
-      () => reject(new Error("The interviewer did not finish connecting.")),
-      8000,
-    );
+    void aborted.catch(() => {});
+    let timedOut = false;
+    let setupSeen = false;
+    const abort = (error: unknown) => {
+      failSetup(error);
+      failRace(error);
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      abort(new Error("The interviewer did not finish connecting."));
+    }, CONNECT_TIMEOUT_MS);
     try {
-      this.socket = await ai.live.connect({
+      const connectPromise = ai.live.connect({
         model,
         config: {},
         callbacks: {
           onopen: () => {},
           onmessage: (message) => {
-            if (message.setupComplete) ready();
+            if (message.setupComplete) {
+              setupSeen = true;
+              ready();
+            }
             this.message(message);
           },
           onerror: (error) => {
-            reject(error);
-            this.emit({ type: "error", error });
+            abort(error);
+            if (!this.intentional && !timedOut)
+              this.emit({ type: "error", error });
           },
           onclose: () => {
-            reject(new Error("The interviewer connection closed."));
-            this.emit({ type: "closed", intentional: this.intentional });
+            abort(new Error("The interviewer connection closed."));
+            if (!timedOut)
+              this.emit({ type: "closed", intentional: this.intentional });
           },
         },
       });
-      await setup;
+      void connectPromise.then(
+        (lateSocket) => {
+          if (timedOut) {
+            try {
+              lateSocket.close();
+            } catch {
+              /* Ignore late socket close failures. */
+            }
+          }
+        },
+        () => {},
+      );
+      const socket = await Promise.race([connectPromise, aborted]);
+      this.socket = socket;
+      if (!setupSeen && !(socket as { setupComplete?: unknown }).setupComplete) {
+        await Promise.race([setup, aborted]);
+      }
     } catch (error) {
       this.close();
       throw error;
@@ -71,10 +106,16 @@ export class LiveInterviewerClient implements InterviewerClient {
   private message(msg: LiveServerMessage) {
     const content = msg.serverContent;
     if (content?.interrupted) this.emit({ type: "interrupted" });
+    if (content?.inputTranscription?.text)
+      this.emit({
+        type: "inputTranscript",
+        text: content.inputTranscription.text,
+      });
     for (const part of content?.modelTurn?.parts ?? []) {
       if (
-        part.inlineData?.mimeType?.startsWith("audio/") &&
-        part.inlineData.data
+        part.inlineData?.data &&
+        (!part.inlineData.mimeType ||
+          part.inlineData.mimeType.startsWith("audio/"))
       )
         this.emit({
           type: "audioChunk",
@@ -86,11 +127,6 @@ export class LiveInterviewerClient implements InterviewerClient {
         type: "outputTranscript",
         text: content.outputTranscription.text,
       });
-    if (content?.inputTranscription?.text)
-      this.emit({
-        type: "inputTranscript",
-        text: content.inputTranscription.text,
-      });
     if (content?.turnComplete) this.emit({ type: "modelTurnComplete" });
     for (const call of msg.toolCall?.functionCalls ?? [])
       if (call.id && call.name)
@@ -100,14 +136,23 @@ export class LiveInterviewerClient implements InterviewerClient {
           name: call.name,
           args: call.args ?? {},
         });
+    if (msg.toolCallCancellation?.ids?.length)
+      this.emit({
+        type: "toolCallCancelled",
+        ids: msg.toolCallCancellation.ids,
+      });
     const resumption = msg.sessionResumptionUpdate;
     if (resumption?.resumable && resumption.newHandle)
       this.emit({ type: "resumptionHandle", handle: resumption.newHandle });
-    if (msg.goAway)
+    if (msg.goAway) {
+      const seconds = parseFloat(msg.goAway.timeLeft ?? "0");
       this.emit({
         type: "goAway",
-        timeLeftMs: Math.round(parseFloat(msg.goAway.timeLeft ?? "0") * 1000),
+        timeLeftMs: Number.isFinite(seconds)
+          ? Math.max(0, Math.round(seconds * 1000))
+          : 0,
       });
+    }
   }
   deliverDirective(directive: Directive, pendingToolCallId: string | null) {
     if (pendingToolCallId) {
@@ -142,6 +187,9 @@ export class LiveInterviewerClient implements InterviewerClient {
     this.socket?.sendRealtimeInput({
       audio: { data: encodePCM(frame), mimeType: "audio/pcm;rate=16000" },
     });
+  }
+  sendAudioStreamEnd() {
+    this.socket?.sendRealtimeInput({ audioStreamEnd: true });
   }
   sendFrame(data: string) {
     this.socket?.sendRealtimeInput({ video: { data, mimeType: "image/jpeg" } });

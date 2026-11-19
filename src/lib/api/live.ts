@@ -20,7 +20,7 @@ import {
   turns,
   type SessionRow,
 } from "@/lib/db/schema";
-import { gemini } from "@/lib/ai/gemini";
+import { geminiLiveAuth } from "@/lib/ai/gemini";
 import { evaluateAnswer, interruptChallenge } from "@/lib/ai/evaluate";
 import { p5 } from "@/lib/ai/prompts/p5_live";
 import {
@@ -42,7 +42,7 @@ import {
 } from "@/lib/strategist/engine";
 import type { Item, InterviewContext } from "@/lib/strategist/state";
 import { owner } from "./session";
-import { body, fail, json, route, type Params } from "@/lib/utils/http";
+import { ApiError, body, fail, json, route, type Params } from "@/lib/utils/http";
 
 export const ms = z
   .number()
@@ -417,37 +417,33 @@ const flagObservation = {
     required: ["type", "description"],
   },
 };
-export const token = route(async (request) => {
-  const { sessionId, resumptionHandle } = await body(
-    request,
-    z.object({
-      sessionId: z.uuid(),
-      resumptionHandle: z.string().max(4000).optional(),
-    }),
-  );
-  const { session } = await requireSessionAccess(sessionId, owner);
-  if (
-    session.aiMode !== "live" ||
-    !["ready", "in_progress"].includes(session.status)
-  )
-    fail("CONFLICT", "A live connection is unavailable for this interview.");
-  const interview = await interviewContext(session);
-  const model = serverEnv().MODEL_LIVE;
-  const expiresAtEpochMs = Date.now() + LIVE_TOKEN_TTL_MS;
-  const config: LiveConnectConfig = {
+export function buildLiveConnectConfig(
+  session: SessionRow,
+  interview: InterviewContext,
+  resumptionHandle?: string,
+): LiveConnectConfig {
+  return {
     responseModalities: [Modality.AUDIO],
     speechConfig: {
       voiceConfig: { prebuiltVoiceConfig: { voiceName: session.voiceName } },
     },
-    systemInstruction: p5({
-      interviewerName: interview.plan.persona.interviewer_name,
-      interviewerStyle: interview.plan.persona.style.replace(/\.$/, ""),
-      company: session.company,
-      candidateFirstName: interview.firstName,
-      seniority: session.seniority,
-      roleTitle: session.roleTitle,
-      toneInstructions: session.config.ai.toneInstructions,
-    }),
+    systemInstruction: {
+      parts: [
+        {
+          text: p5({
+            interviewerName:
+              session.config.ai.interviewerName ||
+              interview.plan.persona.interviewer_name,
+            interviewerStyle: interview.plan.persona.style.replace(/\.$/, ""),
+            company: session.company,
+            candidateFirstName: interview.firstName,
+            seniority: session.seniority,
+            roleTitle: session.roleTitle,
+            toneInstructions: session.config.ai.toneInstructions,
+          }),
+        },
+      ],
+    },
     inputAudioTranscription: {},
     outputAudioTranscription: {},
     mediaResolution: MediaResolution.MEDIA_RESOLUTION_LOW,
@@ -467,8 +463,28 @@ export const token = route(async (request) => {
     sessionResumption: resumptionHandle ? { handle: resumptionHandle } : {},
     tools: [{ functionDeclarations: [nextStep, flagObservation] }],
   };
+}
+
+export const token = route(async (request) => {
+  const { sessionId, resumptionHandle } = await body(
+    request,
+    z.object({
+      sessionId: z.uuid(),
+      resumptionHandle: z.string().max(4000).optional(),
+    }),
+  );
+  const { session } = await requireSessionAccess(sessionId, owner);
+  if (
+    session.aiMode !== "live" ||
+    !["ready", "in_progress"].includes(session.status)
+  )
+    fail("CONFLICT", "A live connection is unavailable for this interview.");
+  const interview = await interviewContext(session);
+  const model = serverEnv().MODEL_LIVE;
+  const expiresAtEpochMs = Date.now() + LIVE_TOKEN_TTL_MS;
+  const config = buildLiveConnectConfig(session, interview, resumptionHandle);
   try {
-    const result = await gemini().authTokens.create({
+    const result = await geminiLiveAuth().authTokens.create({
       config: {
         uses: 1,
         expireTime: new Date(expiresAtEpochMs).toISOString(),
@@ -481,7 +497,13 @@ export const token = route(async (request) => {
     if (!result.name)
       fail("AI_UNAVAILABLE", "The interviewer could not connect. Try again.");
     return json({ token: result.name, model, expiresAtEpochMs });
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    const info = error as { name?: string; status?: number; statusCode?: number };
+    console.warn("SkillMirror live token creation failed", {
+      type: info?.name,
+      status: info?.status ?? info?.statusCode,
+    });
     fail("AI_UNAVAILABLE", "The interviewer could not connect. Try again.");
   }
 });

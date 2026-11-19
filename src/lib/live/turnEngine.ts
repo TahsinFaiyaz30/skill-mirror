@@ -384,8 +384,11 @@ export class TurnEngine {
       turn.relayed = true;
       if (event.type === "audioChunk") this.playback?.play(event.audio);
     } else if (event.type === "modelTurnComplete") {
+      if (this.stage === "AI_SPEAKING" && !turn.relayed) return;
       turn.complete = true;
       this.speechComplete();
+    } else if (event.type === "toolCallCancelled") {
+      if (turn.toolId && event.ids.includes(turn.toolId)) turn.toolId = null;
     } else if (event.type === "interrupted" && this.stage === "AI_SPEAKING") {
       this.playback?.clear();
       turn.relayed = true;
@@ -999,6 +1002,7 @@ export class TurnEngine {
   private watchTrack(track: MediaStreamTrack) {
     track.onended = () => {
       if (this.closing) return;
+      if (track.kind === "audio") this.client?.sendAudioStreamEnd?.();
       this.deviceAt ??= this.clock();
       this.disconnectedTrack = track;
       this.store.setState({ deviceLost: true });

@@ -151,7 +151,7 @@ export const importQuestions = route(async (request, context: Params<"id">) => {
         documentTextOrSeeAttachment: text,
       }),
       importSchema,
-      { temperature: 0.1, inline },
+      { inline },
     );
     return json({
       questions: result.questions.map((value) => ({
@@ -224,7 +224,6 @@ export const generateQuestions = route(
           taxonomyKeys: keys,
         }),
         generateSchema,
-        { temperature: 0.5 },
       );
       return json({
         questions: result.questions.map((q) => apiQuestion(q, "ai_generated")),
@@ -255,7 +254,6 @@ export const enrichQuestion = route(async (request, context: Params<"id">) => {
         "enrich",
       ),
       enrichSchema,
-      { temperature: 0.5 },
     );
     return json({ question: apiQuestion(result.question, "manual") });
   } catch {

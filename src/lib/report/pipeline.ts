@@ -472,7 +472,7 @@ export async function processInterview(
         const { turns: results } = await geminiJSON(
           p7({ turnWindowsJson: JSON.stringify(windows) }),
           toneSchema,
-          { temperature: 0.2, inline: attachment("audio", "audio/webm", mic) },
+          { inline: attachment("audio", "audio/webm", mic) },
         );
         await database.transaction(async (tx) => {
           await tx
@@ -773,7 +773,7 @@ async function narrative(
       candidatesJson: JSON.stringify(candidates),
     }),
     narrativeSchema,
-    { thinking: "medium", temperature: 0.4, timeout: 90000 },
+    { thinking: "medium", timeout: 90000 },
   );
   const byId = new Map(candidates.map((c) => [c.id, c]));
   const chosen = new Set<string>();

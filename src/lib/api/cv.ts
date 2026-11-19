@@ -89,7 +89,6 @@ export const parseCv = route(async (_request, context: Params<"cvId">) => {
         : {
             ...(await geminiJSON(p1({}), parsedCvSchema, {
               inline: attachment("document", "application/pdf", pdf),
-              temperature: 0.1,
             })),
             skills_removed: [],
           };

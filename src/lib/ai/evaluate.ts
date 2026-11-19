@@ -91,17 +91,15 @@ export async function evaluateAnswer(
         : metricsSummary(input, session.baseline),
     transcriptLast6000Chars: input.transcript.slice(-6000),
   });
-  const settings = {
-    temperature: 0.2,
-    maxTokens: 900,
-    validate: (output: import("@/types/interview").P4Output) =>
-      validateRubric(item.kind, output),
-  };
+  const validate = (output: import("@/types/interview").P4Output) =>
+    validateRubric(item.kind, output);
   if (!rescore) {
     try {
       return {
         output: await groqJSON(prompt, p4Schema, {
-          ...settings,
+          temperature: 0.2,
+          maxTokens: 900,
+          validate,
           timeout: STRATEGIST_TIMEOUT_MS,
         }),
         source: "groq",
@@ -113,7 +111,8 @@ export async function evaluateAnswer(
   try {
     return {
       output: await geminiJSON(prompt, p4Schema, {
-        ...settings,
+        maxTokens: 900,
+        validate,
         thinking: "low",
         timeout: GEMINI_STRATEGIST_TIMEOUT_MS,
       }),
