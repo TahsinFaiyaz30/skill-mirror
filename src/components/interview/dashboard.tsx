@@ -152,7 +152,7 @@ export function Dashboard({ firstName }: { firstName: string }) {
           New interview
         </Link>
       </div>
-      <div className="grid-3">
+      <div className="grid-3 stagger">
         <div className="card stat">
           <span className="stat-icon">
             <CircleCheck size={19} aria-hidden="true" />

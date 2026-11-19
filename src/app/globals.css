@@ -556,7 +556,8 @@ label.card {
   transition:
     border-color 0.2s ease,
     background-color 0.2s ease,
-    box-shadow 0.2s ease;
+    box-shadow 0.2s ease,
+    transform 0.25s var(--ease-out);
 }
 a.card:hover,
 label.card:hover {
@@ -739,7 +740,8 @@ label.inset:has(input:checked) {
     background-color 0.18s ease,
     border-color 0.18s ease,
     box-shadow 0.18s ease,
-    color 0.18s ease;
+    color 0.18s ease,
+    transform 0.18s var(--ease-out);
 }
 .button:hover {
   background-color: var(--primary-hover);
@@ -1770,6 +1772,121 @@ details summary {
   }
   h1 {
     font-size: 29px;
+  }
+}
+/*
+ * Light motion only: things ease in once and lift a little on hover.
+ * Nothing loops, and all of it is off when the OS asks for reduced motion.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(-16px);
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -48%) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%);
+    }
+  }
+  .page,
+  .auth-card {
+    animation: rise 0.4s var(--ease-out) both;
+  }
+  .stagger > * {
+    animation: rise 0.45s var(--ease-out) both;
+  }
+  .stagger > :nth-child(2) {
+    animation-delay: 0.06s;
+  }
+  .stagger > :nth-child(3) {
+    animation-delay: 0.12s;
+  }
+  .stagger > :nth-child(4) {
+    animation-delay: 0.18s;
+  }
+  .lp-hero-copy > * {
+    animation: rise 0.6s var(--ease-out) both;
+  }
+  .lp-hero-copy > :nth-child(2) {
+    animation-delay: 0.05s;
+  }
+  .lp-hero-copy > :nth-child(3) {
+    animation-delay: 0.1s;
+  }
+  .lp-hero-copy > :nth-child(4) {
+    animation-delay: 0.15s;
+  }
+  .lp-hero-copy > :nth-child(n + 5) {
+    animation-delay: 0.2s;
+  }
+  .lp-visual {
+    animation: rise 0.7s var(--ease-out) 0.15s both;
+  }
+  .drawer[data-state="open"] {
+    animation: slide-in 0.25s var(--ease-out);
+  }
+  .dialog-overlay[data-state="open"] {
+    animation: fade 0.2s ease-out;
+  }
+  .dialog-content[data-state="open"] {
+    animation: pop 0.22s var(--ease-out);
+  }
+  .button:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+  .button:active:not(:disabled) {
+    transform: none;
+  }
+  a.card:hover,
+  label.card:hover {
+    transform: translateY(-2px);
+  }
+  /* Landing sections ease in once as they scroll into view. */
+  html[data-reveal-ready] [data-reveal] {
+    opacity: 0;
+    transform: translateY(18px);
+    transition:
+      opacity 0.6s var(--ease-out),
+      transform 0.6s var(--ease-out),
+      border-color 0.2s ease;
+  }
+  html[data-reveal-ready] [data-reveal]:nth-child(2) {
+    transition-delay: 0.08s;
+  }
+  html[data-reveal-ready] [data-reveal]:nth-child(3) {
+    transition-delay: 0.16s;
+  }
+  html[data-reveal-ready] [data-reveal]:nth-child(4) {
+    transition-delay: 0.24s;
+  }
+  html[data-reveal-ready] [data-reveal][data-shown] {
+    opacity: 1;
+    transform: none;
   }
 }
 @media print {

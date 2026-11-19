@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   Video,
 } from "lucide-react";
+import { Reveal } from "@/components/common/reveal";
 import { Brand } from "@/components/shell/brand";
 import { PRACTICE_TEMPLATES } from "@/lib/config/constants";
 import { PHASE_LABELS } from "@/lib/config/taxonomy";
@@ -358,14 +359,14 @@ export default function Landing() {
 
         <section className="lp-statement" aria-label="What SkillMirror is">
           <div className="container">
-            <p>
+            <p data-reveal>
               <span>SkillMirror is an AI interview practice platform.</span> You
               answer real questions out loud while a live AI interviewer adapts
               to every answer. It reads your voice and body language, scores
               your technical depth from level 1 to 5, and then shows you what to
               change, with the video to prove it.
             </p>
-            <ul className="lp-stat-row">
+            <ul className="lp-stat-row" data-reveal>
               <li>
                 <MessagesSquare size={20} aria-hidden="true" />
                 <b>Adaptive</b>
@@ -398,7 +399,7 @@ export default function Landing() {
 
         <section id="how-it-works" className="lp-section">
           <div className="container">
-            <div className="lp-section-head">
+            <div className="lp-section-head" data-reveal>
               <span className="eyebrow">How it works</span>
               <h2 className="lp-h2">
                 How a SkillMirror interview{" "}
@@ -411,7 +412,7 @@ export default function Landing() {
             </div>
             <ol className="lp-steps">
               {steps.map(([Icon, title, detail], index) => (
-                <li className="lp-step" key={title}>
+                <li className="lp-step" key={title} data-reveal>
                   <div className="lp-step-top">
                     <span className="lp-icon">
                       <Icon size={22} aria-hidden="true" />
@@ -430,7 +431,7 @@ export default function Landing() {
 
         <section id="what-we-measure" className="lp-section lp-alt">
           <div className="container">
-            <div className="lp-section-head">
+            <div className="lp-section-head" data-reveal>
               <span className="eyebrow">What we measure</span>
               <h2 className="lp-h2">
                 Every answer. Every gesture.{" "}
@@ -442,7 +443,7 @@ export default function Landing() {
               </p>
             </div>
             <div className="lp-measures">
-              <article className="lp-measure">
+              <article className="lp-measure" data-reveal>
                 <div className="lp-viz" aria-hidden="true">
                   <div className="lp-ladder">
                     <div>
@@ -468,7 +469,7 @@ export default function Landing() {
                 <h3>Technical ceiling</h3>
                 <p>Difficulty adapts after each answer.</p>
               </article>
-              <article className="lp-measure">
+              <article className="lp-measure" data-reveal>
                 <div className="lp-viz" aria-hidden="true">
                   <svg className="lp-pose" viewBox="0 0 300 168">
                     <g fill="none" stroke="#fd7c68" strokeWidth="1.5">
@@ -515,7 +516,7 @@ export default function Landing() {
                 <h3>Body language</h3>
                 <p>Gaze, posture and gestures relative to your baseline.</p>
               </article>
-              <article className="lp-measure">
+              <article className="lp-measure" data-reveal>
                 <div className="lp-viz" aria-hidden="true">
                   <div className="lp-voice">
                     <div className="lp-voice-head">
@@ -559,7 +560,7 @@ export default function Landing() {
 
         <section id="sample-report" className="lp-section lp-deep">
           <div className="container lp-report">
-            <div className="stack" style={{ gap: 22 }}>
+            <div className="stack" style={{ gap: 22 }} data-reveal>
               <span className="eyebrow">Sample report</span>
               <h2 className="lp-h2">
                 Feedback you can <span className="grad-text">replay.</span>
@@ -584,7 +585,7 @@ export default function Landing() {
                 ))}
               </ul>
             </div>
-            <div className="lp-report-card" aria-hidden="true">
+            <div className="lp-report-card" data-reveal aria-hidden="true">
               <div className="lp-report-top">
                 <div className="stack-sm" style={{ gap: 4 }}>
                   <span className="eyebrow">Interview report</span>
@@ -646,7 +647,7 @@ export default function Landing() {
         <section id="hiring" className="lp-section">
           <div className="container">
             <div className="lp-hiring">
-              <div className="stack" style={{ gap: 22 }}>
+              <div className="stack" style={{ gap: 22 }} data-reveal>
                 <span className="eyebrow">For hiring teams</span>
                 <h2 className="lp-h2">
                   Run real first-round interviews{" "}
@@ -678,7 +679,7 @@ export default function Landing() {
                   </Link>
                 </div>
               </div>
-              <div className="lp-compare" aria-hidden="true">
+              <div className="lp-compare" data-reveal aria-hidden="true">
                 <div className="cluster between">
                   <strong>Compare candidates</strong>
                   <span className="badge">2 selected</span>
@@ -720,7 +721,7 @@ export default function Landing() {
 
         <section className="lp-section lp-alt">
           <div className="container">
-            <div className="lp-section-head center">
+            <div className="lp-section-head center" data-reveal>
               <span className="eyebrow">Privacy by design</span>
               <h2 className="lp-h2">You stay in control of your data.</h2>
             </div>
@@ -744,7 +745,11 @@ export default function Landing() {
               ].map(([Icon, title, text]) => {
                 const TrustIcon = Icon as typeof Eye;
                 return (
-                  <article className="lp-trust-item" key={String(title)}>
+                  <article
+                    className="lp-trust-item"
+                    key={String(title)}
+                    data-reveal
+                  >
                     <span className="lp-icon">
                       <TrustIcon size={22} aria-hidden="true" />
                     </span>
@@ -759,11 +764,11 @@ export default function Landing() {
 
         <section id="faq" className="lp-section">
           <div className="container">
-            <div className="lp-section-head center">
+            <div className="lp-section-head center" data-reveal>
               <span className="eyebrow">FAQ</span>
               <h2 className="lp-h2">Questions, answered.</h2>
             </div>
-            <div className="lp-faq">
+            <div className="lp-faq" data-reveal>
               {faqs.map(([question, answer]) => (
                 <details key={question}>
                   <summary>
@@ -779,7 +784,7 @@ export default function Landing() {
 
         <section className="lp-section" style={{ paddingTop: 0 }}>
           <div className="container">
-            <div className="lp-cta-band">
+            <div className="lp-cta-band" data-reveal>
               <span className="lp-pill">
                 <Lock size={13} aria-hidden="true" style={{ marginLeft: 4 }} />
                 Practice reports are private to you
@@ -874,6 +879,7 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+      <Reveal />
     </div>
   );
 }

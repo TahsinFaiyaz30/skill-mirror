@@ -56,7 +56,7 @@ export function OpeningsList() {
           New opening
         </Link>
       </div>
-      <div className="grid-4">
+      <div className="grid-4 stagger">
         {stats.map(([Icon, label, n]) => (
           <div key={label} className="card stat">
             <span className="stat-icon">
