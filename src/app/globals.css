@@ -2441,11 +2441,7 @@ details summary {
 .lp-deep {
   background: var(--background-deep);
 }
-.lp-kicker {
-  color: var(--primary-text);
-  font-size: 16px;
-  font-weight: 700;
-}
+
 .lp-chips {
   display: flex;
   flex-wrap: wrap;
@@ -2596,78 +2592,162 @@ details summary {
   width: 7px;
   height: 7px;
 }
-.lp-stage {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 18px;
-  padding: 44px 28px 30px;
-  background: radial-gradient(
-    440px 280px at 50% 28%,
-    color-mix(in srgb, var(--primary) 13%, transparent),
-    transparent 70%
+
+/* The hero scene: a candidate on a video call with the AI interviewer. */
+.lp-pip small {
+  margin-top: -4px;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1;
+}
+.lp-caption b::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+/* A soft coral card behind the call window gives the hero some depth. */
+.lp-visual::before {
+  content: "";
+  position: absolute;
+  inset: 26px -18px -18px 26px;
+  border-radius: 26px;
+  border: 1px solid rgb(253 124 104 / 0.16);
+  background: linear-gradient(
+    135deg,
+    rgb(253 124 104 / 0.16),
+    rgb(253 196 88 / 0.05)
   );
 }
-.lp-orb-wrap {
+.lp-visual > .lp-window {
+  z-index: 1;
+}
+@media (max-width: 640px) {
+  .lp-visual::before {
+    display: none;
+  }
+}
+.lp-call {
   position: relative;
-  width: 132px;
-  height: 132px;
-  display: grid;
-  place-items: center;
+  margin: 14px 14px 0;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #1d2231;
 }
-.lp-orb-wrap .orb {
-  width: 108px;
-  height: 108px;
+.lp-person {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
 }
-.lp-speaker {
-  font-size: 14px;
-  color: var(--muted);
-}
-.lp-speaker b {
+.lp-you {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(15 18 26 / 0.6);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   color: var(--foreground);
+  font-size: 13.5px;
   font-weight: 600;
 }
-.lp-speaker em {
-  color: var(--primary-text);
-  font-style: normal;
-}
-.lp-question {
-  width: 100%;
-  max-width: 460px;
-  display: grid;
-  gap: 8px;
-  text-align: center;
-  padding: 16px 20px;
-  border-radius: 14px;
-  background: rgb(255 255 255 / 0.03);
-  border: 1px solid var(--border);
-}
-.lp-question h3 {
-  font-size: 20px;
-  line-height: 1.35;
-}
-.lp-answer {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--muted);
-  font-size: 13px;
-}
-.lp-answer svg {
+.lp-you svg {
   color: var(--primary-text);
 }
-.lp-wave {
-  display: flex;
+.lp-you-bars {
+  display: inline-flex;
   align-items: center;
-  gap: 3px;
-  height: 36px;
+  gap: 2px;
+  height: 16px;
 }
-.lp-wave span {
+.lp-you-bars i {
   width: 3px;
-  height: var(--h);
-  border-radius: 3px;
-  background: linear-gradient(var(--accent), var(--primary-strong));
-  opacity: 0.9;
+  border-radius: 2px;
+  background: var(--primary);
+}
+.lp-pip {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 30%;
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  border-radius: 12px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  background: linear-gradient(160deg, #1d2334, #0f121a);
+  box-shadow: 0 14px 28px -14px rgb(0 0 0 / 0.85);
+}
+.lp-pip .orb {
+  width: 32%;
+  height: auto;
+  aspect-ratio: 1;
+  margin-bottom: 4px;
+  box-shadow:
+    0 0 0 6px rgb(253 124 104 / 0.12),
+    0 0 0 12px rgb(253 124 104 / 0.05);
+}
+.lp-pip span {
+  color: var(--foreground);
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.lp-caption {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: rgb(15 18 26 / 0.66);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: var(--foreground);
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+}
+.lp-caption b {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-bottom: 3px;
+  color: var(--primary-text);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+@media (max-width: 640px) {
+  .lp-call {
+    aspect-ratio: 4 / 3;
+  }
+}
+@media (max-width: 480px) {
+  .lp-pip small {
+    display: none;
+  }
+  .lp-pip span {
+    font-size: 11px;
+  }
+  .lp-caption {
+    font-size: 14px;
+  }
 }
 .lp-progress {
   display: grid;

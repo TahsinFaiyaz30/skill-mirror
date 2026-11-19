@@ -160,10 +160,229 @@ const clock = (seconds: number) =>
   String(Math.floor(seconds / 60)).padStart(2, "0") +
   ":" +
   String(seconds % 60).padStart(2, "0");
-const wave = [
-  10, 18, 26, 14, 30, 22, 34, 16, 24, 32, 12, 28, 20, 34, 18, 26, 12, 30, 22,
-  16, 28, 14, 24, 10,
-];
+
+// A candidate in a blazer on a video call, headset on, in a room lit by an
+// evening window. Drawn by hand in SVG so it stays sharp and light.
+function InterviewScene() {
+  return (
+    <svg
+      className="lp-person"
+      viewBox="0 0 480 300"
+      preserveAspectRatio="xMidYMid slice"
+    >
+      <defs>
+        <linearGradient id="lpc-wall" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#343d55" />
+          <stop offset="0.55" stopColor="#272e42" />
+          <stop offset="1" stopColor="#1b2030" />
+        </linearGradient>
+        <linearGradient id="lpc-window" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffd6b3" stopOpacity="0.62" />
+          <stop offset="1" stopColor="#f39a83" stopOpacity="0.3" />
+        </linearGradient>
+        <linearGradient id="lpc-beam" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ffd6b3" stopOpacity="0.16" />
+          <stop offset="1" stopColor="#ffd6b3" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="lpc-blazer" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#3a4964" />
+          <stop offset="1" stopColor="#263046" />
+        </linearGradient>
+        <linearGradient id="lpc-skin" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ecb390" />
+          <stop offset="1" stopColor="#cd8e6c" />
+        </linearGradient>
+        <linearGradient id="lpc-hair" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#3d2a24" />
+          <stop offset="1" stopColor="#1e1412" />
+        </linearGradient>
+        <linearGradient id="lpc-leaf" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#6fae8a" />
+          <stop offset="1" stopColor="#3f7559" />
+        </linearGradient>
+        <radialGradient id="lpc-vignette" cx="0.5" cy="0.42" r="0.78">
+          <stop offset="0.62" stopColor="#0f121a" stopOpacity="0" />
+          <stop offset="1" stopColor="#0f121a" stopOpacity="0.55" />
+        </radialGradient>
+        <linearGradient id="lpc-shade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0.6" stopColor="#0f121a" stopOpacity="0" />
+          <stop offset="1" stopColor="#0f121a" stopOpacity="0.6" />
+        </linearGradient>
+      </defs>
+      <rect width="480" height="300" fill="url(#lpc-wall)" />
+      <path d="M134 30 300 214 238 300H134z" fill="url(#lpc-beam)" />
+      <rect
+        x="30"
+        y="24"
+        width="104"
+        height="130"
+        rx="8"
+        fill="url(#lpc-window)"
+      />
+      <path d="M82 24v130M30 89h104" stroke="#2b3347" strokeWidth="5" />
+      <rect
+        x="30"
+        y="24"
+        width="104"
+        height="130"
+        rx="8"
+        fill="none"
+        stroke="#3d4762"
+        strokeWidth="3"
+      />
+      <rect x="22" y="152" width="120" height="6" rx="3" fill="#3d4762" />
+      <path d="M44 300l6-56h40l6 56z" fill="#c9725a" />
+      <path d="M50 244h40" stroke="#b05f4a" strokeWidth="3" />
+      <path
+        d="M70 244c-18-14-30-40-22-62 14 10 22 34 22 62zm0 0c4-26 18-46 36-52 2 22-14 44-36 52zm0 0c-4-20-2-44 8-58 8 14 4 40-8 58z"
+        fill="url(#lpc-leaf)"
+      />
+      <rect x="356" y="150" width="104" height="6" rx="3" fill="#4b3d36" />
+      <rect
+        x="364"
+        y="116"
+        width="10"
+        height="34"
+        rx="2"
+        fill="#fd7c68"
+        opacity="0.75"
+      />
+      <rect
+        x="376"
+        y="122"
+        width="9"
+        height="28"
+        rx="2"
+        fill="#fdc458"
+        opacity="0.7"
+      />
+      <rect
+        x="387"
+        y="112"
+        width="11"
+        height="38"
+        rx="2"
+        fill="#7aa2d6"
+        opacity="0.7"
+      />
+      <rect
+        x="402"
+        y="124"
+        width="8"
+        height="26"
+        rx="2"
+        fill="#b999fb"
+        opacity="0.6"
+        transform="rotate(-14 406 150)"
+      />
+      <path d="M430 150h22l-3-15h-16z" fill="#d7d2c8" opacity="0.85" />
+      <path
+        d="M441 135c-9-6-13-17-8-24 7 4 10 13 8 24zm0 0c6-8 15-11 20-9-3 7-12 10-20 9z"
+        fill="url(#lpc-leaf)"
+      />
+      <g transform="translate(240 300) scale(1.12) translate(-240 -300)">
+        <path
+          d="M112 300c6-46 38-74 86-84l20-4h44l20 4c48 10 80 38 86 84z"
+          fill="url(#lpc-blazer)"
+        />
+        <path d="M214 212l26 52 26-52z" fill="#eef1f6" />
+        <path d="M214 212l-17 10 34 56 9-14z" fill="#2c3750" />
+        <path d="M266 212l17 10-34 56-9-14z" fill="#2c3750" />
+        <path d="M219 210l15 17 6-13zM261 210l-15 17-6-13z" fill="#ffffff" />
+        <path
+          d="M324 232c24 12 40 34 44 66"
+          stroke="#fd7c68"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          opacity="0.5"
+          fill="none"
+        />
+        <path d="M223 168h34v42c0 9-34 9-34 0z" fill="#c98a69" />
+        <path
+          d="M223 176c10 9 24 9 34 0v10c-10 7-24 7-34 0z"
+          fill="#b47859"
+          opacity="0.55"
+        />
+        <ellipse cx="201" cy="134" rx="7" ry="11" fill="#d49473" />
+        <ellipse cx="279" cy="134" rx="7" ry="11" fill="#d49473" />
+        <ellipse cx="240" cy="130" rx="39" ry="47" fill="url(#lpc-skin)" />
+        <path
+          d="M206 146c6 26 20 40 34 40s28-14 34-40c-8 18-20 28-34 28s-26-10-34-28z"
+          fill="#b97a5c"
+          opacity="0.28"
+        />
+        <path
+          d="M199 126c-5-32 11-58 41-62 31-4 51 18 50 48 0 8-2 14-4 18-3-18-13-30-27-34-12 10-34 14-53 12-3 6-6 11-7 18z"
+          fill="url(#lpc-hair)"
+        />
+        <path
+          d="M226 74c14-6 34-3 46 9"
+          stroke="#5c4037"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          opacity="0.7"
+          fill="none"
+        />
+        <path
+          d="M216 119q9-6 18-1M246 118q9-5 18 1"
+          stroke="#2a1d1a"
+          strokeWidth="3.2"
+          strokeLinecap="round"
+          fill="none"
+        />
+        <ellipse cx="225" cy="134" rx="3.4" ry="4.2" fill="#2a1d1a" />
+        <ellipse cx="255" cy="134" rx="3.4" ry="4.2" fill="#2a1d1a" />
+        <circle cx="226.3" cy="132.4" r="1.1" fill="#ffffff" />
+        <circle cx="256.3" cy="132.4" r="1.1" fill="#ffffff" />
+        <path
+          d="M240 137q-5 12 0 15q3 1 5-1"
+          stroke="#b47859"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          fill="none"
+        />
+        <circle cx="216" cy="149" r="6" fill="#ef8a74" opacity="0.2" />
+        <circle cx="264" cy="149" r="6" fill="#ef8a74" opacity="0.2" />
+        <path d="M228 159q12 11 24 0q-12 4-24 0z" fill="#8f3f36" />
+        <path
+          d="M231 160.4q9 2.6 18 0"
+          stroke="#ffffff"
+          strokeWidth="1.6"
+          opacity="0.8"
+        />
+        <path
+          d="M276 102c8 14 9 34 4 52"
+          stroke="#fd7c68"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          opacity="0.55"
+          fill="none"
+        />
+        <path
+          d="M195 132c-2-46 20-74 45-74s47 28 45 74"
+          stroke="#12161f"
+          strokeWidth="6"
+          strokeLinecap="round"
+          fill="none"
+        />
+        <rect x="186" y="120" width="15" height="28" rx="6" fill="#12161f" />
+        <rect x="279" y="120" width="15" height="28" rx="6" fill="#12161f" />
+        <rect x="188.5" y="127" width="3" height="14" rx="1.5" fill="#fd7c68" />
+        <rect x="288.5" y="127" width="3" height="14" rx="1.5" fill="#fd7c68" />
+        <path
+          d="M194 147c4 18 14 24 28 21"
+          stroke="#12161f"
+          strokeWidth="4"
+          strokeLinecap="round"
+          fill="none"
+        />
+        <circle cx="224" cy="168" r="4.5" fill="#fd7c68" />
+      </g>
+      <rect width="480" height="300" fill="url(#lpc-vignette)" />
+      <rect width="480" height="300" fill="url(#lpc-shade)" />
+    </svg>
+  );
+}
 
 export default function Landing() {
   return (
@@ -251,35 +470,26 @@ export default function Landing() {
                     </span>
                   </span>
                 </div>
-                <div className="lp-stage">
-                  <div className="lp-orb-wrap">
-                    <div className="orb" />
-                  </div>
-                  <p className="lp-speaker">
-                    <b>Interviewer</b> · <em>Listening</em>
-                  </p>
-                  <div className="lp-question">
-                    <span className="eyebrow" style={{ justifySelf: "center" }}>
-                      Technical question
-                    </span>
-                    <h3>
-                      How would your design handle a sudden spike in traffic?
-                    </h3>
-                  </div>
-                  <div className="lp-answer">
-                    <Mic size={14} />
-                    <span className="lp-wave">
-                      {wave.map((height, index) => (
-                        <span
-                          key={index}
-                          style={
-                            { "--h": height + "px" } as React.CSSProperties
-                          }
-                        />
+                <div className="lp-call">
+                  <InterviewScene />
+                  <span className="lp-you">
+                    <Mic size={13} />
+                    You
+                    <span className="lp-you-bars">
+                      {[8, 14, 10, 16, 7].map((height, index) => (
+                        <i key={index} style={{ height }} />
                       ))}
                     </span>
-                    <span className="mono">01:12</span>
+                  </span>
+                  <div className="lp-pip">
+                    <div className="orb" />
+                    <span>AI interviewer</span>
+                    <small>Listening</small>
                   </div>
+                  <p className="lp-caption">
+                    <b>AI interviewer</b>
+                    How would your design handle a sudden spike in traffic?
+                  </p>
                 </div>
                 <div className="lp-progress">
                   <div className="lp-progress-head">
