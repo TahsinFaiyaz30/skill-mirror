@@ -214,7 +214,6 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
       router.push("/interview/" + sessionId + "/prepare");
     } catch (error) {
       setError(errorMessage(error));
-    } finally {
       setState("idle");
     }
   }
@@ -552,7 +551,9 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
                   Back
                 </button>
                 <button className="button" disabled={state !== "idle"}>
-                  Create interview
+                  {state === "saving"
+                    ? "Creating interview…"
+                    : "Create interview"}
                 </button>
               </div>
             </form>

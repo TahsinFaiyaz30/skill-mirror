@@ -2,7 +2,7 @@ import { z } from "zod";
 import { requireSessionAccess } from "@/lib/auth/guards";
 import { voiceName } from "@/lib/ai/schemas";
 import { whisper } from "@/lib/ai/groq";
-import { speakGemini } from "@/lib/ai/gemini";
+import { speakGemini, transcribeGemini } from "@/lib/ai/gemini";
 import { body, fail, json, route } from "@/lib/utils/http";
 import { owner } from "./session";
 import { unpaidAI } from "@/lib/config/env";
@@ -39,7 +39,13 @@ export const stt = route(async (request) => {
   try {
     return json({ text: (await whisper(bytes, "answer.wav")).text });
   } catch {
-    fail("AI_UNAVAILABLE", "We couldn't transcribe that answer.");
+    try {
+      return json({
+        text: (await transcribeGemini(bytes, "audio/wav")).text,
+      });
+    } catch {
+      fail("AI_UNAVAILABLE", "We couldn't transcribe that answer.");
+    }
   }
 });
 export const tts = route(async (request) => {

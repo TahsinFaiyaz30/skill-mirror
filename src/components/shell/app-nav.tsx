@@ -3,7 +3,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Dialog, DropdownMenu } from "radix-ui";
-import { Building2, LogOut, Menu, Settings, X } from "lucide-react";
+import {
+  Building2,
+  LogOut,
+  Menu,
+  Settings,
+  ShieldCheck,
+  X,
+} from "lucide-react";
 import { Brand } from "./brand";
 import { localMock } from "@/lib/config/env";
 import { browserSupabase } from "@/lib/supabase/client";
@@ -34,11 +41,13 @@ export function AppNav({
   email,
   org,
   company,
+  isAdmin = false,
 }: {
   name: string;
   email: string;
   org: CompanyBrand | null;
   company?: CompanyBrand | null;
+  isAdmin?: boolean;
 }) {
   const pathname = usePathname() ?? "";
   const current = (match: boolean) => (match ? ("page" as const) : undefined);
@@ -53,6 +62,7 @@ export function AppNav({
     ),
     organization: current(pathname.startsWith("/hiring/organization")),
     settings: current(pathname.startsWith("/settings")),
+    admin: current(pathname.startsWith("/admin")),
   };
   return (
     <header className="nav">
@@ -131,6 +141,14 @@ export function AppNav({
                     </Link>
                   </DropdownMenu.Item>
                 )}
+                {isAdmin && (
+                  <DropdownMenu.Item className="menu-item" asChild>
+                    <Link href="/admin">
+                      <ShieldCheck size={16} aria-hidden="true" />
+                      AI Admin
+                    </Link>
+                  </DropdownMenu.Item>
+                )}
                 <div className="menu-separator" />
                 <DropdownMenu.Item
                   className="menu-item"
@@ -193,6 +211,11 @@ export function AppNav({
                   <Link href="/settings" aria-current={active.settings}>
                     Settings
                   </Link>
+                  {isAdmin && (
+                    <Link href="/admin" aria-current={active.admin}>
+                      AI Admin
+                    </Link>
+                  )}
                 </nav>
               </Dialog.Content>
             </Dialog.Portal>

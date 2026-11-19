@@ -6,6 +6,7 @@ import {
   MediaResolution,
   Modality,
   StartSensitivity,
+  ThinkingLevel,
   Type,
   type LiveConnectConfig,
 } from "@google/genai";
@@ -20,7 +21,20 @@ import {
   turns,
   type SessionRow,
 } from "@/lib/db/schema";
-import { geminiLiveAuth } from "@/lib/ai/gemini";
+import {
+  geminiLiveAuth,
+  liveModelChain,
+  requireGeminiKeys,
+} from "@/lib/ai/gemini";
+import {
+  clearCooldown,
+  extractStatus,
+  isAbortOrTimeoutError,
+  isKeyDisabled,
+  markCooldown,
+  orderCandidates,
+  shouldFailoverStatus,
+} from "@/lib/ai/pool";
 import { evaluateAnswer, interruptChallenge } from "@/lib/ai/evaluate";
 import { p5 } from "@/lib/ai/prompts/p5_live";
 import {
@@ -495,17 +509,33 @@ const flagObservation = (off: boolean) => ({
     required: ["type", "description"],
   },
 });
+export const isExtendedThinkingLiveModel = (model: string) =>
+  model.includes("extended-thinking");
+
+function thinkingLevelValue(level: "low" | "medium" | "high") {
+  if (level === "high") return ThinkingLevel.HIGH;
+  if (level === "medium") return ThinkingLevel.MEDIUM;
+  return ThinkingLevel.LOW;
+}
+
 export function buildLiveConnectConfig(
   session: SessionRow,
   interview: InterviewContext,
   resumptionHandle?: string,
+  model = serverEnv().MODEL_LIVE,
 ): LiveConnectConfig {
   const off = session.config.evaluation.nonverbalPolicy === "off";
+  const extendedThinking = isExtendedThinkingLiveModel(model);
   return {
     responseModalities: [Modality.AUDIO],
     speechConfig: {
       voiceConfig: { prebuiltVoiceConfig: { voiceName: session.voiceName } },
     },
+    ...(extendedThinking && {
+      thinkingConfig: {
+        thinkingLevel: thinkingLevelValue(serverEnv().MODEL_LIVE_THINKING_LEVEL),
+      },
+    }),
     systemInstruction: {
       parts: [
         {
@@ -548,11 +578,12 @@ export function buildLiveConnectConfig(
 }
 
 export const token = route(async (request) => {
-  const { sessionId, resumptionHandle } = await body(
+  const { sessionId, resumptionHandle, excludeModels } = await body(
     request,
     z.object({
       sessionId: z.uuid(),
       resumptionHandle: z.string().max(4000).optional(),
+      excludeModels: z.array(z.string().max(120)).max(10).optional(),
     }),
   );
   const { session } = await requireSessionAccess(sessionId, owner);
@@ -564,34 +595,187 @@ export const token = route(async (request) => {
   if (!session.consent || (unpaidAI && !session.consent.syntheticInputs))
     fail("CONFLICT", "Complete setup and consent before connecting.");
   const interview = await interviewContext(session);
-  const model = serverEnv().MODEL_LIVE;
+  const configuredModels = liveModelChain();
+  const filteredModels = excludeModels?.length
+    ? configuredModels.filter((item) => !excludeModels.includes(item))
+    : configuredModels;
+  const models = filteredModels.length > 0 ? filteredModels : configuredModels;
   const expiresAtEpochMs = Date.now() + LIVE_TOKEN_TTL_MS;
-  const config = buildLiveConnectConfig(session, interview, resumptionHandle);
+  const configsByModel = new Map<string, LiveConnectConfig>();
+  let lastError: unknown;
+
   try {
-    const result = await geminiLiveAuth().authTokens.create({
-      config: {
-        uses: 1,
-        expireTime: new Date(expiresAtEpochMs).toISOString(),
-        newSessionExpireTime: new Date(
-          Date.now() + LIVE_NEW_SESSION_MS,
-        ).toISOString(),
-        liveConnectConstraints: { model, config },
-      },
-    });
-    if (!result.name)
-      fail("AI_UNAVAILABLE", "The interviewer could not connect. Try again.");
-    return json({ token: result.name, model, expiresAtEpochMs });
+    const keys = requireGeminiKeys();
+    const candidates = orderCandidates("gemini", models, keys);
+    for (let i = 0; i < candidates.length; i++) {
+      const { model, slot } = candidates[i];
+      if (
+        isKeyDisabled("gemini", slot) &&
+        candidates.slice(i + 1).some((c) => !isKeyDisabled("gemini", c.slot))
+      ) {
+        continue;
+      }
+      const nextCandidate = candidates[i + 1];
+      let config = configsByModel.get(model);
+      if (!config) {
+        config = buildLiveConnectConfig(
+          session,
+          interview,
+          resumptionHandle,
+          model,
+        );
+        configsByModel.set(model, config);
+      }
+      try {
+        const result = await geminiLiveAuth(slot.key).authTokens.create({
+          config: {
+            uses: 1,
+            expireTime: new Date(expiresAtEpochMs).toISOString(),
+            newSessionExpireTime: new Date(
+              Date.now() + LIVE_NEW_SESSION_MS,
+            ).toISOString(),
+            liveConnectConstraints: { model, config },
+          },
+        });
+        if (!result.name) {
+          throw new Error("Empty ephemeral auth token returned.");
+        }
+        clearCooldown("gemini", slot, model);
+        return json({
+          token: result.name,
+          model,
+          extendedThinking: isExtendedThinkingLiveModel(model),
+          expiresAtEpochMs,
+        });
+      } catch (error) {
+        lastError = error;
+        const status = extractStatus(error);
+        if (status === 400) break;
+        if (
+          shouldFailoverStatus(status, keys.length) ||
+          isAbortOrTimeoutError(error)
+        ) {
+          markCooldown("gemini", slot, model, error);
+        }
+        if (nextCandidate) {
+          console.warn("SkillMirror live token failover:", {
+            provider: "gemini",
+            keyIndex: slot.index,
+            from: model,
+            to: nextCandidate.model,
+            nextKeyIndex: nextCandidate.slot.index,
+            status: status ?? "error",
+          });
+          continue;
+        }
+        break;
+      }
+    }
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    const info = error as {
-      name?: string;
-      status?: number;
-      statusCode?: number;
-    };
-    console.warn("SkillMirror live token creation failed", {
-      type: info?.name,
-      status: info?.status ?? info?.statusCode,
-    });
-    fail("AI_UNAVAILABLE", "The interviewer could not connect. Try again.");
+    lastError = error;
   }
+
+  const info = lastError as {
+    name?: string;
+    status?: number;
+    statusCode?: number;
+  } | undefined;
+  console.warn("SkillMirror live token creation failed", {
+    type: info?.name,
+    status: info?.status ?? info?.statusCode,
+  });
+  fail("AI_UNAVAILABLE", "The interviewer could not connect. Try again.");
+});
+
+export const transcribeToken = route(async (request) => {
+  const { sessionId } = await body(
+    request,
+    z.object({ sessionId: z.uuid() }),
+  );
+  const { session } = await requireSessionAccess(sessionId, owner);
+  if (
+    session.aiMode !== "live" ||
+    !["ready", "in_progress"].includes(session.status)
+  )
+    fail("CONFLICT", "Live transcription is unavailable for this interview.");
+  if (!session.consent || (unpaidAI && !session.consent.syntheticInputs))
+    fail("CONFLICT", "Complete setup and consent before connecting.");
+
+  const model = serverEnv().MODEL_TRANSCRIBE_LIVE;
+  const expiresAtEpochMs = Date.now() + LIVE_TOKEN_TTL_MS;
+  let lastError: unknown;
+
+  try {
+    const keys = requireGeminiKeys();
+    const candidates = orderCandidates("gemini", [model], keys);
+    for (let i = 0; i < candidates.length; i++) {
+      const { slot } = candidates[i];
+      if (
+        isKeyDisabled("gemini", slot) &&
+        candidates.slice(i + 1).some((c) => !isKeyDisabled("gemini", c.slot))
+      ) {
+        continue;
+      }
+      const nextCandidate = candidates[i + 1];
+      try {
+        const result = await geminiLiveAuth(slot.key).authTokens.create({
+          config: {
+            uses: 1,
+            expireTime: new Date(expiresAtEpochMs).toISOString(),
+            newSessionExpireTime: new Date(
+              Date.now() + LIVE_NEW_SESSION_MS,
+            ).toISOString(),
+            liveConnectConstraints: {
+              model,
+              config: {
+                responseModalities: [Modality.TEXT],
+                inputAudioTranscription: {},
+              },
+            },
+          },
+        });
+        if (!result.name) {
+          throw new Error("Empty transcribe auth token returned.");
+        }
+        clearCooldown("gemini", slot, model);
+        return json({ token: result.name, model, expiresAtEpochMs });
+      } catch (error) {
+        lastError = error;
+        const status = extractStatus(error);
+        if (status === 400) break;
+        if (
+          shouldFailoverStatus(status, keys.length) ||
+          isAbortOrTimeoutError(error)
+        ) {
+          markCooldown("gemini", slot, model, error);
+        }
+        if (nextCandidate) {
+          console.warn("SkillMirror transcribe token failover:", {
+            provider: "gemini",
+            keyIndex: slot.index,
+            nextKeyIndex: nextCandidate.slot.index,
+            model,
+            status: status ?? "error",
+          });
+          continue;
+        }
+        break;
+      }
+    }
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    lastError = error;
+  }
+
+  const info = lastError as {
+    name?: string;
+    status?: number;
+    statusCode?: number;
+  } | undefined;
+  console.warn("SkillMirror transcribe token creation failed", {
+    type: info?.name,
+    status: info?.status ?? info?.statusCode,
+  });
+  fail("AI_UNAVAILABLE", "Live transcription could not connect. Try again.");
 });

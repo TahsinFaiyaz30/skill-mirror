@@ -9,6 +9,7 @@ import {
   MediaResolution,
   Modality,
   StartSensitivity,
+  ThinkingLevel,
   type Tool,
 } from "@google/genai";
 
@@ -24,6 +25,7 @@ const liveWebSocketState = vi.hoisted(() => ({
   } | null,
   autoSetupComplete: true,
   hangConnect: false,
+  failNextConnectError: null as unknown,
   closeCount: 0,
 }));
 
@@ -42,17 +44,27 @@ vi.mock("@google/genai", async (importOriginal) => {
           ) {
             liveWebSocketState.urls.push(url);
             liveWebSocketState.callbacks = callbacks;
+            let localSentCount = 0;
             return {
               connect() {
+                if (liveWebSocketState.failNextConnectError) {
+                  const err = liveWebSocketState.failNextConnectError;
+                  liveWebSocketState.failNextConnectError = null;
+                  queueMicrotask(() => {
+                    callbacks.onerror(err);
+                  });
+                  return;
+                }
                 if (liveWebSocketState.hangConnect) return;
                 queueMicrotask(() => {
                   callbacks.onopen();
                 });
               },
               send(data: string) {
+                localSentCount += 1;
                 liveWebSocketState.sentFrames.push(JSON.parse(data));
                 if (
-                  liveWebSocketState.sentFrames.length === 1 &&
+                  localSentCount === 1 &&
                   liveWebSocketState.autoSetupComplete
                 ) {
                   queueMicrotask(() => {
@@ -87,6 +99,7 @@ import {
   INTERVIEWER_TTS_STYLE,
   speakGemini,
 } from "@/lib/ai/gemini";
+import { resetProviderPool } from "@/lib/ai/pool";
 import { importSchema, parsedCvSchema } from "@/lib/ai/schemas";
 import { mockBlueprint, mockLadder } from "@/lib/ai/mock/fixtures";
 import { buildLiveConnectConfig } from "@/lib/api/live";
@@ -96,6 +109,7 @@ import {
   CONNECT_TIMEOUT_MS,
   LiveInterviewerClient,
 } from "@/lib/live/liveClient";
+import { LiveTranscribeClient } from "@/lib/live/transcribeClient";
 import type { LiveEvent } from "@/lib/live/directives";
 
 function fakeWavBuffer() {
@@ -117,33 +131,34 @@ function fakeWavBuffer() {
 }
 
 describe("Gemini Interactions API, TTS, and Live API", () => {
-  const originalGeminiKey = process.env.GEMINI_API_KEY;
-  const originalModelFlash = process.env.MODEL_FLASH;
-  const originalModelFallbacks = process.env.MODEL_FLASH_FALLBACKS;
-
   beforeEach(() => {
-    process.env.GEMINI_API_KEY = "test-gemini-key";
-    delete process.env.MODEL_FLASH;
-    delete process.env.MODEL_FLASH_FALLBACKS;
+    resetProviderPool();
+    vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
+    vi.stubEnv("GEMINI_API_KEYS", "");
+    vi.stubEnv("GROQ_API_KEY", "");
+    vi.stubEnv("GROQ_API_KEYS", "");
+    vi.stubEnv("MODEL_FLASH", "");
+    vi.stubEnv("MODEL_FLASH_FALLBACKS", "");
+    vi.stubEnv("MODEL_LIVE", "");
+    vi.stubEnv("MODEL_LIVE_FALLBACKS", "");
+    vi.stubEnv("MODEL_LIVE_THINKING_LEVEL", "");
+    vi.stubEnv("MODEL_TTS", "");
+    vi.stubEnv("MODEL_TTS_FALLBACKS", "");
     liveWebSocketState.createdOpts = [];
     liveWebSocketState.urls = [];
     liveWebSocketState.sentFrames = [];
     liveWebSocketState.callbacks = null;
     liveWebSocketState.autoSetupComplete = true;
     liveWebSocketState.hangConnect = false;
+    liveWebSocketState.failNextConnectError = null;
     liveWebSocketState.closeCount = 0;
   });
 
   afterEach(() => {
+    resetProviderPool();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.useRealTimers();
-    if (originalGeminiKey === undefined) delete process.env.GEMINI_API_KEY;
-    else process.env.GEMINI_API_KEY = originalGeminiKey;
-    if (originalModelFlash === undefined) delete process.env.MODEL_FLASH;
-    else process.env.MODEL_FLASH = originalModelFlash;
-    if (originalModelFallbacks === undefined)
-      delete process.env.MODEL_FLASH_FALLBACKS;
-    else process.env.MODEL_FLASH_FALLBACKS = originalModelFallbacks;
   });
 
   it("uses v1beta for Interactions/TTS and v1alpha only for Live auth tokens", () => {
@@ -741,6 +756,7 @@ describe("Gemini Interactions API, TTS, and Live API", () => {
     expect(flashModelChain("gemini-4-hydrogen", undefined)).toEqual([
       "gemini-4-hydrogen",
       "gemini-3.8-flash",
+      "gemini-3.7-flash",
       "gemini-3-flash-preview",
       "gemini-3.5-flash-lite",
     ]);
@@ -764,11 +780,16 @@ describe("Gemini Interactions API, TTS, and Live API", () => {
         modelsTried.push(body.model);
         if (body.model === "gemini-4-hydrogen") {
           return new Response(
-            JSON.stringify({ error: { message: "Rate limit exceeded", code: 429 } }),
+            JSON.stringify({
+              error: { message: "Rate limit exceeded", code: 429 },
+            }),
             { status: 429, headers: { "content-type": "application/json" } },
           );
         }
-        if (body.model === "gemini-3.8-flash") {
+        if (
+          body.model === "gemini-3.8-flash" ||
+          body.model === "gemini-3.7-flash"
+        ) {
           return new Response(
             JSON.stringify({ error: { message: "High demand", code: 503 } }),
             { status: 503, headers: { "content-type": "application/json" } },
@@ -797,11 +818,225 @@ describe("Gemini Interactions API, TTS, and Live API", () => {
       { thinking: "high" },
     );
     expect(parsed).toEqual({ answer: "fallback-ok" });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(modelsTried).toEqual([
       "gemini-4-hydrogen",
       "gemini-3.8-flash",
+      "gemini-3.7-flash",
       "gemini-3-flash-preview",
     ]);
+  });
+
+  it("configures Gemini 3.8 Live Extended Thinking, handles interactionStatus IDLE/IN_PROGRESS, and falls back to gemini-3.8-live", async () => {
+    const config = buildSessionConfig("practice", {
+      lengthMinutes: 10,
+      voiceName: "Kore",
+    });
+    const blueprint = mockBlueprint(config, "software_engineering");
+    const plan = {
+      ...blueprint,
+      expected_level: 3,
+      technical: blueprint.technical.map((c) => ({
+        ...c,
+        ladder: mockLadder(c.key),
+      })),
+    };
+    const session = {
+      id: "00000000-0000-4000-8000-000000000001",
+      userId: "00000000-0000-4000-8000-000000000002",
+      kind: "practice",
+      orgId: null,
+      openingId: null,
+      invitationId: null,
+      organizationRemoved: false,
+      cvId: null,
+      company: "Acme",
+      roleTitle: "Backend Engineer",
+      roleFamily: "software_engineering",
+      seniority: "mid",
+      jobDescription: null,
+      lengthMinutes: 10,
+      voiceName: "Kore",
+      aiMode: "live",
+      status: "ready",
+      config,
+      plan,
+      strategistState: null,
+      calibration: null,
+      baseline: null,
+      t0EpochMs: null,
+      startedAt: null,
+      lastActiveAt: null,
+      endedAt: null,
+      durationMs: null,
+      endReason: null,
+      media: {},
+      consent: null,
+      error: null,
+      createdAt: new Date(),
+    } satisfies SessionRow;
+
+    const extCfg = buildLiveConnectConfig(
+      session,
+      {
+        config,
+        plan,
+        company: "Acme",
+        roleTitle: "Backend Engineer",
+        firstName: "Jamie",
+      },
+      undefined,
+      "gemini-3.8-live-extended-thinking",
+    );
+    expect(extCfg.thinkingConfig).toEqual({
+      thinkingLevel: ThinkingLevel.LOW,
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            token: "auth_tokens/ext-1",
+            model: "gemini-3.8-live-extended-thinking",
+            extendedThinking: true,
+            expiresAtEpochMs: Date.now() + 60_000,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
+    const events: LiveEvent[] = [];
+    const client = new LiveInterviewerClient((event) => events.push(event));
+    await client.connect("00000000-0000-4000-8000-000000000001");
+
+    client.deliverDirective(
+      {
+        seq: 1,
+        turnIdx: 0,
+        phase: "technical",
+        phaseIndex: 2,
+        mode: "ask",
+        sayText: "Walk me through a cache design.",
+        questionText: "Walk me through a cache design.",
+        cardLabel: "Technical",
+        expectAnswer: true,
+        maxAnswerMs: 180_000,
+        presentation: null,
+        endInterview: false,
+      },
+      "call-ext-1",
+    );
+    const toolPayload = JSON.parse(
+      JSON.stringify(liveWebSocketState.sentFrames[1]),
+    ) as {
+      toolResponse: { functionResponses: Array<Record<string, unknown>> };
+    };
+    expect(toolPayload.toolResponse.functionResponses[0]).not.toHaveProperty(
+      "scheduling",
+    );
+
+    liveWebSocketState.callbacks!.onmessage({
+      data: JSON.stringify({
+        interactionStatus: "IN_PROGRESS",
+        serverContent: { turnComplete: true },
+      }),
+    });
+    expect(events.filter((e) => e.type === "modelTurnComplete")).toHaveLength(
+      0,
+    );
+
+    liveWebSocketState.callbacks!.onmessage({
+      data: JSON.stringify({ interactionStatus: "IDLE" }),
+    });
+    expect(events.filter((e) => e.type === "modelTurnComplete")).toHaveLength(
+      1,
+    );
+    client.close();
+
+    // Handshake failure on extended-thinking retries with excludeModels -> gemini-3.8-live
+    const excludeBodies: Array<Record<string, unknown>> = [];
+    let tokenCall = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const bodyRaw =
+          typeof init?.body === "string"
+            ? init.body
+            : input instanceof Request
+              ? await input.clone().text()
+              : "{}";
+        excludeBodies.push(JSON.parse(bodyRaw));
+        tokenCall += 1;
+        if (tokenCall === 1) {
+          return new Response(
+            JSON.stringify({
+              token: "auth_tokens/ext-fail",
+              model: "gemini-3.8-live-extended-thinking",
+              extendedThinking: true,
+              expiresAtEpochMs: Date.now() + 60_000,
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            token: "auth_tokens/std-ok",
+            model: "gemini-3.8-live",
+            extendedThinking: false,
+            expiresAtEpochMs: Date.now() + 60_000,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }),
+    );
+    const fallbackEvents: LiveEvent[] = [];
+    const fallbackClient = new LiveInterviewerClient((event) =>
+      fallbackEvents.push(event),
+    );
+    liveWebSocketState.failNextConnectError = new Error("ext handshake err");
+    await fallbackClient.connect("00000000-0000-4000-8000-000000000001");
+    expect(excludeBodies).toHaveLength(2);
+    expect(excludeBodies[1].excludeModels).toEqual([
+      "gemini-3.8-live-extended-thinking",
+    ]);
+    expect(fallbackEvents.some((e) => e.type === "error")).toBe(false);
+    fallbackClient.close();
+  });
+
+  it("streams live transcription events via /api/live/transcribe-token and gemini-3.5-transcribe-live", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            token: "auth_tokens/stt-live-1",
+            model: "gemini-3.5-transcribe-live",
+            expiresAtEpochMs: Date.now() + 60_000,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
+    const events: unknown[] = [];
+    const client = new LiveTranscribeClient((e) => events.push(e));
+    await client.connect("00000000-0000-4000-8000-000000000001");
+    client.sendAudio(new Int16Array([50, -50]));
+    client.sendAudioStreamEnd();
+
+    liveWebSocketState.callbacks!.onmessage({
+      data: JSON.stringify({
+        serverContent: {
+          interimInputTranscription: { text: "I built" },
+          inputTranscription: { text: "I built an API." },
+        },
+      }),
+    });
+
+    expect(events).toEqual([
+      { type: "interim", text: "I built" },
+      { type: "final", text: "I built an API." },
+    ]);
+    client.close();
   });
 });

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { isAdminEmail } from "@/lib/auth/admin";
 import { getOrg, getProfile, getUser } from "@/lib/auth/guards";
 import { AppNav } from "./app-nav";
 import { publicLogoURL } from "@/lib/supabase/storage";
@@ -16,6 +17,7 @@ export async function Shell({
     getProfile(user.id),
     getOrg(user.id),
   ]);
+  const isAdmin = isAdminEmail(user.email);
   return (
     <>
       <AppNav
@@ -28,6 +30,7 @@ export async function Shell({
           }
         }
         company={company}
+        isAdmin={isAdmin}
       />
       <main className="container page">{children}</main>
     </>

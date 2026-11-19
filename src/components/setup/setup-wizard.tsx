@@ -382,7 +382,13 @@ export function SetupWizard({
       visionRef.current = null;
       if (!mounted.current) return;
       handoff.current = true;
-      router.push("/interview/" + session.id + "/live");
+      const livePath = "/interview/" + session.id + "/live";
+      router.push(livePath);
+      window.setTimeout(() => {
+        if (mounted.current && window.location.pathname !== livePath) {
+          window.location.assign(new URL(livePath, window.location.origin).href);
+        }
+      }, 6000);
     } catch (error) {
       setError(errorMessage(error));
       setBusy(false);

@@ -11,7 +11,7 @@ export async function guardRequest(request: NextRequest) {
   const authScreen = pathname === "/login" || pathname === "/signup";
   const api = pathname.startsWith("/api/");
   const protectedPage =
-    /^\/(onboarding|dashboard|progress|settings|interview|hiring)(\/|$)/.test(
+    /^\/(onboarding|dashboard|progress|settings|interview|hiring|admin)(\/|$)/.test(
       pathname,
     );
   if (!authScreen && !protectedPage && !api) return response;

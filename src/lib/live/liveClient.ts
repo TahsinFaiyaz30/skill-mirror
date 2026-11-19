@@ -19,90 +19,134 @@ export const CONNECT_TIMEOUT_MS = 12_000;
 export class LiveInterviewerClient implements InterviewerClient {
   private socket: Session | null = null;
   private intentional = false;
+  private extendedThinking = false;
+  private seenInteractionStatus = false;
+
   constructor(private readonly emit: LiveListener) {}
+
   async connect(sessionId: string, resumptionHandle?: string) {
     this.intentional = false;
-    const { token, model } = await send<{ token: string; model: string }>(
-      "/api/live/token",
-      "POST",
-      { sessionId, resumptionHandle },
-      AbortSignal.timeout(8000),
-    );
-    const ai = new GoogleGenAI({
-      apiKey: token,
-      httpOptions: { apiVersion: "v1alpha" },
-    });
-    let ready!: () => void;
-    let failSetup!: (error: unknown) => void;
-    let failRace!: (error: unknown) => void;
-    const setup = new Promise<void>((resolve, reject) => {
-      ready = resolve;
-      failSetup = reject;
-    });
-    const aborted = new Promise<never>((_, reject) => {
-      failRace = reject;
-    });
-    void setup.catch(() => {});
-    void aborted.catch(() => {});
-    let timedOut = false;
-    let setupSeen = false;
-    const abort = (error: unknown) => {
-      failSetup(error);
-      failRace(error);
-    };
-    const timer = setTimeout(() => {
-      timedOut = true;
-      abort(new Error("The interviewer did not finish connecting."));
-    }, CONNECT_TIMEOUT_MS);
-    try {
-      const connectPromise = ai.live.connect({
-        model,
-        config: {},
-        callbacks: {
-          onopen: () => {},
-          onmessage: (message) => {
-            if (message.setupComplete) {
-              setupSeen = true;
-              ready();
-            }
-            this.message(message);
-          },
-          onerror: (error) => {
-            abort(error);
-            if (!this.intentional && !timedOut)
-              this.emit({ type: "error", error });
-          },
-          onclose: () => {
-            abort(new Error("The interviewer connection closed."));
-            if (!timedOut)
-              this.emit({ type: "closed", intentional: this.intentional });
-          },
+    const triedModels: string[] = [];
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const { token, model, extendedThinking } = await send<{
+        token: string;
+        model: string;
+        extendedThinking?: boolean;
+      }>(
+        "/api/live/token",
+        "POST",
+        {
+          sessionId,
+          resumptionHandle,
+          ...(triedModels.length > 0 && { excludeModels: triedModels }),
         },
-      });
-      void connectPromise.then(
-        (lateSocket) => {
-          if (timedOut) {
-            try {
-              lateSocket.close();
-            } catch {
-              /* Ignore late socket close failures. */
-            }
-          }
-        },
-        () => {},
+        AbortSignal.timeout(8000),
       );
-      const socket = await Promise.race([connectPromise, aborted]);
-      this.socket = socket;
-      if (!setupSeen && !(socket as { setupComplete?: unknown }).setupComplete) {
-        await Promise.race([setup, aborted]);
+      this.extendedThinking = Boolean(
+        extendedThinking ?? model.includes("extended-thinking"),
+      );
+      this.seenInteractionStatus = false;
+      const canFallback = this.extendedThinking && triedModels.length === 0;
+      const ai = new GoogleGenAI({
+        apiKey: token,
+        httpOptions: { apiVersion: "v1alpha" },
+      });
+      let ready!: () => void;
+      let failSetup!: (error: unknown) => void;
+      let failRace!: (error: unknown) => void;
+      const setup = new Promise<void>((resolve, reject) => {
+        ready = resolve;
+        failSetup = reject;
+      });
+      const aborted = new Promise<never>((_, reject) => {
+        failRace = reject;
+      });
+      void setup.catch(() => {});
+      void aborted.catch(() => {});
+      let timedOut = false;
+      let abortedFlag = false;
+      let setupSeen = false;
+      let handshaking = true;
+      const abort = (error: unknown) => {
+        abortedFlag = true;
+        failSetup(error);
+        failRace(error);
+      };
+      const timer = setTimeout(() => {
+        timedOut = true;
+        abort(new Error("The interviewer did not finish connecting."));
+      }, CONNECT_TIMEOUT_MS);
+
+      try {
+        const connectPromise = ai.live.connect({
+          model,
+          config: {},
+          callbacks: {
+            onopen: () => {},
+            onmessage: (message) => {
+              if (message.setupComplete) {
+                setupSeen = true;
+                handshaking = false;
+                ready();
+              }
+              this.message(message);
+            },
+            onerror: (error) => {
+              abort(error);
+              if (
+                !this.intentional &&
+                !timedOut &&
+                (!handshaking || !canFallback)
+              ) {
+                this.emit({ type: "error", error });
+              }
+            },
+            onclose: () => {
+              abort(new Error("The interviewer connection closed."));
+              if (!timedOut && (!handshaking || !canFallback)) {
+                this.emit({ type: "closed", intentional: this.intentional });
+              }
+            },
+          },
+        });
+        void connectPromise.then(
+          (lateSocket) => {
+            if (timedOut || abortedFlag) {
+              try {
+                lateSocket.close();
+              } catch {
+                /* Ignore late socket close failures. */
+              }
+            }
+          },
+          () => {},
+        );
+        const socket = await Promise.race([connectPromise, aborted]);
+        this.socket = socket;
+        if (
+          !setupSeen &&
+          !(socket as { setupComplete?: unknown }).setupComplete
+        ) {
+          await Promise.race([setup, aborted]);
+        }
+        handshaking = false;
+        return;
+      } catch (error) {
+        if (canFallback) {
+          this.close();
+          this.intentional = false;
+          triedModels.push(model);
+          continue;
+        }
+        this.close();
+        throw error;
+      } finally {
+        clearTimeout(timer);
       }
-    } catch (error) {
-      this.close();
-      throw error;
-    } finally {
-      clearTimeout(timer);
     }
   }
+
   private message(msg: LiveServerMessage) {
     const content = msg.serverContent;
     if (content?.interrupted) this.emit({ type: "interrupted" });
@@ -127,7 +171,23 @@ export class LiveInterviewerClient implements InterviewerClient {
         type: "outputTranscript",
         text: content.outputTranscription.text,
       });
-    if (content?.turnComplete) this.emit({ type: "modelTurnComplete" });
+
+    const interactionStatus = (
+      msg as LiveServerMessage & { interactionStatus?: string }
+    ).interactionStatus;
+    if (this.extendedThinking && interactionStatus) {
+      this.seenInteractionStatus = true;
+      if (interactionStatus === "IDLE") {
+        this.seenInteractionStatus = false;
+        this.emit({ type: "modelTurnComplete" });
+      }
+    } else if (
+      content?.turnComplete &&
+      (!this.extendedThinking || !this.seenInteractionStatus)
+    ) {
+      this.emit({ type: "modelTurnComplete" });
+    }
+
     for (const call of msg.toolCall?.functionCalls ?? [])
       if (call.id && call.name)
         this.emit({
@@ -154,6 +214,7 @@ export class LiveInterviewerClient implements InterviewerClient {
       });
     }
   }
+
   deliverDirective(directive: Directive, pendingToolCallId: string | null) {
     if (pendingToolCallId) {
       this.socket?.sendToolResponse({
@@ -166,7 +227,9 @@ export class LiveInterviewerClient implements InterviewerClient {
               mode: directive.mode,
               say: directive.sayText,
             },
-            scheduling: FunctionResponseScheduling.WHEN_IDLE,
+            ...(this.extendedThinking
+              ? {}
+              : { scheduling: FunctionResponseScheduling.WHEN_IDLE }),
           },
         ],
       });
@@ -176,27 +239,40 @@ export class LiveInterviewerClient implements InterviewerClient {
         turnComplete: true,
       });
   }
+
   respond(id: string, name: string, response: Record<string, unknown>) {
     this.socket?.sendToolResponse({
       functionResponses: [
-        { id, name, response, scheduling: FunctionResponseScheduling.SILENT },
+        {
+          id,
+          name,
+          response,
+          ...(this.extendedThinking
+            ? {}
+            : { scheduling: FunctionResponseScheduling.SILENT }),
+        },
       ],
     });
   }
+
   sendAudio(frame: Int16Array) {
     this.socket?.sendRealtimeInput({
       audio: { data: encodePCM(frame), mimeType: "audio/pcm;rate=16000" },
     });
   }
+
   sendAudioStreamEnd() {
     this.socket?.sendRealtimeInput({ audioStreamEnd: true });
   }
+
   sendFrame(data: string) {
     this.socket?.sendRealtimeInput({ video: { data, mimeType: "image/jpeg" } });
   }
+
   sendText(text: string) {
     this.socket?.sendRealtimeInput({ text });
   }
+
   close() {
     this.intentional = true;
     this.socket?.close();
