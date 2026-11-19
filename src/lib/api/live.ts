@@ -42,7 +42,14 @@ import {
 } from "@/lib/strategist/engine";
 import type { Item, InterviewContext } from "@/lib/strategist/state";
 import { owner } from "./session";
-import { ApiError, body, fail, json, route, type Params } from "@/lib/utils/http";
+import {
+  ApiError,
+  body,
+  fail,
+  json,
+  route,
+  type Params,
+} from "@/lib/utils/http";
 
 export const ms = z
   .number()
@@ -172,6 +179,8 @@ export const startSession = route(async (request, context: Params<"id">) => {
         directive: s.strategistState.lastDirective,
         t0EpochMs: s.t0EpochMs,
       });
+    if (s.organizationRemoved)
+      fail("CONFLICT", "This opening is no longer accepting interviews.");
     if (
       s.status !== "ready" ||
       !s.calibration ||
@@ -223,34 +232,43 @@ export const strategist = route(async (request, context: Params<"id">) => {
     owner,
   );
   const input: StrategistInput = await body(request, strategistInput);
-  if (session.status !== "in_progress" || !session.strategistState)
+  const snapshot = session.strategistState;
+  if (session.status !== "in_progress" || !snapshot)
     fail("CONFLICT", "This interview is not running.");
-  if (input.directiveSeq < session.strategistState.lastDirective.seq)
-    return json({ directive: session.strategistState.lastDirective });
+  const prior = snapshot.lastDirective;
+  if (
+    input.directiveSeq !== prior.seq ||
+    input.turnIdx !== snapshot.turnIdx ||
+    prior.mode === "close"
+  ) {
+    return json({ directive: prior });
+  }
   const interview = await interviewContext(session);
   try {
+    const evaluation = shouldScore(snapshot, session.config, input)
+      ? await evaluateAnswer(session, snapshot, input)
+      : undefined;
+    const challenge =
+      input.event === "presentation_interrupt" &&
+      snapshot.llmCalls < session.config.maxStrategistCalls
+        ? await interruptChallenge(session, input.transcript)
+        : undefined;
+    // A concurrent request may advance this turn while the provider is working.
     return await database.transaction(async (tx) => {
       const [current] = await tx
         .select()
         .from(interviewSessions)
         .where(eq(interviewSessions.id, session.id))
         .for("update");
+      if (!current) fail("NOT_FOUND", "Interview not found.");
       const state = current.strategistState;
       if (!state || current.status !== "in_progress")
-        return json({ directive: session.strategistState!.lastDirective });
+        return json({ directive: state?.lastDirective ?? prior });
       if (
         input.directiveSeq !== state.lastDirective.seq ||
         input.turnIdx !== state.turnIdx
       )
         return json({ directive: state.lastDirective });
-      const evaluation = shouldScore(state, current.config, input)
-        ? await evaluateAnswer(current, state, input)
-        : undefined;
-      const challenge =
-        input.event === "presentation_interrupt" &&
-        state.llmCalls < current.config.maxStrategistCalls
-          ? await interruptChallenge(current, input.transcript)
-          : undefined;
       const next = transition(state, interview, input, evaluation, challenge);
       if (next.idempotent) return json({ directive: state.lastDirective });
       const where = and(
@@ -348,32 +366,44 @@ export const strategist = route(async (request, context: Params<"id">) => {
         .where(eq(interviewSessions.id, session.id));
       return json({ directive });
     });
-  } catch {
-    console.warn("SkillMirror strategist used its recovery directive");
-    const prior = session.strategistState.lastDirective;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
     const directive = {
       ...prior,
       seq: prior.seq + 1,
       mode: "ask" as const,
+      expectAnswer: true,
+      endInterview: false,
+      presentation: null,
       sayText:
         "Sorry about that. Could you expand a little on your last answer?",
     };
-    await database
+    const [saved] = await database
       .update(interviewSessions)
       .set({
         strategistState: {
-          ...session.strategistState,
+          ...snapshot,
           lastDirective: directive,
         },
       })
       .where(
         and(
           eq(interviewSessions.id, session.id),
+          eq(interviewSessions.status, "in_progress"),
           sql`(${interviewSessions.strategistState}->'lastDirective'->>'seq')::int = ${prior.seq}`,
         ),
       )
-      .catch(() => {});
-    return json({ directive });
+      .returning({ id: interviewSessions.id });
+    if (saved) {
+      console.warn("SkillMirror strategist used its recovery directive");
+      return json({ directive });
+    }
+    const [current] = await database
+      .select({ state: interviewSessions.strategistState })
+      .from(interviewSessions)
+      .where(eq(interviewSessions.id, session.id));
+    if (current?.state) return json({ directive: current.state.lastDirective });
+    throw error;
   }
 });
 

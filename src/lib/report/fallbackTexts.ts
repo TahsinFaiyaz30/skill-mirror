@@ -44,7 +44,9 @@ export function fallbackMoment(candidate: MomentCandidate): KeyMoment {
       ? [
           positive
             ? "This answer showed clear evidence of the skill being tested."
-            : "This answer needed more depth or a concrete example.",
+            : candidate.type === "answer_review"
+              ? "Review how you explained your approach and supported it with evidence."
+              : "This answer needed more depth or a concrete example.",
           positive
             ? "State your decision and evidence in the same order on the next question."
             : "Start with your decision, name the constraint, and add evidence of the outcome.",
@@ -59,7 +61,9 @@ export function fallbackMoment(candidate: MomentCandidate): KeyMoment {
       candidate.kind === "answer"
         ? positive
           ? "A strong answer"
-          : "Develop this answer"
+          : candidate.type === "answer_review"
+            ? "Review this answer"
+            : "Develop this answer"
         : readable(candidate.type),
     sentiment: positive ? "positive" : "improve",
     kind: candidate.kind,

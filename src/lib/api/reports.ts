@@ -1,5 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { requireSessionAccess } from "@/lib/auth/guards";
+import { REPORT_LEASE_MS } from "@/lib/config/constants";
 import type { Database } from "@/lib/db";
 import { events, reports, type SessionRow } from "@/lib/db/schema";
 import { signedURL } from "@/lib/supabase/storage";
@@ -35,6 +36,10 @@ export const statusRoute = route(async (_request, context: Params<"id">) => {
     progress: report?.progress ?? 0,
     step: report?.step ?? null,
     error: report?.error ?? session.error,
+    retryAfterMs:
+      report?.status === "running"
+        ? Math.max(0, report.updatedAt.getTime() + REPORT_LEASE_MS - Date.now())
+        : null,
   });
 });
 export const reportRoute = route(async (_request, context: Params<"id">) => {

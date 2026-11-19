@@ -373,7 +373,13 @@ export function DuplicateButton({
     </button>
   );
 }
-export function OpeningWizard({ initial }: { initial?: OpeningDetail }) {
+export function OpeningWizard({
+  initial,
+  featureGithub = initial?.featureGithub ?? false,
+}: {
+  initial?: OpeningDetail;
+  featureGithub?: boolean;
+}) {
   const router = useRouter();
   const [id, setId] = useState(initial?.opening.id ?? "");
   const [step, setStep] = useState(0);
@@ -1037,7 +1043,7 @@ export function OpeningWizard({ initial }: { initial?: OpeningDetail }) {
                   ))}
                 </div>
               )}
-              {initial?.featureGithub && (
+              {featureGithub && (
                 <label className="check">
                   <input
                     type="checkbox"

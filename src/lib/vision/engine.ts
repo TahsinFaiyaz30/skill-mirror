@@ -95,7 +95,8 @@ export class VisionEngine {
   luma: number | null = null;
   readonly landmarks: LandmarkFrame[] = [];
   private frame = 0;
-  private callback = 0;
+  private active = false;
+  private callback: number | null = null;
   private extractor = new FeatureExtractor();
   private lastFace = -Infinity;
   private lastPose = -Infinity;
@@ -124,12 +125,36 @@ export class VisionEngine {
     this.tier = tier;
   }
   start() {
+    if (this.active) return;
+    this.active = true;
     this.callback = this.video.requestVideoFrameCallback(this.update);
   }
   stop() {
-    this.video.cancelVideoFrameCallback(this.callback);
+    this.active = false;
+    if (this.callback !== null)
+      this.video.cancelVideoFrameCallback(this.callback);
+    this.callback = null;
   }
   private update = (now: number) => {
+    this.callback = null;
+    if (!this.active) return;
+    try {
+      if (
+        this.video.readyState >= 2 &&
+        this.video.videoWidth > 0 &&
+        this.video.videoHeight > 0
+      ) {
+        this.processFrame(now);
+      }
+    } catch {
+      // A transient detector error can occur while a replacement camera warms up.
+    } finally {
+      if (this.active && this.callback === null) {
+        this.callback = this.video.requestVideoFrameCallback(this.update);
+      }
+    }
+  };
+  private processFrame(now: number) {
     const started = performance.now(),
       tMs = this.options.clock();
     const frame: FrameFeatures = { tMs, ...this.options.context() };
@@ -228,8 +253,7 @@ export class VisionEngine {
     }
     this.options.onFrame(frame);
     this.frame++;
-    this.callback = this.video.requestVideoFrameCallback(this.update);
-  };
+  }
   private measureLuma() {
     const b = this.face?.value.box;
     if (!b) {

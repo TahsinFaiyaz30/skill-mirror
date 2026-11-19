@@ -71,8 +71,10 @@ export const PITCH_SPIKE_ST = 3;
 export const UPTALK_ST = 2;
 export const SOFT_FILLER_PAUSE_MS = 150;
 export const MIC_PASS_PEAK_DB = -35;
+export const MIC_CONFIRM_MS = 480;
 export const NOISY_FLOOR_DB = -40;
 export const VIDEO_SEGMENT_MS = 120_000;
+export const REPORT_LEASE_MS = 290_000;
 export const VIDEO_OVERLAP_MS = 300;
 export const VIDEO_RECORD_SIZE = {
   width: 854,

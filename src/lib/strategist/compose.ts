@@ -143,16 +143,24 @@ export function compose(
       talkMs: config.presentation.talkMs,
       interruptAtMs: config.presentation.interruptAtMs,
     };
-    sayText =
-      ack +
-      " Next, a short presentation exercise. Here's the scenario. " +
-      presentation.scenario +
+    const prefix =
+      ack.slice(0, 60) +
+      " Next, a short presentation exercise. Here's the scenario. ";
+    const prep =
       " You have thirty seconds to prepare. I'll tell you when to begin.";
+    const available = 700 - prefix.length - prep.length;
+    const body =
+      presentation.scenario.length <= available
+        ? presentation.scenario
+        : presentation.scenario.slice(0, available - 1).trimEnd() + "…";
+    sayText = prefix + body + prep;
     questionText = presentation.title;
     cardLabel = "Presentation";
   } else if (mode === "presentation_begin") {
     sayText = "Time's up. Please begin whenever you're ready.";
-    questionText = plan.presentation?.title ?? "Presentation";
+    questionText =
+      (config.presentation.custom ?? plan.presentation)?.title ??
+      "Presentation";
     cardLabel = "Presentation";
   } else if (mode === "presentation_interrupt") {
     sayText = "Sorry to jump in. " + options.wording;

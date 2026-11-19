@@ -214,7 +214,8 @@ export function buildReport(
       label: PHASE_LABELS[turn.phase],
       questionSource: turn.questionSource,
       question: turn.questionText,
-      transcript: turn.answerTranscriptFinal ?? turn.answerTranscriptLive ?? "",
+      transcript:
+        turn.answerTranscriptFinal?.trim() || turn.answerTranscriptLive || "",
       scores: turn.scores,
       outcome: turn.scores?.outcome ?? null,
       composure: turn.finalMetrics?.composure ?? null,

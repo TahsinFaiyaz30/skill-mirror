@@ -34,6 +34,7 @@ export function goldenFixture(policy: NonverbalPolicy) {
     orgId: "org",
     openingId: "opening",
     invitationId: "invite",
+    organizationRemoved: false,
     cvId: null,
     company: "Northstar",
     roleTitle: "Backend Engineer",

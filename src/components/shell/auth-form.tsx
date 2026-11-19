@@ -1,10 +1,14 @@
 "use client";
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { localMock, publicEnv } from "@/lib/config/env";
 import { browserSupabase } from "@/lib/supabase/client";
 import { authPath } from "@/lib/auth/navigation";
+import {
+  meetsPasswordRequirements,
+  passwordRequirement,
+} from "@/lib/auth/password";
 import { errorMessage, send } from "@/lib/utils/client";
 import { AuthLayout } from "./auth-layout";
 
@@ -29,13 +33,18 @@ export function AuthForm({
   );
   const [complete, setComplete] = useState(false);
   const [cooldown, setCooldown] = useState(false);
+  const cooldownTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  useEffect(() => () => clearTimeout(cooldownTimer.current), []);
   const [unconfirmed, setUnconfirmed] = useState(false);
   const signup = screen === "signup",
     login = screen === "login",
     forgot = screen === "forgot-password";
   const setConfirmCooldown = () => {
     setCooldown(true);
-    setTimeout(() => setCooldown(false), 60000);
+    clearTimeout(cooldownTimer.current);
+    cooldownTimer.current = setTimeout(() => setCooldown(false), 60000);
   };
   const redirect = authPath("/auth/continue", next, intent);
   const emailRedirectTo = new URL(
@@ -48,7 +57,7 @@ export function AuthForm({
     "forgot-password": "Forgot password?",
     "reset-password": "Reset password",
   };
-  const validPassword = /^(?=.*[a-z])(?=.*\d).{8,}$/i.test(password);
+  const validPassword = meetsPasswordRequirements(password);
   const strength = !validPassword
     ? "weak"
     : password.length >= 12 && /[^a-z0-9]/i.test(password)
@@ -65,9 +74,7 @@ export function AuthForm({
         (strength === "weak" || password !== data.get("confirmation"))
       ) {
         throw new Error(
-          strength === "weak"
-            ? "Use at least 8 characters, including a letter and a number."
-            : "Passwords do not match.",
+          strength === "weak" ? passwordRequirement : "Passwords do not match.",
         );
       }
       if (localMock) {

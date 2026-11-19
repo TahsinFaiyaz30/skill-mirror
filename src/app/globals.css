@@ -23,6 +23,8 @@
   --primary-text: #3249cb;
   --button-fg: #070b18;
   --danger-text: #af252d;
+  --danger-button-bg: var(--danger-text);
+  --danger-button-fg: #fff;
   --accent-text: #0d7564;
   --shadow: 0 18px 50px color-mix(in srgb, var(--foreground) 7%, transparent);
   --radius: 12px;
@@ -60,6 +62,8 @@
   --ev-positive: #3dd68c;
   --primary-text: #9bafff;
   --danger-text: #ff8e95;
+  --danger-button-bg: var(--danger);
+  --danger-button-fg: var(--button-fg);
   --accent-text: #42dcc5;
   --orb-shadow: none;
 }
@@ -246,6 +250,10 @@ strong {
 }
 .button.danger {
   color: var(--danger-text);
+}
+.button.danger:not(.secondary, .ghost) {
+  background: var(--danger-button-bg);
+  color: var(--danger-button-fg);
 }
 .button.icon {
   width: 42px;

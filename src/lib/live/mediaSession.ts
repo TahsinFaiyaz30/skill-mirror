@@ -1,6 +1,6 @@
 import { defaultCalibration } from "@/lib/vision/features";
 import type { Calibration } from "@/types/interview";
-const settings: MediaStreamConstraints = {
+export const captureConstraints = {
   video: { width: 1280, height: 720, frameRate: 30, facingMode: "user" },
   audio: {
     echoCancellation: true,
@@ -8,7 +8,7 @@ const settings: MediaStreamConstraints = {
     autoGainControl: false,
     channelCount: 1,
   },
-};
+} satisfies MediaStreamConstraints;
 class MediaSession {
   stream: MediaStream | null = null;
   video: HTMLVideoElement | null = null;
@@ -23,7 +23,8 @@ class MediaSession {
     )
       return { stream: this.stream, video: this.video };
     this.close();
-    const stream = await navigator.mediaDevices.getUserMedia(settings);
+    const stream =
+      await navigator.mediaDevices.getUserMedia(captureConstraints);
     const video = document.createElement("video");
     video.muted = true;
     video.playsInline = true;

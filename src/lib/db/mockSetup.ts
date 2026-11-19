@@ -11,6 +11,7 @@ export async function initializeMockDatabase(engine: PGlite) {
     CREATE TABLE IF NOT EXISTS auth.users (
       id uuid PRIMARY KEY, email text, encrypted_password text, email_confirmed_at timestamptz, raw_user_meta_data jsonb
     );
+    ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
     CREATE UNIQUE INDEX IF NOT EXISTS auth_email_unique ON auth.users (lower(email));
     CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS
       $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;

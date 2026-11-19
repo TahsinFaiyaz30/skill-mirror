@@ -15,6 +15,7 @@ import {
   uniqueIndex,
   primaryKey,
   foreignKey,
+  check,
   customType,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -105,6 +106,11 @@ export const profiles = pgTable("profiles", {
   avatarUrl: text("avatar_url"),
   intent: text().$type<"practice" | "hiring">(),
   onboardedAt: timestampAt("onboarded_at"),
+  createdAt: createdAt(),
+}).enableRLS();
+export const pendingAccountDeletions = pgTable("pending_account_deletions", {
+  userId: uuid("user_id").primaryKey(),
+  orgId: uuid("org_id"),
   createdAt: createdAt(),
 }).enableRLS();
 export const organizations = pgTable("organizations", {
@@ -218,6 +224,9 @@ export const interviewSessions = pgTable(
       onDelete: "cascade",
     }),
     invitationId: uuid("invitation_id"),
+    organizationRemoved: boolean("organization_removed")
+      .default(false)
+      .notNull(),
     cvId: uuid("cv_id").references(() => candidateCvs.id, {
       onDelete: "set null",
     }),
@@ -256,6 +265,18 @@ export const interviewSessions = pgTable(
       foreignColumns: [invitations.id],
       name: "interview_sessions_invitation_fk",
     }).onDelete("set null"),
+    check(
+      "interview_sessions_scope_check",
+      sql`
+      (${t.kind} = 'practice' AND ${t.lengthMinutes} IN (10,20)
+        AND ${t.orgId} IS NULL AND ${t.openingId} IS NULL AND NOT ${t.organizationRemoved})
+      OR (${t.kind} IN ('company','preview') AND ${t.lengthMinutes} IN (15,20,30,45)
+        AND (
+          (NOT ${t.organizationRemoved} AND ${t.orgId} IS NOT NULL AND ${t.openingId} IS NOT NULL)
+          OR (${t.organizationRemoved} AND ${t.orgId} IS NULL AND ${t.openingId} IS NULL AND ${t.invitationId} IS NULL)
+        ))
+    `,
+    ),
   ],
 ).enableRLS();
 export const invitations = pgTable(

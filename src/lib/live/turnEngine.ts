@@ -29,7 +29,7 @@ import { MicRecorder } from "@/lib/recording/micRecorder";
 import { SegmentRecorder } from "@/lib/recording/segmentRecorder";
 import { SnapshotRing } from "@/lib/recording/snapshotRing";
 import { gzip, patchMedia, uploader } from "@/lib/recording/uploader";
-import { mediaSession } from "./mediaSession";
+import { captureConstraints, mediaSession } from "./mediaSession";
 import {
   REPEAT_QUESTION,
   type InterviewerClient,
@@ -49,6 +49,7 @@ type ActiveTurn = {
   toolId: string | null;
   start: number;
   speechAt: number | null;
+  lastOutputAt: number;
   complete: boolean;
   relayed: boolean;
   retry: number;
@@ -121,6 +122,7 @@ export class TurnEngine {
   private readonly audioRing: Int16Array[] = [];
   private resumeHandle?: string;
   private reconnecting = false;
+  private reconnectStage: LiveStage | null = null;
   private queuedDirective?: Directive;
   private closing = false;
   private hardClose = false;
@@ -315,9 +317,14 @@ export class TurnEngine {
       this.onError(error);
     }
   }
-  private deliver(directive: Directive, toolId: string | null = null) {
+  private deliver(
+    directive: Directive,
+    toolId: string | null = null,
+    retry = 0,
+  ) {
     const previous = this.turn;
     const interrupt = directive.mode === "presentation_interrupt";
+    const start = this.clock();
     this.turn = {
       directive,
       askStartMs: interrupt ? (previous?.askStartMs ?? null) : null,
@@ -329,11 +336,12 @@ export class TurnEngine {
       aiText: "",
       submitted: false,
       toolId: null,
-      start: this.clock(),
+      start,
       speechAt: null,
+      lastOutputAt: start,
       complete: false,
       relayed: false,
-      retry: 0,
+      retry,
     };
     if (directive.mode === "presentation_prompt")
       this.presentation = {
@@ -377,7 +385,8 @@ export class TurnEngine {
     if (event.type === "speechStarted" || event.type === "audioChunk") {
       if (this.playback?.gate === false) return;
       if (this.stage === "AI_SPEAKING") {
-        turn.speechAt ??= this.clock();
+        turn.lastOutputAt = this.clock();
+        turn.speechAt ??= turn.lastOutputAt;
         if (turn.directive.mode !== "presentation_interrupt")
           turn.askStartMs ??= turn.speechAt;
       }
@@ -400,6 +409,7 @@ export class TurnEngine {
       event.type === "outputTranscript" &&
       this.playback?.gate !== false
     ) {
+      if (this.stage === "AI_SPEAKING") turn.lastOutputAt = this.clock();
       turn.aiText += event.text;
       this.store.setState({ caption: turn.aiText.slice(-140) });
     } else if (
@@ -633,15 +643,14 @@ export class TurnEngine {
     if (
       turn &&
       stage === "AI_SPEAKING" &&
-      !turn.relayed &&
-      time - turn.start >= 6000
+      !turn.complete &&
+      !this.playback?.playing &&
+      time - turn.lastOutputAt >= 6000
     ) {
       if (!turn.retry) {
-        turn.retry++;
-        turn.start = time;
-        this.client?.deliverDirective(turn.directive, null);
+        this.deliver(turn.directive, null, 1);
       } else {
-        turn.askStartMs = time;
+        turn.askStartMs ??= time;
         turn.relayed = true;
         turn.complete = true;
         this.speechComplete();
@@ -944,15 +953,19 @@ export class TurnEngine {
     window.addEventListener("focus", this.handleFocus);
     window.addEventListener("beforeunload", this.preventLeave);
   }
+  private pauseForReconnect() {
+    if (this.reconnectStage !== null) return;
+    this.reconnectStage = this.stage;
+    this.setStage("RECONNECTING");
+  }
   private async reconnect(background: boolean) {
-    if (this.reconnecting || this.closing) return;
+    if (this.closing) return;
+    if (!background) this.pauseForReconnect();
+    if (this.reconnecting) return;
     this.reconnecting = true;
-    const previous = this.stage;
     const old = this.client;
-    if (!background) this.setStage("RECONNECTING");
-    if (this.turn) this.turn.toolId = null;
     for (const backoff of C.LIVE_RECONNECT_BACKOFF_MS) {
-      if (!background) await sleep(backoff);
+      if (this.reconnectStage !== null) await sleep(backoff);
       if (this.closing) return;
       try {
         const next = await this.createClient();
@@ -961,39 +974,43 @@ export class TurnEngine {
           next.close();
           return;
         }
+        const pausedStage = this.reconnectStage;
+        const stageAtSwitch = pausedStage ?? this.stage;
+        const queued = this.queuedDirective;
+        this.queuedDirective = undefined;
+        this.reconnectStage = null;
+        if (this.turn) this.turn.toolId = null;
         this.client = next;
         old?.close();
         this.reconnecting = false;
-        if (!background) {
-          const queued = this.queuedDirective;
-          this.queuedDirective = undefined;
-          if (queued) this.deliver(queued);
-          else if (
-            previous === "AI_SPEAKING" &&
-            this.turn &&
-            this.turn.askEndMs === null
-          ) {
-            this.playback?.clear();
-            const current = this.turn.directive;
-            this.deliver(
-              this.turn.askStartMs === null
-                ? current
-                : {
-                    ...current,
-                    sayText:
-                      "Sorry, we had a brief connection issue. " +
-                      current.sayText,
-                  },
-            );
-          } else this.setStage(previous);
+        if (queued) this.deliver(queued);
+        else if (
+          stageAtSwitch === "AI_SPEAKING" &&
+          this.turn &&
+          !this.turn.complete
+        ) {
+          this.playback?.clear();
+          const { directive, speechAt } = this.turn;
+          this.deliver(
+            speechAt === null
+              ? directive
+              : {
+                  ...directive,
+                  sayText:
+                    "Sorry, we had a brief connection issue. " +
+                    directive.sayText,
+                },
+          );
+        } else if (pausedStage !== null) {
+          this.setStage(pausedStage);
+          this.speechComplete();
+        }
+        if (pausedStage !== null) {
           for (const frame of this.audioRing.splice(0)) next.sendAudio(frame);
         }
         return;
       } catch {
-        if (background) {
-          background = false;
-          this.setStage("RECONNECTING");
-        }
+        this.pauseForReconnect();
       }
     }
     this.reconnecting = false;
@@ -1018,8 +1035,12 @@ export class TurnEngine {
       .getTracks()
       .filter((track) => track.readyState === "ended");
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: missing.some((track) => track.kind === "audio"),
-      video: missing.some((track) => track.kind === "video"),
+      audio:
+        missing.some((track) => track.kind === "audio") &&
+        captureConstraints.audio,
+      video:
+        missing.some((track) => track.kind === "video") &&
+        captureConstraints.video,
     });
     if (this.closing) {
       stream.getTracks().forEach((track) => track.stop());

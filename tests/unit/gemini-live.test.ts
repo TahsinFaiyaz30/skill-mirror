@@ -424,6 +424,7 @@ describe("Gemini Interactions API, TTS, and Live API", () => {
       orgId: null,
       openingId: null,
       invitationId: null,
+      organizationRemoved: false,
       cvId: null,
       company: "Acme",
       roleTitle: "Backend Engineer",

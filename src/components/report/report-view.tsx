@@ -409,14 +409,27 @@ export function TurnAccordion({
     </details>
   );
 }
-function StatTable({ title, rows }: { title: string; rows: StatRow[] }) {
+function StatTable({
+  title,
+  rows,
+  reviewer,
+}: {
+  title: string;
+  rows: StatRow[];
+  reviewer: boolean;
+}) {
   return (
     <div className="scroll">
       <h3>{title}</h3>
       <table>
         <thead>
           <tr>
-            {["Metric", "You", "Baseline", "Verdict"].map((h) => (
+            {[
+              "Metric",
+              reviewer ? "Candidate" : "You",
+              "Baseline",
+              "Verdict",
+            ].map((h) => (
               <th scope="col" key={h}>
                 {h}
               </th>
@@ -452,11 +465,21 @@ function StatTable({ title, rows }: { title: string; rows: StatRow[] }) {
     </div>
   );
 }
-export function StatsTable({ stats }: { stats: ReportData["stats"] }) {
+export function StatsTable({
+  stats,
+  recruiter = false,
+}: {
+  stats: ReportData["stats"];
+  recruiter?: boolean;
+}) {
   return (
     <div className="grid-2">
-      <StatTable title="Body language" rows={stats.vision} />
-      <StatTable title="Voice" rows={stats.voice} />
+      <StatTable
+        title="Body language"
+        rows={stats.vision}
+        reviewer={recruiter}
+      />
+      <StatTable title="Voice" rows={stats.voice} reviewer={recruiter} />
     </div>
   );
 }
@@ -696,7 +719,7 @@ export function ReportView({
             <SoftSkillRadar
               candidates={[
                 {
-                  name: "Your score",
+                  name: recruiter ? "Candidate score" : "Your score",
                   dimensions: report.softSkills.dimensions,
                 },
               ]}
@@ -715,7 +738,9 @@ export function ReportView({
                       <small key={driver.name}>
                         {driver.name} {value(driver.value, driver.unit)}
                         {driver.baseline !== null &&
-                          " · your baseline " +
+                          (recruiter
+                            ? " · candidate baseline "
+                            : " · your baseline ") +
                             value(driver.baseline, driver.unit)}
                       </small>
                     ))}
@@ -736,6 +761,7 @@ export function ReportView({
           <TimelineTracks
             timeline={report.timeline}
             playhead={head}
+            seek={setHead}
             jump={jump}
           />
         </section>
@@ -809,7 +835,7 @@ export function ReportView({
         {!off && (
           <section className="card stack" id="stats">
             <h2>Stats</h2>
-            <StatsTable stats={report.stats} />
+            <StatsTable stats={report.stats} recruiter={recruiter} />
           </section>
         )}
         {recruiter && "flags" in report.integrity && (

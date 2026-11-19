@@ -150,7 +150,7 @@ export function splitMicrophoneWebm(
     if (!part.length) origin = item.time;
     const contents = Buffer.from(bytes.subarray(item.start, item.end));
     contents.writeUIntBE(
-      item.time - origin,
+      Math.max(0, item.time - origin),
       item.stamp.data - item.start,
       item.stamp.end - item.stamp.data,
     );

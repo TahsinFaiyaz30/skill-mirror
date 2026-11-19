@@ -364,16 +364,25 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
               cv.parsed.links.linkedin,
               cv.parsed.links.portfolio,
             ]
-              .filter((url) => /^https?:\/\//i.test(url))
+              .flatMap((link) => {
+                try {
+                  const url = new URL(link);
+                  return url.protocol === "https:" || url.protocol === "http:"
+                    ? [url]
+                    : [];
+                } catch {
+                  return [];
+                }
+              })
               .map((url) => (
                 <a
                   className="badge"
-                  key={url}
-                  href={url}
+                  key={url.href}
+                  href={url.href}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  {new URL(url).hostname}
+                  {url.hostname}
                 </a>
               ))}
           </div>

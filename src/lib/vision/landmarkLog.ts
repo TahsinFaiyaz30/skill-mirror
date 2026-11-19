@@ -18,6 +18,8 @@ export function landmarkPoints(
   ];
 }
 export function writeLandmarkLog(frames: LandmarkFrame[]) {
+  const coordinate = (value: number) =>
+    Math.max(-32768, Math.min(32767, Math.round(value * 10000)));
   const bytes = new Uint8Array(headerBytes + frames.length * frameBytes);
   bytes.set(new TextEncoder().encode("LMK1"));
   const view = new DataView(bytes.buffer);
@@ -30,16 +32,8 @@ export function writeLandmarkLog(frames: LandmarkFrame[]) {
     view.setInt32(offset, tMs, true);
     for (let j = 0; j < LANDMARK_POINT_COUNT; j++) {
       const point = points[j];
-      view.setInt16(
-        offset + 4 + j * 4,
-        point ? Math.round(point.x * 10000) : -1,
-        true,
-      );
-      view.setInt16(
-        offset + 6 + j * 4,
-        point ? Math.round(point.y * 10000) : -1,
-        true,
-      );
+      view.setInt16(offset + 4 + j * 4, point ? coordinate(point.x) : -1, true);
+      view.setInt16(offset + 6 + j * 4, point ? coordinate(point.y) : -1, true);
     }
   });
   return bytes;

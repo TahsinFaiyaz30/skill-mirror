@@ -236,6 +236,7 @@ function QuestionCard({
           <label className="field">
             Ideal points (3–6, one per line)
             <textarea
+              key={item.idealPoints.join("\n")}
               defaultValue={item.idealPoints.join("\n")}
               onBlur={(e) =>
                 change({
@@ -251,6 +252,7 @@ function QuestionCard({
           <label className="field">
             Red flags (up to 4, one per line)
             <textarea
+              key={item.redFlags.join("\n")}
               defaultValue={item.redFlags.join("\n")}
               onBlur={(e) =>
                 change({

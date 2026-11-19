@@ -20,6 +20,11 @@
 - `gemini-3.8-flash` Interactions API calls (`P1`, `P2`, `P3`, `P4` fallback, `P7`, `P8`, `P9`, `P10`) omit deprecated sampling parameters (`temperature`, `top_p`, `top_k`) from `generation_config` and pass `response_format` at the top level with a sanitized JSON Schema (`$schema` and `maxItems > 10` omitted for constrained decoding, while full Zod validation remains enforced on parsed output). Groq calls retain their specified `temperature` settings.
 - `gemini-3.8-flash-lite-tts` calls (`speakGemini` and `scripts/voice-previews.mjs`) keep `input` text strictly verbatim inside `user_input` content blocks, supply the delivery style via `speech_metadata` annotations, request `response_format: { type: "audio", mime_type: "audio/wav" }`, and verify the `RIFF`/`WAVE` header.
 - `gemini-3.8-live` ephemeral tokens lock the full session config (`Modality.AUDIO`, `speechConfig`, `systemInstruction` via `P5`, input/output transcription, `MEDIA_RESOLUTION_LOW`, low-sensitivity VAD, echo-safe `NO_INTERRUPTION` when applicable, sliding-window context compression, session resumption, and `NON_BLOCKING` `next_step` / `flag_observation` tools) while omitting `thinkingConfig`, `proactiveAudio`, and `enableAffectiveDialog`. The Live client races `live.connect` against a 12 s handshake timeout, handles `toolCallCancellation` and `audioStreamEnd`, and the turn engine ignores pre-audio `modelTurnComplete` frames before a directive's speech is relayed.
+- A `GoAway` still starts a background reconnect. If the socket switches during unfinished interviewer speech, the new socket replays that directive and preserves presentation timing. The watchdog also recovers speech that starts and then stalls without a completion event.
+- Account deletion checks ownership under lock and commits application data deletion before Storage cleanup. When a sole owner deletes the organization, existing candidates keep their report and recording snapshots with the organization and opening links cleared. Candidates who have yet to start cannot start against the removed opening. The deletion request and retention cron can resume pending Storage and Auth cleanup after a failure. Storage cleanup precedes Auth deletion because Supabase may reject deleting an account that still owns Storage objects.
+- Strategist evaluation runs outside the database transaction. The saved directive sequence determines which concurrent result can advance the interview. A report status response tells the browser when the existing processing lease can be reclaimed.
+- Short reports use available scored answers to supplement key moments and can generate a narrative with fewer than five clips. Whisper alignment falls back to the live transcript for each turn that has no aligned words.
+- Microphone setup records the noise floor once and waits for 480 ms of continuous signal above the existing level threshold. Reconnecting a microphone or camera requests the same constraints as setup.
 
 ## Camera fixture
 
@@ -29,8 +34,9 @@ The built-in image generation tool produced the fictional webcam frame for `test
 
 ## Local verification
 
+- After the audit fixes, lint, typecheck, the production build, all 126 Vitest tests, and both mock Playwright flows passed. Playwright checked timeline keyboard focus and verified at least 4.5:1 contrast on both destructive confirmation buttons in Light and Dark mode.
 - On 19 November 2026, lint, typecheck, the production build, 98 Vitest tests (90 existing + 8 Gemini/Live contract tests), and both mock Playwright flows passed. The browser tests checked Light and Dark baselines, a recorded clip, candidate feedback visibility, and recruiter comparisons.
-- Lighthouse accessibility scored 100 for the landing page, 100 for the dashboard, and 97 for the practice report in both themes on the production build. Short timeline bars are flagged as small targets. The timeline seek control and the question list also open clips.
+- Lighthouse accessibility scored 100 for the landing page, 100 for the dashboard, and 97 for the practice report in both themes before the audit fixes. Short timeline bars were flagged as small targets. The timeline now provides an explicit play button after seeking.
 - The production build issued a mock practice certificate and verified its signature through the public endpoint. Excel treated an exported candidate name beginning with `=` as text.
 
 ## External acceptance

@@ -9,7 +9,12 @@ import {
   transcriptSegments,
 } from "@/lib/db/schema";
 import { PARTIAL_MIN_MS } from "@/lib/config/constants";
-import { END_REASONS, CATEGORIES, type SessionMedia } from "@/types/interview";
+import {
+  END_REASONS,
+  CATEGORIES,
+  type SessionMedia,
+  type SessionStatus,
+} from "@/types/interview";
 import { uploadURL, type Bucket } from "@/lib/supabase/storage";
 import { finalizeCoverage } from "@/lib/strategist/engine";
 import { defaultCalibration } from "@/lib/vision/features";
@@ -111,15 +116,17 @@ function mergeMedia(previous: SessionMedia, current: SessionMedia) {
     videoSegments: [...video.values()].sort((a, b) => a.index - b.index),
   };
 }
+function requireMediaWriteStatus(status: SessionStatus) {
+  if (!["in_progress", "ended", "processing", "failed"].includes(status)) {
+    fail("CONFLICT", "This interview is not accepting media or telemetry.");
+  }
+}
 export const mediaUpload = route(async (request, context: Params<"id">) => {
   const { session } = await requireSessionAccess(
     (await context.params).id,
     owner,
   );
-  if (
-    !["in_progress", "ended", "processing", "failed"].includes(session.status)
-  )
-    fail("CONFLICT", "This interview is not accepting uploads.");
+  requireMediaWriteStatus(session.status);
   const { kind, index, eventId } = await body(
     request,
     z.object({
@@ -159,10 +166,15 @@ export const patchMediaRoute = route(async (request, context: Params<"id">) => {
   validateMedia(session.userId + "/" + session.id, media);
   return database.transaction(async (tx) => {
     const [s] = await tx
-      .select({ media: interviewSessions.media })
+      .select({
+        media: interviewSessions.media,
+        status: interviewSessions.status,
+      })
       .from(interviewSessions)
       .where(eq(interviewSessions.id, session.id))
       .for("update");
+    if (!s) fail("NOT_FOUND", "Interview not found.");
+    requireMediaWriteStatus(s.status);
     await tx
       .update(interviewSessions)
       .set({ media: mergeMedia(s.media, media) })
@@ -204,11 +216,13 @@ export const telemetry = route(async (request, context: Params<"id">) => {
     )
       fail("BAD_REQUEST", "Invalid event timing or path.");
   await database.transaction(async (tx) => {
-    await tx
-      .select({ id: interviewSessions.id })
+    const [current] = await tx
+      .select({ status: interviewSessions.status })
       .from(interviewSessions)
       .where(eq(interviewSessions.id, session.id))
       .for("update");
+    if (!current) fail("NOT_FOUND", "Interview not found.");
+    requireMediaWriteStatus(current.status);
     for (const item of new Map(items.map((e) => [e.id, e])).values()) {
       await tx
         .insert(events)
@@ -239,13 +253,11 @@ export const telemetry = route(async (request, context: Params<"id">) => {
           )
           .limit(1);
         if (!existing.length)
-          await tx
-            .insert(transcriptSegments)
-            .values({
-              ...item,
-              source: session.aiMode === "pipeline" ? "pipeline" : "live",
-              sessionId: session.id,
-            });
+          await tx.insert(transcriptSegments).values({
+            ...item,
+            source: session.aiMode === "pipeline" ? "pipeline" : "live",
+            sessionId: session.id,
+          });
         else if (item.speaker === "ai")
           await tx
             .update(transcriptSegments)

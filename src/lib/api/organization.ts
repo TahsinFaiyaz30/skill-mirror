@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getOrg, requireOrgMember, requireUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
@@ -104,8 +104,14 @@ export const addMember = route(async (request) => {
     const [person] = await tx
       .select({ id: authIdentity.id })
       .from(authIdentity)
-      .where(eq(sql`lower(${authIdentity.email})`, email.toLowerCase()))
-      .for("update");
+      .innerJoin(profiles, eq(profiles.id, authIdentity.id))
+      .where(
+        and(
+          eq(sql`lower(${authIdentity.email})`, email.toLowerCase()),
+          isNull(authIdentity.deletedAt),
+          isNotNull(authIdentity.emailConfirmedAt),
+        ),
+      );
     if (!person) fail("BAD_REQUEST", "Ask them to sign up first.");
     const saved = await tx
       .insert(orgMembers)

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildReport } from "@/lib/report/buildReport";
+import { narrativeSchema } from "@/lib/ai/schemas";
+import { keyMomentCandidates } from "@/lib/report/keyMoments";
 import {
   calculateIntegrity,
   levelFor,
@@ -34,6 +36,40 @@ const build = (mode: "scored" | "coaching_only" | "off") => {
 };
 
 describe("report scoring", () => {
+  it("includes scored answers when there are too few events for key moments", () => {
+    const { turns, session } = goldenFixture("off");
+    const scored = turns.slice(0, 3).map((turn) => ({
+      ...turn,
+      scoreTotal: 2.75,
+      scores: turn.scores
+        ? { ...turn.scores, outcome: "partial" as const }
+        : null,
+    }));
+    const moments = keyMomentCandidates(
+      scored,
+      [],
+      [],
+      session.durationMs!,
+      true,
+    );
+    expect(moments.map((moment) => [moment.turnIdx, moment.type])).toEqual(
+      scored.map((turn) => [turn.idx, "answer_review"]),
+    );
+    const entry = {
+      candidate_id: moments[0].id,
+      title: "Review the explanation",
+      sentiment: "improve",
+      what_happened: "The candidate explained the core idea.",
+      why_it_matters: "It shows the reasoning.",
+      how_to_fix: "Give the concrete outcome.",
+      better_answer: "",
+    };
+    expect(narrativeSchema.shape.key_moments.parse([])).toEqual([]);
+    expect(narrativeSchema.shape.key_moments.parse([entry])).toEqual([entry]);
+    expect(
+      narrativeSchema.shape.key_moments.safeParse(Array(8).fill(entry)).success,
+    ).toBe(false);
+  });
   it.each(["scored", "coaching_only"] as const)(
     "matches the independent scoring workbook for %s",
     (policy) => {

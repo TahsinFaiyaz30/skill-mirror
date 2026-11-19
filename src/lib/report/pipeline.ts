@@ -1,5 +1,6 @@
 import { gunzipSync } from "node:zlib";
 import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { REPORT_LEASE_MS } from "@/lib/config/constants";
 import type { Database } from "@/lib/db";
 import {
   candidateCvs,
@@ -88,7 +89,7 @@ export async function processInterview(
         ne(reports.status, "completed"),
         or(
           ne(reports.status, "running"),
-          sql`${reports.updatedAt} < now() - interval '290 seconds'`,
+          sql`${reports.updatedAt} <= now() - (${REPORT_LEASE_MS} * interval '1 millisecond')`,
         ),
       ),
     )
@@ -303,6 +304,10 @@ export async function processInterview(
       const metrics = items.map((turn) => {
         const text = aligned?.get(turn.idx),
           window = answerWindow(turn);
+        const whisperText = text?.words
+          .map((word) => word.w)
+          .join(" ")
+          .trim();
         const voice =
           text?.words.length && window && !off
             ? voiceMetrics(text.words, text.segments, pitch, {
@@ -310,7 +315,7 @@ export async function processInterview(
                 kind: turn.itemKind,
               })
             : null;
-        return { turn, text, window, voice };
+        return { turn, text, window, voice, whisperText };
       });
       const calibrationVoice = metrics.find(
         ({ turn }) => turn.idx === 0,
@@ -325,20 +330,36 @@ export async function processInterview(
       await database.transaction(async (tx) => {
         await tx.update(interviewSessions).set({ baseline }).where(sw);
         await tx.delete(events).where(and(ew, eq(events.category, "vocal")));
-        if (aligned)
+        const candidateSegments = and(
+          eq(transcriptSegments.sessionId, id),
+          eq(transcriptSegments.speaker, "candidate"),
+        );
+        const replaced = metrics
+          .filter(({ whisperText }) => whisperText)
+          .map(({ turn }) => turn.idx);
+        if (replaced.length) {
           await tx
             .delete(transcriptSegments)
             .where(
               and(
-                eq(transcriptSegments.sessionId, id),
-                eq(transcriptSegments.speaker, "candidate"),
+                candidateSegments,
+                inArray(transcriptSegments.turnIdx, replaced),
               ),
             );
+        }
+        const preserved = new Set(
+          aligned
+            ? (
+                await tx
+                  .select({ turnIdx: transcriptSegments.turnIdx })
+                  .from(transcriptSegments)
+                  .where(candidateSegments)
+              ).map(({ turnIdx }) => turnIdx)
+            : [],
+        );
         for (const entry of metrics) {
-          const { turn, text, window, voice } = entry;
-          const transcript = aligned
-            ? (text?.words ?? []).map((word) => word.w).join(" ")
-            : turn.answerTranscriptLive;
+          const { turn, text, window, voice, whisperText } = entry;
+          const transcript = whisperText || turn.answerTranscriptLive;
           await tx
             .update(turns)
             .set({
@@ -346,15 +367,25 @@ export async function processInterview(
               finalMetrics: { voice, vision: null },
             })
             .where(and(tw, eq(turns.idx, turn.idx)));
-          if (aligned && window && transcript?.trim()) {
-            const inside = text?.segments.length
-              ? text.segments
-              : [{ text: transcript, s: window.startMs, e: window.endMs }];
+          if (
+            aligned &&
+            window &&
+            transcript?.trim() &&
+            (whisperText || !preserved.has(turn.idx))
+          ) {
+            const inside =
+              whisperText && text?.segments.length
+                ? text.segments
+                : [{ text: transcript, s: window.startMs, e: window.endMs }];
             await tx.insert(transcriptSegments).values(
-              inside.map((part) => ({
+              inside.map<typeof transcriptSegments.$inferInsert>((part) => ({
                 sessionId: id,
                 speaker: "candidate" as const,
-                source: "whisper" as const,
+                source: whisperText
+                  ? "whisper"
+                  : original.aiMode === "pipeline"
+                    ? "pipeline"
+                    : "live",
                 turnIdx: turn.idx,
                 text: part.text,
                 startMs: part.s,
@@ -771,6 +802,12 @@ async function narrative(
         })),
       ),
       candidatesJson: JSON.stringify(candidates),
+      keyMomentSelection:
+        candidates.length < 5
+          ? "Choose exactly " +
+            candidates.length +
+            " of the supplied candidate IDs."
+          : "Choose 5–7 of the supplied candidate IDs.",
     }),
     narrativeSchema,
     { thinking: "medium", timeout: 90000 },

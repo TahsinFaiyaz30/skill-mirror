@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tabs } from "radix-ui";
 import { Copy, Download, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
@@ -280,6 +280,7 @@ export function CandidatesTable({ id }: { id: string }) {
   );
 }
 export function InviteForm({ opening }: { opening: Opening }) {
+  const client = useQueryClient();
   const [text, setText] = useState("");
   const [result, setResult] = useState<InviteResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -298,6 +299,13 @@ export function InviteForm({ opening }: { opening: Opening }) {
         "/api/openings/" + opening.id + "/invitations",
         "POST",
         { candidates, expiresInDays },
+      );
+      await Promise.all(
+        ["invitations", "candidates"].map((key) => {
+          const queryKey = [key, opening.id];
+          client.removeQueries({ queryKey, type: "inactive" });
+          return client.invalidateQueries({ queryKey });
+        }),
       );
       setResult(result);
     } catch (error) {

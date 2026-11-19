@@ -4,6 +4,7 @@ export const authIdentity = pgSchema("auth").table("users", {
   email: text(),
   encryptedPassword: text("encrypted_password"),
   emailConfirmedAt: timestamp("email_confirmed_at", { withTimezone: true }),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   rawUserMetaData: jsonb("raw_user_meta_data").$type<{
     full_name?: string;
     name?: string;

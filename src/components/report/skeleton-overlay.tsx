@@ -25,9 +25,11 @@ export function SkeletonOverlay({
     const target = canvas.current,
       context = target.getContext("2d");
     if (!context) return;
-    let handle = 0;
+    let active = true;
+    let handle: number | null = null;
     function draw() {
-      if (!context || !video) return;
+      if (!active || !context || !video) return;
+      if (handle !== null) video.cancelVideoFrameCallback(handle);
       const width = video.videoWidth,
         height = video.videoHeight;
       if (
@@ -95,12 +97,16 @@ export function SkeletonOverlay({
           }
         }
       }
-      handle = video.requestVideoFrameCallback(draw);
+      handle = video.requestVideoFrameCallback(() => {
+        handle = null;
+        draw();
+      });
     }
     draw();
     video.addEventListener("seeked", draw);
     return () => {
-      video.cancelVideoFrameCallback(handle);
+      active = false;
+      if (handle !== null) video.cancelVideoFrameCallback(handle);
       video.removeEventListener("seeked", draw);
     };
   }, [videoRef, frames, offset]);

@@ -259,7 +259,6 @@ export const narrativeSchema = z.object({
         better_answer: short(400),
       }),
     )
-    .min(5)
     .max(7),
   turn_feedback: z.array(
     z.object({

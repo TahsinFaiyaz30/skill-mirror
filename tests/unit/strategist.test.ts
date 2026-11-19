@@ -81,6 +81,31 @@ function makeContext(config: InterviewConfig = practice()): InterviewContext {
     },
   };
 }
+
+it("keeps the prep cue intact with a maximum-length company scenario", () => {
+  const context = makeContext();
+  context.config.presentation.custom = {
+    ...context.plan.presentation!,
+    title: "Custom design review",
+    scenario: "Explain the design to the delivery team. "
+      .repeat(20)
+      .slice(0, 600),
+  };
+  const item = basicItem("presentation", "presentation");
+  const directive = compose(context, item, {
+    seq: 5,
+    turnIdx: 3,
+    status: "time_cap",
+  });
+  expect(directive.sayText).toHaveLength(700);
+  expect(directive.sayText).toMatch(
+    /You have thirty seconds to prepare\. I'll tell you when to begin\.$/,
+  );
+  expect(
+    compose(context, item, { seq: 6, turnIdx: 3, mode: "presentation_begin" })
+      .questionText,
+  ).toBe("Custom design review");
+});
 function request(
   state: ReturnType<typeof startInterview>,
   overrides: Partial<StrategistInput> = {},

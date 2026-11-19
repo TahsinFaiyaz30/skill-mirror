@@ -13,9 +13,20 @@ const untrusted = new Set([
   "candidatesJson",
   "documentTextOrSeeAttachment",
   "questionText",
+  "toneInstructions",
+  "aiInstructionsOrNone",
+  "aiInstructions",
+  "topic",
+  "existingQuestionTextsOrNone",
 ]);
-export const sanitizeUntrusted = (text: string) =>
-  text.replace(/<<<(?:BEGIN|END)/gi, "");
+export function sanitizeUntrusted(text: string) {
+  let previous: string;
+  do {
+    previous = text;
+    text = previous.replace(/<<<(?:BEGIN|END)/gi, "");
+  } while (text !== previous);
+  return text;
+}
 export function render(template: string, values: PromptValues) {
   const prepared = template.replace(
     /{{#if\s+(!?)([\w]+)}}([\s\S]*?){{\/if}}\n?/g,

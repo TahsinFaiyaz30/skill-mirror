@@ -29,6 +29,20 @@
       "when": 1795037454403,
       "tag": "0003_respect_candidate_playback_visibility",
       "breakpoints": false
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795067287928,
+      "tag": "0004_retry_account_cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795068149681,
+      "tag": "0005_preserve_closed_company_interviews",
+      "breakpoints": true
     }
   ]
 }

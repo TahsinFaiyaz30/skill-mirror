@@ -4,6 +4,10 @@ import { useTheme } from "next-themes";
 import { Dialog } from "radix-ui";
 import { toast } from "sonner";
 import { localMock } from "@/lib/config/env";
+import {
+  meetsPasswordRequirements,
+  passwordRequirement,
+} from "@/lib/auth/password";
 import { browserSupabase } from "@/lib/supabase/client";
 import { send, showError } from "@/lib/utils/client";
 import { signOut } from "@/components/shell/app-nav";
@@ -50,6 +54,10 @@ export function Settings({
     const form = event.currentTarget,
       values = new FormData(form);
     const password = String(values.get("password"));
+    if (!meetsPasswordRequirements(password)) {
+      toast.error(passwordRequirement);
+      return;
+    }
     if (password !== values.get("confirm")) {
       toast.error("Passwords do not match.");
       return;

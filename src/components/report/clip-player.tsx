@@ -33,15 +33,19 @@ export function ClipPlayer({
 }) {
   const segments = playback.segments;
   const firstIndex = segments.findIndex(
-    (item) => item.startMs <= clip.clipStartMs && item.endMs > clip.clipStartMs,
+    (item) => item.startMs < clip.clipEndMs && item.endMs > clip.clipStartMs,
   );
-  const [active, setActive] = useState(Math.max(0, firstIndex));
-  const [position, setPosition] = useState(clip.clipStartMs);
+  const start = Math.max(
+    clip.clipStartMs,
+    segments[firstIndex]?.startMs ?? clip.clipStartMs,
+  );
+  const [active, setActive] = useState(firstIndex);
+  const [position, setPosition] = useState(start);
   const [playing, setPlaying] = useState(false);
   const [overlay, setOverlay] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
-  const target = useRef(clip.clipStartMs),
+  const target = useRef(start),
     continuePlaying = useRef(false);
   const segment = segments[active];
   const landmarks = useQuery({

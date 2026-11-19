@@ -12,6 +12,7 @@ import {
   type PoseFeatures,
 } from "@/lib/vision/features";
 import {
+  MIC_CONFIRM_MS,
   MIC_PASS_PEAK_DB,
   NOISY_FLOOR_DB,
   VIDEO_RECORD_SIZE,
@@ -251,6 +252,8 @@ export function SetupWizard({
       floor: number[] = [];
     const start = performance.now();
     let peak = -180;
+    let noiseFloorDb: number | undefined;
+    let loudSince: number | null = null;
     const timer = setInterval(() => {
       const elapsed = performance.now() - start;
       analyser.getFloatTimeDomainData(samples);
@@ -261,22 +264,31 @@ export function SetupWizard({
             1e-9,
         );
       setProgress(db);
-      if (elapsed < 2000) floor.push(db);
-      else {
-        const noiseFloorDb = median(floor) ?? -60;
-        setNoise(noiseFloorDb);
-        peak = Math.max(peak, db);
-        if (peak > MIC_PASS_PEAK_DB) {
-          const next = {
-            ...calibrationRef.current,
-            audio: { noiseFloorDb, micPeakDb: peak },
-          };
-          calibrationRef.current = next;
-          mediaSession.calibration = next;
-          setCalibration(next);
-          setStep(6);
-        }
+      if (elapsed < 2000) {
+        floor.push(db);
+        return;
       }
+      if (noiseFloorDb === undefined) {
+        noiseFloorDb = median(floor) ?? -60;
+        setNoise(noiseFloorDb);
+      }
+      if (db <= MIC_PASS_PEAK_DB) {
+        loudSince = null;
+        peak = -180;
+        return;
+      }
+      loudSince ??= elapsed;
+      peak = Math.max(peak, db);
+      if (elapsed - loudSince < MIC_CONFIRM_MS) return;
+      clearInterval(timer);
+      const next = {
+        ...calibrationRef.current,
+        audio: { noiseFloorDb, micPeakDb: peak },
+      };
+      calibrationRef.current = next;
+      mediaSession.calibration = next;
+      setCalibration(next);
+      setStep(6);
     }, 80);
     return () => {
       clearInterval(timer);

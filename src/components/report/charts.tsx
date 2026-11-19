@@ -212,10 +212,12 @@ export function ComposureCurve({
 export function TimelineTracks({
   timeline,
   playhead,
+  seek,
   jump,
 }: {
   timeline: ReportData["timeline"];
   playhead: number;
+  seek: (at: number) => void;
   jump: (at: number) => void;
 }) {
   const colors = useThemeColors(),
@@ -340,17 +342,27 @@ export function TimelineTracks({
           </div>
         </div>
       </div>
-      <label className="cluster">
-        <span>Seek through the interview</span>
-        <input
-          type="range"
-          min={0}
-          max={duration}
-          step={500}
-          value={Math.min(duration, playhead)}
-          onChange={(event) => jump(Number(event.target.value))}
-        />
-      </label>
+      <div className="cluster">
+        <label className="cluster">
+          <span>Seek through the interview</span>
+          <input
+            type="range"
+            min={0}
+            max={duration}
+            step={500}
+            value={Math.min(duration, playhead)}
+            onChange={(event) => seek(Number(event.target.value))}
+          />
+        </label>
+        <button
+          type="button"
+          className="button secondary"
+          onClick={() => jump(playhead)}
+          disabled={playhead >= timeline.durationMs}
+        >
+          Play from playhead
+        </button>
+      </div>
     </div>
   );
 }

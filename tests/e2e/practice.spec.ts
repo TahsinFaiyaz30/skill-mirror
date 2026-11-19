@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import {
   answerAll,
   prepareAndStart,
@@ -7,16 +7,45 @@ import {
   uploadCv,
 } from "./flow";
 
-async function useTheme(
+async function selectTheme(
   page: import("@playwright/test").Page,
   name: "Light" | "Dark",
 ) {
+  const expected = new RegExp(name.toLowerCase());
+  if (expected.test((await page.locator("html").getAttribute("class")) ?? "")) {
+    return;
+  }
   await page.getByRole("button", { name: "Theme", exact: true }).click();
-  await page.getByRole("menuitemradio", { name, exact: true }).click();
-  await expect(page.locator("html")).toHaveClass(
-    new RegExp(name.toLowerCase()),
-  );
+  await page
+    .getByRole("menuitemradio", { name, exact: true })
+    .click({ timeout: 10000 });
+  await expect(page.locator("html")).toHaveClass(expected);
 }
+
+const contrast = (button: Locator) =>
+  button.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const luminance = (color: string) => {
+      const channels = color
+        .match(/\d+(?:\.\d+)?/g)
+        ?.slice(0, 3)
+        .map(Number);
+      if (channels?.length !== 3) throw new Error("Expected an RGB color");
+      const [r, g, b] = channels.map((value) => {
+        const normalized = value / 255;
+        return normalized <= 0.04045
+          ? normalized / 12.92
+          : ((normalized + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const foreground = luminance(style.color);
+    const background = luminance(style.backgroundColor);
+    return (
+      (Math.max(foreground, background) + 0.05) /
+      (Math.min(foreground, background) + 0.05)
+    );
+  });
 test("practice interview records answers and produces a private report in mock mode", async ({
   page,
   browser,
@@ -31,11 +60,11 @@ test("practice interview records answers and produces a private report in mock m
   await expect(
     page.getByRole("heading", { name: "No interviews yet" }),
   ).toBeVisible();
-  await useTheme(page, "Light");
+  await selectTheme(page, "Light");
   await expect(page.locator("main")).toHaveScreenshot("dashboard-light.png", {
     maxDiffPixelRatio: 0.01,
   });
-  await useTheme(page, "Dark");
+  await selectTheme(page, "Dark");
   await expect(page.locator("main")).toHaveScreenshot("dashboard-dark.png", {
     maxDiffPixelRatio: 0.01,
   });
@@ -58,12 +87,12 @@ test("practice interview records answers and produces a private report in mock m
   await expect(
     page.getByRole("heading", { name: /Tell me about yourself/ }),
   ).toBeVisible();
-  await useTheme(page, "Light");
+  await selectTheme(page, "Light");
   await expect(page.locator(".room-question")).toHaveScreenshot(
     "room-light.png",
     { maxDiffPixelRatio: 0.01 },
   );
-  await useTheme(page, "Dark");
+  await selectTheme(page, "Dark");
   await expect(page.locator(".room-question")).toHaveScreenshot(
     "room-dark.png",
     { maxDiffPixelRatio: 0.01 },
@@ -78,11 +107,39 @@ test("practice interview records answers and produces a private report in mock m
     mask: dynamic,
     maxDiffPixelRatio: 0.01,
   });
-  await useTheme(page, "Light");
+  await selectTheme(page, "Light");
   await expect(overview).toHaveScreenshot("report-light.png", {
     mask: dynamic,
     maxDiffPixelRatio: 0.01,
   });
+  const seek = page.getByRole("slider", { name: "Seek through the interview" });
+  await seek.press("ArrowRight");
+  await expect(seek).toHaveValue("500");
+  await expect(seek).toBeFocused();
+  await expect(
+    page.getByRole("dialog", { name: "Interview clip" }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Play from playhead" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Interview clip" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close clip" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Interview clip" }),
+  ).toHaveCount(0);
+
+  for (const theme of ["Light", "Dark"] as const) {
+    await selectTheme(page, theme);
+    await page.getByRole("button", { name: "More report actions" }).click();
+    await page.getByRole("menuitem", { name: "Delete session" }).click();
+    const dialog = page.getByRole("dialog", { name: "Delete this session?" });
+    expect(
+      await contrast(dialog.getByRole("button", { name: "Delete session" })),
+    ).toBeGreaterThanOrEqual(4.5);
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toHaveCount(0);
+  }
+
   await expect(page.getByRole("button", { name: "Play clip" })).toHaveCount(5);
   await page.getByRole("button", { name: "Play clip" }).first().click();
   await expect(
@@ -98,9 +155,20 @@ test("practice interview records answers and produces a private report in mock m
     )
     .toBeGreaterThan(0.05);
   await page.getByRole("button", { name: "Close clip" }).click();
-  await page.getByRole("button", { name: "Theme" }).click();
-  await page.getByRole("menuitemradio", { name: "Dark" }).click();
-  await expect(page.locator("html")).toHaveClass(/dark/);
+  await page.goto("/settings");
+  for (const theme of ["Light", "Dark"] as const) {
+    await selectTheme(page, theme);
+    await page.getByRole("button", { name: "Delete all my data" }).click();
+    const dialog = page.getByRole("dialog", {
+      name: "Delete your account and data?",
+    });
+    await dialog.getByRole("textbox", { name: "Confirmation" }).fill("DELETE");
+    const confirm = dialog.getByRole("button", { name: "Delete all my data" });
+    await expect(confirm).toBeEnabled();
+    expect(await contrast(confirm)).toBeGreaterThanOrEqual(4.5);
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toHaveCount(0);
+  }
   await page.getByRole("link", { name: "Dashboard" }).click();
   await expect(page.getByRole("link", { name: "View report" })).toBeVisible();
   await page.getByRole("link", { name: "Progress" }).click();

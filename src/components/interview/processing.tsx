@@ -15,6 +15,7 @@ type StatusResponse = {
   progress: number;
   step: string | null;
   error: string | null;
+  retryAfterMs: number | null;
 };
 const labels = [
   "Uploading",
@@ -96,9 +97,6 @@ export function Processing({
       });
     const unsubscribe = uploader.onProgress(sync);
     sync();
-    const task = setTimeout(() => {
-      if (data.session.status !== "failed") void run();
-    }, 0);
     const timer = setInterval(
       () => setTip((index) => (index + 1) % tips.length),
       6000,
@@ -112,40 +110,35 @@ export function Processing({
     window.addEventListener("beforeunload", warning);
     return () => {
       unsubscribe();
-      clearTimeout(task);
       clearInterval(timer);
       window.removeEventListener("beforeunload", warning);
     };
-  }, [run, data.session.status]);
+  }, []);
 
   useEffect(() => {
-    if (status.data?.sessionStatus === "completed") {
+    const current = status.data;
+    if (!current) return;
+    if (current.sessionStatus === "completed") {
       if (embedded) router.refresh();
       else
         router.replace(
           "/interview/" + id + "/" + (kind === "company" ? "done" : "report"),
         );
+      return;
     }
-    const refreshed = status.dataUpdatedAt && Date.now() - status.dataUpdatedAt;
-    if (
-      status.data?.sessionStatus === "processing" &&
-      status.data.reportStatus === "running" &&
-      refreshed !== 0 &&
-      !running.current &&
-      !error
-    ) {
-      void run();
+    const pendingEnd =
+      current.sessionStatus === "in_progress" &&
+      sessionStorage.getItem(pendingEndKey(id));
+    const canProcess =
+      ["ended", "processing"].includes(current.sessionStatus) &&
+      (current.reportStatus === "queued" ||
+        current.reportStatus === null ||
+        current.retryAfterMs === 0);
+    if (!error && (pendingEnd || canProcess)) {
+      const task = window.setTimeout(() => void run(), 0);
+      return () => window.clearTimeout(task);
     }
-  }, [
-    error,
-    status.data,
-    status.dataUpdatedAt,
-    embedded,
-    id,
-    kind,
-    router,
-    run,
-  ]);
+  }, [error, status.data, embedded, id, kind, router, run]);
 
   const progress = status.data?.progress ?? 0;
   const failure =

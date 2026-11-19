@@ -1,16 +1,13 @@
 import { z } from "zod";
 
-const optional = z.preprocess(
-  (value) => (value === "" ? undefined : value),
-  z.string().min(1).optional(),
-);
-const optionalURL = z.preprocess(
-  (value) => (value === "" ? undefined : value),
-  z.url().optional(),
-);
+const blankAsUndefined = (value: unknown) => (value === "" ? undefined : value);
+const optional = z.preprocess(blankAsUndefined, z.string().min(1).optional());
+const optionalURL = z.preprocess(blankAsUndefined, z.url().optional());
+const defaultString = (value: string) =>
+  z.preprocess(blankAsUndefined, z.string().default(value));
 const positive = (value: number) =>
   z.preprocess(
-    (input) => (input === "" ? undefined : input),
+    blankAsUndefined,
     z.coerce.number().int().positive().default(value),
   );
 export const aiModes = z.enum(["live", "pipeline", "mock"]);
@@ -39,11 +36,11 @@ const serverSchema = z.object({
   DATABASE_URL: optional,
   GEMINI_API_KEY: optional,
   GROQ_API_KEY: optional,
-  MODEL_LIVE: z.string().default("gemini-3.8-live"),
-  MODEL_FLASH: z.string().default("gemini-3.8-flash"),
-  MODEL_TTS: z.string().default("gemini-3.8-flash-lite-tts"),
-  GROQ_STRATEGIST_MODEL: z.string().default("openai/gpt-oss-120b"),
-  GROQ_WHISPER_MODEL: z.string().default("whisper-large-v3-turbo"),
+  MODEL_LIVE: defaultString("gemini-3.8-live"),
+  MODEL_FLASH: defaultString("gemini-3.8-flash"),
+  MODEL_TTS: defaultString("gemini-3.8-flash-lite-tts"),
+  GROQ_STRATEGIST_MODEL: defaultString("openai/gpt-oss-120b"),
+  GROQ_WHISPER_MODEL: defaultString("whisper-large-v3-turbo"),
   CERT_SIGNING_SECRET: optional,
   CRON_SECRET: optional,
   MAX_INTERVIEWS_PER_DAY: positive(3),
@@ -51,10 +48,13 @@ const serverSchema = z.object({
   RECORDING_RETENTION_DAYS: positive(30),
   RESEND_API_KEY: optional,
   EMAIL_FROM: optional,
-  FEATURE_GITHUB: z
-    .enum(["true", "false"])
-    .default("false")
-    .transform((value) => value === "true"),
+  FEATURE_GITHUB: z.preprocess(
+    blankAsUndefined,
+    z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+  ),
   GITHUB_TOKEN: optional,
 });
 export function serverEnv() {
