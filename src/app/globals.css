@@ -1971,13 +1971,14 @@ details summary {
   box-shadow: 0 24px 60px -24px rgb(0 0 0 / 0.95);
   font-size: 13px;
 }
+/* Keep both cards beside the orb and above the question card, so they never cover the question text. */
 .lp-float.one {
-  left: -80px;
-  top: 112px;
+  left: -56px;
+  top: 72px;
 }
 .lp-float.two {
   right: -48px;
-  bottom: 92px;
+  top: 150px;
 }
 .lp-float-label {
   color: var(--muted);
@@ -2685,12 +2686,9 @@ details summary {
     }
   }
 }
-@media (max-width: 1100px) {
-  .lp-float.one {
-    left: -12px;
-  }
-  .lp-float.two {
-    right: -12px;
+@media (max-width: 1199px) {
+  .lp-float {
+    display: none;
   }
 }
 @media (max-width: 1023px) {
@@ -2712,9 +2710,6 @@ details summary {
   .lp-measures,
   .lp-trust {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .lp-float {
-    display: none;
   }
   .lp-hiring {
     padding: 40px 28px;
