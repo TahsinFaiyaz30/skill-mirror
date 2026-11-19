@@ -4,11 +4,37 @@ import { useQuery } from "@tanstack/react-query";
 import {
   BriefcaseBusiness,
   CircleCheck,
+  FileCheck,
+  GitCompareArrows,
+  ListChecks,
   LockKeyhole,
   Plus,
   Send,
   ThumbsUp,
 } from "lucide-react";
+// What a hiring team does in SkillMirror, shown until the first opening exists.
+const hiringSteps = [
+  [
+    ListChecks,
+    "Design the interview",
+    "Add your must-ask questions, import them from a document, or let SkillMirror plan the interview.",
+  ],
+  [
+    Send,
+    "Invite candidates",
+    "Publish the opening and send invite links by email. Candidates interview on their own time.",
+  ],
+  [
+    FileCheck,
+    "Review structured reports",
+    "See question coverage, AI follow-ups labelled apart from your questions, and delivery insights.",
+  ],
+  [
+    GitCompareArrows,
+    "Compare and decide",
+    "Compare candidates side by side, advance or reject, and export your decisions as CSV.",
+  ],
+] as const;
 import type { OpeningListRow } from "@/types/hiring";
 import { readable } from "@/lib/config/taxonomy";
 import { errorMessage, requestJSON, send, showError } from "@/lib/utils/client";
@@ -95,7 +121,27 @@ export function OpeningsList() {
             </Link>
           </div>
         </div>
-      ) : (
+      ) : null}
+      {!query.isPending && !query.isError && !items.length && (
+        <section className="stack" aria-labelledby="hiring-steps">
+          <h2 id="hiring-steps">How hiring works</h2>
+          <ol className="preview-grid four">
+            {hiringSteps.map(([Icon, title, text], index) => (
+              <li key={title} className="card preview-card">
+                <span className="cluster between">
+                  <span className="stat-icon">
+                    <Icon size={19} aria-hidden="true" />
+                  </span>
+                  <span className="mono muted">0{index + 1}</span>
+                </span>
+                <h3>{title}</h3>
+                <p className="muted">{text}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+      {query.isPending || query.isError || !items.length ? null : (
         <div className="card scroll">
           <table>
             <thead>

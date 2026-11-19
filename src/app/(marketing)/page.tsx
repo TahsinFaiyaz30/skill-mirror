@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Video,
 } from "lucide-react";
+import { ScrollGuide } from "@/components/common/scroll-guide";
 import { Brand } from "@/components/shell/brand";
 import { PRACTICE_TEMPLATES } from "@/lib/config/constants";
 import { PHASE_LABELS } from "@/lib/config/taxonomy";
@@ -849,6 +850,7 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+      <ScrollGuide />
     </div>
   );
 }
