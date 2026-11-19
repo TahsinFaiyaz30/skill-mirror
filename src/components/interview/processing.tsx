@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Brand } from "@/components/shell/brand";
-import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { pendingEndKey } from "@/lib/live/turnEngine";
 import { uploader } from "@/lib/recording/uploader";
 import { errorMessage, requestJSON, send } from "@/lib/utils/client";
@@ -192,7 +191,6 @@ export function Processing({
     <main className="live-room">
       <header className="room-header">
         <Brand company={data.config.company} />
-        <ThemeToggle />
       </header>
       <div className="processing-center">{card}</div>
     </main>

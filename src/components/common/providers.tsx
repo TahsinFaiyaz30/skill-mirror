@@ -12,13 +12,24 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider
       attribute="class"
-      defaultTheme="system"
-      enableSystem
+      defaultTheme="dark"
+      forcedTheme="dark"
+      enableSystem={false}
       disableTransitionOnChange
     >
       <QueryClientProvider client={query}>
         <MotionConfig reducedMotion="user">{children}</MotionConfig>
-        <Toaster position="bottom-right" />
+        <Toaster
+          position="bottom-right"
+          theme="dark"
+          toastOptions={{
+            style: {
+              background: "#0b1310",
+              border: "1px solid #283b31",
+              color: "#e9f3ed",
+            },
+          }}
+        />
       </QueryClientProvider>
     </ThemeProvider>
   );

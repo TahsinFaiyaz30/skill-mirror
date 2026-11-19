@@ -13,7 +13,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Dialog } from "radix-ui";
 import { ArrowLeft, LoaderCircle, Mic, Repeat2, X } from "lucide-react";
 import { Brand } from "@/components/shell/brand";
-import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { PHASE_LABELS } from "@/lib/config/taxonomy";
 import { errorMessage, shortTime } from "@/lib/utils/client";
 import { pendingEndKey, TurnEngine } from "@/lib/live/turnEngine";
@@ -219,7 +218,6 @@ export function LiveRoom({
                     : "Check lighting and shoulder framing"
               }
             />
-            <ThemeToggle />
           </div>
         </header>
         {offline && (

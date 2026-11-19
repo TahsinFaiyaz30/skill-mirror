@@ -2,7 +2,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CompanyInvites } from "./company-invites";
-import { ClipboardList } from "lucide-react";
+import {
+  CircleCheck,
+  ClipboardList,
+  Gauge,
+  Plus,
+  TrendingUp,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { errorMessage, requestJSON, send, showError } from "@/lib/utils/client";
 import { readable } from "@/lib/config/taxonomy";
@@ -59,21 +65,34 @@ export function Dashboard({ firstName }: { firstName: string }) {
     }
   };
   return (
-    <div className="stack">
-      <div className="cluster between">
-        <h1>Welcome back{firstName ? ", " + firstName : ""}</h1>
+    <div className="stack-lg">
+      <div className="page-header">
+        <div className="stack-sm">
+          <span className="eyebrow">Practice</span>
+          <h1>Welcome back{firstName ? ", " + firstName : ""}</h1>
+          <p className="muted">
+            Start a new mock interview or pick up where you left off.
+          </p>
+        </div>
         <Link className="button" href="/interview/new">
+          <Plus size={18} aria-hidden="true" />
           New interview
         </Link>
       </div>
       <div className="grid-3">
-        <div className="card stack-sm">
+        <div className="card stat">
+          <span className="stat-icon">
+            <CircleCheck size={19} aria-hidden="true" />
+          </span>
           <small>Interviews completed</small>
-          <strong className="mono text-2xl">{completed.length}</strong>
+          <strong className="mono stat-value">{completed.length}</strong>
         </div>
-        <div className="card stack-sm">
+        <div className="card stat">
+          <span className="stat-icon">
+            <TrendingUp size={19} aria-hidden="true" />
+          </span>
           <small>Latest overall score</small>
-          <strong className="mono text-2xl">
+          <strong className="mono stat-value">
             {latest ?? "—"}{" "}
             {gain !== null && (
               <span className="badge accent">
@@ -83,9 +102,12 @@ export function Dashboard({ firstName }: { firstName: string }) {
             )}
           </strong>
         </div>
-        <div className="card stack-sm">
+        <div className="card stat">
+          <span className="stat-icon">
+            <Gauge size={19} aria-hidden="true" />
+          </span>
           <small>Best technical ceiling</small>
-          <strong className="mono text-2xl">
+          <strong className="mono stat-value">
             {ceilings.length ? Math.max(...ceilings) : "—"}
           </strong>
         </div>
@@ -108,9 +130,15 @@ export function Dashboard({ firstName }: { firstName: string }) {
             </button>
           </div>
         ) : !items.length ? (
-          <div className="card stack center">
-            <ClipboardList className="mx-auto" size={32} />
+          <div className="card stack center empty-state">
+            <span className="empty-icon">
+              <ClipboardList size={28} aria-hidden="true" />
+            </span>
             <h3>No interviews yet</h3>
+            <p className="muted">
+              Upload your CV, choose a role and take a 10 or 20 minute mock
+              interview. Your report appears here when it&apos;s ready.
+            </p>
             <div>
               <Link className="button" href="/interview/new">
                 New interview

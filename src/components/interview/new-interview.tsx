@@ -211,7 +211,7 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
       {step === 0 && (
         <div className="card stack">
           <div
-            className="inset stack-sm"
+            className="inset stack-sm dropzone"
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();

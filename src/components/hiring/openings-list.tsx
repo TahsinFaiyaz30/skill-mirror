@@ -1,7 +1,14 @@
 "use client";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { BriefcaseBusiness, LockKeyhole } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  CircleCheck,
+  LockKeyhole,
+  Plus,
+  Send,
+  ThumbsUp,
+} from "lucide-react";
 import type { OpeningListRow } from "@/types/hiring";
 import { readable } from "@/lib/config/taxonomy";
 import { errorMessage, requestJSON, send, showError } from "@/lib/utils/client";
@@ -13,33 +20,51 @@ export function OpeningsList() {
   });
   const items = query.data?.items ?? [];
   const stats = [
-    ["Active openings", items.filter((row) => row.status === "active").length],
-    ["Candidates invited", items.reduce((n, row) => n + row.counts.invited, 0)],
     [
+      BriefcaseBusiness,
+      "Active openings",
+      items.filter((row) => row.status === "active").length,
+    ],
+    [
+      Send,
+      "Candidates invited",
+      items.reduce((n, row) => n + row.counts.invited, 0),
+    ],
+    [
+      CircleCheck,
       "Interviews completed",
       items.reduce((n, row) => n + row.counts.completed, 0),
     ],
     [
+      ThumbsUp,
       "Recommended to advance",
       items.reduce((n, row) => n + row.counts.advance, 0),
     ],
-  ];
+  ] as const;
   return (
-    <div className="stack">
-      <div className="cluster between">
+    <div className="stack-lg">
+      <div className="page-header">
         <div className="stack-sm">
-          <p className="muted">SkillMirror for Teams</p>
+          <span className="eyebrow">SkillMirror for Teams</span>
           <h1>Openings</h1>
+          <p className="muted">
+            Publish AI interviews, invite candidates and review structured
+            reports.
+          </p>
         </div>
         <Link href="/hiring/openings/new" className="button">
+          <Plus size={18} aria-hidden="true" />
           New opening
         </Link>
       </div>
       <div className="grid-4">
-        {stats.map(([label, n]) => (
-          <div key={label} className="card stack-sm">
+        {stats.map(([Icon, label, n]) => (
+          <div key={label} className="card stat">
+            <span className="stat-icon">
+              <Icon size={19} aria-hidden="true" />
+            </span>
             <small>{label}</small>
-            <strong className="mono text-2xl">{n}</strong>
+            <strong className="mono stat-value">{n}</strong>
           </div>
         ))}
       </div>
@@ -55,9 +80,15 @@ export function OpeningsList() {
           </button>
         </div>
       ) : !items.length ? (
-        <div className="card stack center">
-          <BriefcaseBusiness className="mx-auto" size={32} />
+        <div className="card stack center empty-state">
+          <span className="empty-icon">
+            <BriefcaseBusiness size={28} aria-hidden="true" />
+          </span>
           <h2>Create your first AI interview.</h2>
+          <p className="muted">
+            Add your must-ask questions or let SkillMirror plan the interview,
+            then share an invite link with candidates.
+          </p>
           <div>
             <Link href="/hiring/openings/new" className="button">
               New opening

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Providers } from "@/components/common/providers";
 import "./globals.css";
@@ -20,6 +20,11 @@ export const metadata: Metadata = {
     "Pressure-tested interviews. Every answer, every gesture, every second.",
 };
 
+export const viewport: Viewport = {
+  themeColor: "#050807",
+  colorScheme: "dark",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -27,7 +32,8 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={inter.variable + " " + mono.variable}
+      className={"dark " + inter.variable + " " + mono.variable}
+      style={{ colorScheme: "dark" }}
     >
       <body>
         <Providers>{children}</Providers>
