@@ -53,6 +53,9 @@ const steps = [
   "Evaluation",
   "Review & publish",
 ];
+// The form shows only what a recruiter must decide. AI behavior and
+// evaluation keep their defaults, which are saved with the opening.
+const visibleSteps = [0, 1, 2, 5];
 const modeDetails = {
   scripted: ["Scripted", "The AI asks only your questions."],
   hybrid: [
@@ -592,9 +595,9 @@ export function OpeningWizard({
       </div>
       <div className="opening-wizard">
         <nav className="stack-sm no-print" aria-label="Opening steps">
-          {steps.map((label, i) => (
+          {visibleSteps.map((i, n) => (
             <button
-              key={label}
+              key={steps[i]}
               type="button"
               aria-current={i === step ? "step" : undefined}
               disabled={busy || (!id && i !== 0)}
@@ -603,7 +606,7 @@ export function OpeningWizard({
               }}
               className={"button " + (i === step ? "" : "ghost")}
             >
-              {i + 1}. {label}
+              {n + 1}. {steps[i]}
             </button>
           ))}
         </nav>
@@ -1213,7 +1216,11 @@ export function OpeningWizard({
               <button
                 className="button ghost"
                 disabled={busy}
-                onClick={() => void navigate(step - 1)}
+                onClick={() =>
+                  void navigate(
+                    visibleSteps[Math.max(0, visibleSteps.indexOf(step) - 1)],
+                  )
+                }
               >
                 Back
               </button>
@@ -1222,7 +1229,11 @@ export function OpeningWizard({
               <button
                 className="button"
                 disabled={busy}
-                onClick={() => void navigate(step + 1)}
+                onClick={() =>
+                  void navigate(
+                    visibleSteps[visibleSteps.indexOf(step) + 1] ?? 5,
+                  )
+                }
               >
                 Save and continue
               </button>

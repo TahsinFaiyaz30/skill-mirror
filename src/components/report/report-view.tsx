@@ -4,7 +4,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
-import { Award, Play, Printer } from "lucide-react";
+import {
+  Activity,
+  Award,
+  BarChart3,
+  Brain,
+  CirclePlay,
+  Gauge,
+  HeartPulse,
+  ListChecks,
+  MessageSquareText,
+  Play,
+  Printer,
+  Target,
+  type LucideIcon,
+} from "lucide-react";
 import { Dialog, DropdownMenu } from "radix-ui";
 import {
   errorMessage,
@@ -511,6 +525,17 @@ const section = [
   "Practice plan",
 ];
 const sectionId = (title: string) => title.toLowerCase().replaceAll(" ", "-");
+const sectionIcon: Record<string, LucideIcon> = {
+  Overview: Gauge,
+  Technical: Brain,
+  "Soft skills": MessageSquareText,
+  Composure: HeartPulse,
+  Timeline: Activity,
+  "Key moments": CirclePlay,
+  Questions: ListChecks,
+  Stats: BarChart3,
+  "Practice plan": Target,
+};
 export function ReportView({
   id,
   report,
@@ -601,17 +626,22 @@ export function ReportView({
     <div className={"report-layout " + (recruiter ? "recruiter-report" : "")}>
       {!recruiter && (
         <aside className="report-toc no-print">
-          <nav aria-label="Report sections" className="stack-sm">
+          <nav aria-label="Report sections" className="card">
+            <span className="nav-section">In this report</span>
             {section
               .filter(
                 (name) =>
                   !off || !["Soft skills", "Composure", "Stats"].includes(name),
               )
-              .map((name) => (
-                <a key={name} href={"#" + sectionId(name)}>
-                  {name}
-                </a>
-              ))}
+              .map((name) => {
+                const Icon = sectionIcon[name];
+                return (
+                  <a key={name} href={"#" + sectionId(name)}>
+                    <Icon size={17} aria-hidden="true" />
+                    {name}
+                  </a>
+                );
+              })}
           </nav>
         </aside>
       )}
@@ -676,6 +706,9 @@ export function ReportView({
         )}
         <section className="card stack" id="technical">
           <h2>Technical</h2>
+          <p className="section-hint">
+            How far you got on each skill, from level 1 to level 5.
+          </p>
           {!report.technical.competencies.length &&
             report.technical.companyQuestionsScore === null && (
               <p className="muted">No technical competencies were assessed.</p>
@@ -753,11 +786,18 @@ export function ReportView({
         {report.composure && (
           <section className="card stack" id="composure">
             <h2>Composure</h2>
+            <p className="section-hint">
+              How calm and steady you stayed as the questions got harder.
+            </p>
             <ComposureCurve data={report.composure} />
           </section>
         )}
         <section className="card stack" id="timeline">
           <h2>Timeline</h2>
+          <p className="section-hint">
+            Your interview minute by minute. Select any mark to replay that
+            moment.
+          </p>
           <TimelineTracks
             timeline={report.timeline}
             playhead={head}
@@ -767,6 +807,9 @@ export function ReportView({
         </section>
         <section className="card stack" id="key-moments">
           <h2>Key moments</h2>
+          <p className="section-hint">
+            Short clips worth watching, each with one thing to try next time.
+          </p>
           {report.keyMoments.length ? (
             <div className="grid-2">
               {report.keyMoments.map((item) => (
@@ -819,6 +862,9 @@ export function ReportView({
         )}
         <section className="card stack" id="questions">
           <h2>Questions</h2>
+          <p className="section-hint">
+            Every question you were asked, with how your answer was rated.
+          </p>
           {report.turns.map((turn) => (
             <TurnAccordion
               key={turn.turnIdx}
@@ -835,6 +881,9 @@ export function ReportView({
         {!off && (
           <section className="card stack" id="stats">
             <h2>Stats</h2>
+            <p className="section-hint">
+              Numbers from your voice and delivery.
+            </p>
             <StatsTable stats={report.stats} recruiter={recruiter} />
           </section>
         )}
@@ -870,6 +919,9 @@ export function ReportView({
         )}
         <section className="card stack" id="practice-plan">
           <h2>Practice plan</h2>
+          <p className="section-hint">
+            Drills to practice before your next interview.
+          </p>
           <PracticePlan items={report.practicePlan} />
         </section>
       </div>
@@ -1005,6 +1057,9 @@ export function InterviewReport({
           </div>
           <div className="card stack">
             <h2>Practice plan</h2>
+            <p className="section-hint">
+              Drills to practice before your next interview.
+            </p>
             <PracticePlan items={data.practicePlan} />
           </div>
         </>

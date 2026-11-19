@@ -1,5 +1,12 @@
 "use client";
-import { Building2, Clock, FileUp, Lock, ShieldCheck } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  Building2,
+  Clock,
+  FileUp,
+  Lock,
+  ShieldCheck,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -9,28 +16,24 @@ import { errorMessage, requestJSON, send } from "@/lib/utils/client";
 import { uploadFile, type SignedUpload } from "@/lib/supabase/upload";
 import type { ParsedCV, SessionPublic, VoiceName } from "@/types/interview";
 import {
-  FlowSteps,
   GuideCard,
   IconList,
   PhasePlan,
+  ReadyChecklist,
 } from "@/components/common/guides";
-const cvStep = [
-  "Add your CV",
-  "A PDF up to 5 MB and 10 pages. Your skills, experience and projects shape the questions.",
-] as const;
-const reviewStep = [
-  "Check what we read",
-  "Remove any skill you don't want to be asked about.",
-] as const;
-const setupStep = [
-  "Set up camera and mic",
-  "Setup checks your framing, posture, gaze, microphone and audio.",
-] as const;
 type CVRow = {
   cvId: string;
   fileName: string;
   headline: string | null;
   parseStatus: string;
+};
+type Details = {
+  company: string;
+  roleTitle: string;
+  roleFamily: string;
+  seniority: string;
+  lengthMinutes: 10 | 20;
+  jobDescription: string;
 };
 const companies = [
   "Google",
@@ -101,10 +104,46 @@ export function VoiceSelect({
     </fieldset>
   );
 }
+function Summary({
+  role,
+  company,
+  level,
+  minutes,
+}: {
+  role: string;
+  company: string;
+  level: string;
+  minutes: number;
+}) {
+  return (
+    <GuideCard title="Your interview">
+      <dl className="summary-list">
+        <div>
+          <dt>Role</dt>
+          <dd>{role || "Not set yet"}</dd>
+        </div>
+        <div>
+          <dt>Company</dt>
+          <dd>{company || "Not set yet"}</dd>
+        </div>
+        <div>
+          <dt>Level</dt>
+          <dd>{level}</dd>
+        </div>
+        <div>
+          <dt>Length</dt>
+          <dd>{minutes} minutes</dd>
+        </div>
+      </dl>
+    </GuideCard>
+  );
+}
+// Practice: name the interview first, then add a CV. Company invites already
+// have their details, so they go straight to the CV.
 export function NewInterview({ existing }: { existing?: SessionPublic }) {
   const router = useRouter();
   const companyMode = Boolean(existing);
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState<0 | 1>(companyMode ? 1 : 0);
   const [state, setState] = useState<
     "idle" | "uploading" | "parsing" | "saving"
   >("idle");
@@ -113,34 +152,17 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
   const [previous, setPrevious] = useState("");
   const [syntheticMaterial, setSyntheticMaterial] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [description, setDescription] = useState("");
   const [voice, setVoice] = useState<VoiceName>("Kore");
-  const [length, setLength] = useState<10 | 20>(20);
-  const company = existing?.session.company ?? "";
-  const flow = companyMode
-    ? [
-        cvStep,
-        reviewStep,
-        setupStep,
-        [
-          "Interview",
-          company +
-            " receives your recording, transcript, evaluation and a summary of your CV.",
-        ] as const,
-      ]
-    : [
-        cvStep,
-        reviewStep,
-        [
-          "Choose your target",
-          "Company, role, seniority and an optional job description.",
-        ] as const,
-        setupStep,
-        [
-          "Interview, then report",
-          "Answer out loud. Your report appears on your dashboard when it's ready.",
-        ] as const,
-      ];
+  const [details, setDetails] = useState<Details>({
+    company: "",
+    roleTitle: "",
+    roleFamily: ROLE_FAMILIES[0],
+    seniority: "",
+    lengthMinutes: 20,
+    jobDescription: "",
+  });
+  const update = (patch: Partial<Details>) =>
+    setDetails((current) => ({ ...current, ...patch }));
   const cvQuery = useQuery({
     queryKey: ["cvs"],
     queryFn: () => requestJSON<{ items: CVRow[] }>("/api/cv"),
@@ -148,6 +170,14 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
   const available = (cvQuery.data?.items ?? []).filter(
     (item) => item.parseStatus === "parsed",
   );
+  const role = existing?.session.roleTitle ?? details.roleTitle;
+  const company = existing?.session.company ?? details.company;
+  const minutes = existing?.session.lengthMinutes ?? details.lengthMinutes;
+  const level = companyMode
+    ? "Set by " + company
+    : details.seniority
+      ? readable(details.seniority)
+      : "Matched to your CV";
   async function readCv() {
     setError("");
     try {
@@ -168,7 +198,6 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
       setCv(
         await send("/api/cv/" + cvId + "/parse", "POST", { syntheticMaterial }),
       );
-      setStep(1);
     } catch (error) {
       setError(errorMessage(error));
     } finally {
@@ -178,6 +207,7 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
   async function confirmCv() {
     if (!cv) return;
     setState("saving");
+    setError("");
     try {
       await send("/api/cv/" + cv.cvId, "PATCH", {
         skillsRemoved: cv.parsed.skills_removed,
@@ -186,67 +216,72 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
         const id = existing.session.id;
         await send("/api/sessions/" + id, "PATCH", { cvId: cv.cvId });
         router.push("/interview/" + id + "/prepare");
-      } else setStep(2);
-    } catch (error) {
-      setError(errorMessage(error));
-    } finally {
-      setState("idle");
-    }
-  }
-  async function create(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!cv) return;
-    setState("saving");
-    setError("");
-    const form = Object.fromEntries(new FormData(event.currentTarget));
-    try {
+        return;
+      }
       const { sessionId } = await send<{ sessionId: string }>(
         "/api/sessions",
         "POST",
         {
-          ...form,
-          lengthMinutes: Number(form.lengthMinutes),
+          company: details.company,
+          roleTitle: details.roleTitle,
+          roleFamily: details.roleFamily,
+          seniority: details.seniority || cv.parsed.seniority_estimate,
+          lengthMinutes: details.lengthMinutes,
           cvId: cv.cvId,
           voiceName: voice,
-          jobDescription: description,
+          jobDescription: details.jobDescription,
         },
       );
       router.push("/interview/" + sessionId + "/prepare");
     } catch (error) {
       setError(errorMessage(error));
-    } finally {
       setState("idle");
     }
+  }
+  function next(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setStep(1);
   }
   function chooseFile(next: File | null) {
     setFile(next);
     setPrevious("");
     setError("");
   }
+  const steps = companyMode ? ["Your CV"] : ["Interview details", "Your CV"];
   return (
-    <section className="stack">
-      <h1>
-        {existing
-          ? "Interview for " +
-            existing.session.roleTitle +
-            " at " +
-            existing.session.company
-          : "New interview"}
-      </h1>
-      <ol className="cluster" aria-label="Interview setup steps">
-        {(companyMode
-          ? ["Upload CV", "Review"]
-          : ["Upload CV", "Review", "Target"]
-        ).map((name, index) => (
-          <li
-            key={name}
-            className={"badge " + (index === step ? "primary" : "")}
-            aria-current={index === step ? "step" : undefined}
-          >
-            {name}
-          </li>
-        ))}
-      </ol>
+    <section className="stack-lg">
+      <div className="stack-sm">
+        <h1>
+          {existing
+            ? "Interview for " +
+              existing.session.roleTitle +
+              " at " +
+              existing.session.company
+            : "New interview"}
+        </h1>
+        <p className="muted">
+          {step === 0
+            ? "Tell us which interview you want to practice."
+            : "Add your CV so the questions fit your real experience."}
+        </p>
+      </div>
+      {steps.length > 1 && (
+        <ol className="steps" aria-label="Interview setup steps">
+          {steps.map((name, index) => (
+            <li
+              key={name}
+              data-state={
+                index < step ? "done" : index === step ? "now" : undefined
+              }
+              aria-current={index === step ? "step" : undefined}
+            >
+              <span className="steps-num">{index + 1}</span>
+              {name}
+            </li>
+          ))}
+        </ol>
+      )}
       <div className="with-aside">
         <div className="stack">
           {error && (
@@ -255,7 +290,127 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
             </p>
           )}
           {step === 0 && (
+            <form className="card stack" onSubmit={next}>
+              <h2>Interview details</h2>
+              <div className="grid-2">
+                <label className="field">
+                  Role title
+                  <input
+                    name="roleTitle"
+                    list="roles"
+                    required
+                    maxLength={80}
+                    placeholder="e.g. Backend Engineer"
+                    value={details.roleTitle}
+                    onChange={(event) =>
+                      update({ roleTitle: event.target.value })
+                    }
+                  />
+                  <datalist id="roles">
+                    {roleOptions.map((x) => (
+                      <option key={x} value={x} />
+                    ))}
+                  </datalist>
+                </label>
+                <label className="field">
+                  Company
+                  <input
+                    name="company"
+                    list="companies"
+                    required
+                    maxLength={80}
+                    placeholder="e.g. Stripe"
+                    value={details.company}
+                    onChange={(event) =>
+                      update({ company: event.target.value })
+                    }
+                  />
+                  <datalist id="companies">
+                    {companies.map((x) => (
+                      <option key={x} value={x} />
+                    ))}
+                  </datalist>
+                </label>
+                <label className="field">
+                  Role family
+                  <select
+                    name="roleFamily"
+                    value={details.roleFamily}
+                    onChange={(event) =>
+                      update({ roleFamily: event.target.value })
+                    }
+                  >
+                    {ROLE_FAMILIES.map((x) => (
+                      <option key={x} value={x}>
+                        {readable(x)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  Seniority
+                  <select
+                    name="seniority"
+                    value={details.seniority}
+                    onChange={(event) =>
+                      update({ seniority: event.target.value })
+                    }
+                  >
+                    <option value="">Match my CV</option>
+                    {SENIORITIES.map((x) => (
+                      <option key={x} value={x}>
+                        {readable(x)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <fieldset className="stack-sm">
+                <legend>Length</legend>
+                <div className="cluster">
+                  <label className="check inset">
+                    <input
+                      type="radio"
+                      name="lengthMinutes"
+                      value="20"
+                      checked={details.lengthMinutes === 20}
+                      onChange={() => update({ lengthMinutes: 20 })}
+                    />
+                    Standard 20 min
+                  </label>
+                  <label className="check inset">
+                    <input
+                      type="radio"
+                      name="lengthMinutes"
+                      value="10"
+                      checked={details.lengthMinutes === 10}
+                      onChange={() => update({ lengthMinutes: 10 })}
+                    />
+                    Quick 10 min
+                  </label>
+                </div>
+              </fieldset>
+              <VoiceSelect voice={voice} setVoice={setVoice} />
+              <label className="field">
+                Job description (optional)
+                <textarea
+                  value={details.jobDescription}
+                  onChange={(event) =>
+                    update({ jobDescription: event.target.value })
+                  }
+                  maxLength={6000}
+                  placeholder="Paste the job post to get questions that match it."
+                />
+                <small>{details.jobDescription.length} / 6,000</small>
+              </label>
+              <div>
+                <button className="button lg">Continue to CV</button>
+              </div>
+            </form>
+          )}
+          {step === 1 && !cv && (
             <div className="card stack">
+              <h2>Upload your CV</h2>
               <div
                 className="inset stack-sm dropzone"
                 onDragOver={(e) => e.preventDefault()}
@@ -264,18 +419,7 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
                   chooseFile(e.dataTransfer.files[0] ?? null);
                 }}
               >
-                <FileUp size={24} />
-                {unpaidAI && (
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={syntheticMaterial}
-                      onChange={(e) => setSyntheticMaterial(e.target.checked)}
-                    />
-                    I am using a fictional CV without personal or confidential
-                    information for this unpaid AI demo.
-                  </label>
-                )}
+                <FileUp size={24} aria-hidden="true" />
                 <label className="field">
                   Upload your CV
                   <input
@@ -290,9 +434,20 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
                     : "Drop a PDF here or choose a file. Up to 5 MB and 10 pages."}
                 </small>
               </div>
+              {unpaidAI && (
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={syntheticMaterial}
+                    onChange={(e) => setSyntheticMaterial(e.target.checked)}
+                  />
+                  I am using a fictional CV without personal or confidential
+                  information for this unpaid AI demo.
+                </label>
+              )}
               {available.length > 0 && (
                 <fieldset className="stack-sm">
-                  <legend>Or use a previous CV</legend>
+                  <legend>Or use a CV you uploaded before</legend>
                   {available.map((item) => (
                     <label className="check inset" key={item.cvId}>
                       <input
@@ -322,7 +477,16 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
                   </p>
                 </div>
               )}
-              <div>
+              <div className="cluster">
+                {!companyMode && (
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={() => setStep(0)}
+                  >
+                    Back
+                  </button>
+                )}
                 <button
                   className="button"
                   disabled={
@@ -340,6 +504,7 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
           {step === 1 && cv && (
             <div className="card stack">
               <div className="stack-sm">
+                <span className="eyebrow">Check what we read</span>
                 <h2>{cv.parsed.full_name}</h2>
                 <p>{cv.parsed.headline}</p>
                 <p className="cluster">
@@ -349,7 +514,12 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
                   {cv.parsed.total_years_experience} years of experience
                 </p>
               </div>
-              <h3>Skills</h3>
+              <div className="stack-sm">
+                <h3>Skills</h3>
+                <small>
+                  Remove any skill you don&apos;t want to be asked about.
+                </small>
+              </div>
               {Object.entries(
                 Object.groupBy(
                   cv.parsed.skills.filter(
@@ -360,7 +530,7 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
               ).map(([category, skills]) => (
                 <div key={category} className="stack-sm">
                   <small>{readable(category)}</small>
-                  <div className="cluster">
+                  <div className="cluster" style={{ gap: 8 }}>
                     {skills?.map((skill) => (
                       <span
                         key={skill.name}
@@ -370,7 +540,7 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
                         {skill.name}
                         <button
                           type="button"
-                          className="ml-2"
+                          className="badge-remove"
                           aria-label={"Remove " + skill.name}
                           onClick={() =>
                             setCv({
@@ -411,37 +581,12 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
                 </div>
               </div>
               <div className="cluster">
-                {[
-                  ...cv.parsed.links.github,
-                  cv.parsed.links.linkedin,
-                  cv.parsed.links.portfolio,
-                ]
-                  .flatMap((link) => {
-                    try {
-                      const url = new URL(link);
-                      return url.protocol === "https:" ||
-                        url.protocol === "http:"
-                        ? [url]
-                        : [];
-                    } catch {
-                      return [];
-                    }
-                  })
-                  .map((url) => (
-                    <a
-                      className="badge"
-                      key={url.href}
-                      href={url.href}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {url.hostname}
-                    </a>
-                  ))}
-              </div>
-              <div className="cluster">
-                <button className="button secondary" onClick={() => setStep(0)}>
-                  Back
+                <button
+                  className="button secondary"
+                  disabled={state !== "idle"}
+                  onClick={() => setCv(null)}
+                >
+                  Use another CV
                 </button>
                 <button
                   className="button"
@@ -451,145 +596,60 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
                   This looks right
                 </button>
               </div>
+              {state === "saving" && (
+                <p role="status" className="muted">
+                  {companyMode ? "Saving your CV…" : "Creating your interview…"}
+                </p>
+              )}
             </div>
           )}
-          {step === 2 && (
-            <form className="card stack" onSubmit={create}>
-              <h2>Interview target</h2>
-              <div className="grid-2">
-                <label className="field">
-                  Company
-                  <input
-                    name="company"
-                    list="companies"
-                    required
-                    maxLength={80}
-                  />
-                  <datalist id="companies">
-                    {companies.map((x) => (
-                      <option key={x} value={x} />
-                    ))}
-                  </datalist>
-                </label>
-                <label className="field">
-                  Role title
-                  <input
-                    name="roleTitle"
-                    list="roles"
-                    required
-                    maxLength={80}
-                  />
-                  <datalist id="roles">
-                    {roleOptions.map((x) => (
-                      <option key={x} value={x} />
-                    ))}
-                  </datalist>
-                </label>
-                <label className="field">
-                  Role family
-                  <select name="roleFamily">
-                    {ROLE_FAMILIES.map((x) => (
-                      <option key={x} value={x}>
-                        {readable(x)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  Seniority
-                  <select
-                    name="seniority"
-                    defaultValue={cv?.parsed.seniority_estimate ?? "mid"}
-                  >
-                    {SENIORITIES.map((x) => (
-                      <option key={x} value={x}>
-                        {readable(x)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <label className="field">
-                Job description (optional)
-                <textarea
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  maxLength={6000}
-                />
-                <small>{description.length} / 6,000</small>
-              </label>
-              <fieldset className="stack-sm">
-                <legend>Length</legend>
-                <div className="cluster">
-                  <label className="check inset">
-                    <input
-                      type="radio"
-                      name="lengthMinutes"
-                      value="20"
-                      defaultChecked
-                      onChange={() => setLength(20)}
-                    />
-                    Standard 20 min
-                  </label>
-                  <label className="check inset">
-                    <input
-                      type="radio"
-                      name="lengthMinutes"
-                      value="10"
-                      onChange={() => setLength(10)}
-                    />
-                    Quick 10 min
-                  </label>
-                </div>
-              </fieldset>
-              <VoiceSelect voice={voice} setVoice={setVoice} />
-              <div className="cluster">
-                <button
-                  type="button"
-                  className="button secondary"
-                  onClick={() => setStep(1)}
-                >
-                  Back
-                </button>
-                <button className="button" disabled={state !== "idle"}>
-                  Create interview
-                </button>
-              </div>
-            </form>
-          )}
         </div>
-        <aside aria-label="Interview guide">
-          <FlowSteps title="What happens next" steps={flow} current={step} />
-          {step === 2 ? (
-            <PhasePlan minutes={length} />
-          ) : companyMode ? (
-            <GuideCard title="Who sees what">
-              <IconList
-                items={[
-                  [
-                    Building2,
-                    company +
-                      " sees this interview. Your practice reports stay private.",
-                  ],
-                  [
-                    ShieldCheck,
-                    "You review the consent terms before recording starts",
-                  ],
-                  [Clock, "Recordings are deleted after 30 days by default"],
-                ]}
-              />
-            </GuideCard>
+        <aside aria-label="Interview information">
+          <Summary
+            role={role}
+            company={company}
+            level={level}
+            minutes={minutes}
+          />
+          {step === 0 ? (
+            <>
+              <PhasePlan minutes={details.lengthMinutes} />
+              <ReadyChecklist />
+            </>
           ) : (
-            <GuideCard title="Private by default">
+            <GuideCard
+              title={companyMode ? "Who sees what" : "Your CV stays private"}
+            >
               <IconList
-                items={[
-                  [Lock, "Practice reports are private to you"],
-                  [Clock, "Recordings are deleted after 30 days by default"],
-                  [
-                    ShieldCheck,
-                    "Delete a session or all your data any time in Settings",
-                  ],
-                ]}
+                items={
+                  companyMode
+                    ? [
+                        [
+                          Building2,
+                          company +
+                            " receives your recording, transcript, evaluation and a summary of your CV.",
+                        ],
+                        [
+                          ShieldCheck,
+                          "You review the consent terms before recording starts",
+                        ],
+                        [
+                          Clock,
+                          "Recordings are deleted after 30 days by default",
+                        ],
+                      ]
+                    : [
+                        [
+                          BriefcaseBusiness,
+                          "Your CV is used only to plan your questions",
+                        ],
+                        [Lock, "Practice reports are private to you"],
+                        [
+                          Clock,
+                          "Recordings are deleted after 30 days by default",
+                        ],
+                      ]
+                }
               />
             </GuideCard>
           )}

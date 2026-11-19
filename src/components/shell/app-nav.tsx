@@ -2,8 +2,19 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Dialog, DropdownMenu } from "radix-ui";
-import { Building2, LogOut, Menu, Settings, X } from "lucide-react";
+import { Dialog } from "radix-ui";
+import {
+  BriefcaseBusiness,
+  Building2,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Plus,
+  Settings,
+  TrendingUp,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { Brand } from "./brand";
 import { localMock } from "@/lib/config/env";
 import { browserSupabase } from "@/lib/supabase/client";
@@ -29,6 +40,114 @@ export function initials(name: string, email: string) {
       : (words[0] ?? email).slice(0, 2);
   return letters.toUpperCase();
 }
+type Item = { href: string; label: string; icon: LucideIcon; match: boolean };
+type Group = { label: string; logoUrl?: string | null; items: Item[] };
+
+// One list of destinations, shown as the desktop sidebar and the mobile drawer.
+function useGroups(org: CompanyBrand | null): Group[] {
+  const pathname = usePathname() ?? "";
+  const groups: Group[] = [
+    {
+      label: "Practice",
+      items: [
+        {
+          href: "/dashboard",
+          label: "Dashboard",
+          icon: LayoutDashboard,
+          match:
+            pathname === "/dashboard" ||
+            (pathname.startsWith("/interview") &&
+              pathname !== "/interview/new"),
+        },
+        {
+          href: "/progress",
+          label: "Progress",
+          icon: TrendingUp,
+          match: pathname.startsWith("/progress"),
+        },
+      ],
+    },
+  ];
+  if (org)
+    groups.push({
+      label: "Hiring · " + org.name,
+      logoUrl: org.logoUrl,
+      items: [
+        {
+          href: "/hiring",
+          label: "Openings",
+          icon: BriefcaseBusiness,
+          match:
+            pathname.startsWith("/hiring") &&
+            !pathname.startsWith("/hiring/organization"),
+        },
+        {
+          href: "/hiring/organization",
+          label: "Organization",
+          icon: Building2,
+          match: pathname.startsWith("/hiring/organization"),
+        },
+      ],
+    });
+  groups.push({
+    label: "Account",
+    items: [
+      {
+        href: "/settings",
+        label: "Settings",
+        icon: Settings,
+        match: pathname.startsWith("/settings"),
+      },
+    ],
+  });
+  return groups;
+}
+function NavGroups({ groups }: { groups: Group[] }) {
+  return groups.map((group) => (
+    <div key={group.label} className="side-group">
+      <span className="nav-section">
+        {group.logoUrl && (
+          <Image
+            src={group.logoUrl}
+            alt=""
+            width={16}
+            height={16}
+            unoptimized
+          />
+        )}
+        {group.label}
+      </span>
+      {group.items.map(({ href, label, icon: Icon, match }) => (
+        <Link key={href} href={href} aria-current={match ? "page" : undefined}>
+          <Icon size={18} aria-hidden="true" />
+          {label}
+        </Link>
+      ))}
+    </div>
+  ));
+}
+function UserCard({ name, email }: { name: string; email: string }) {
+  return (
+    <div className="side-user">
+      <span className="avatar" aria-hidden="true">
+        {initials(name, email)}
+      </span>
+      <span className="side-user-text">
+        <strong>{name || "Your account"}</strong>
+        <small>{email}</small>
+      </span>
+      <button
+        type="button"
+        className="button ghost icon sm"
+        aria-label="Sign out"
+        title="Sign out"
+        onClick={() => void signOut()}
+      >
+        <LogOut size={17} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
 export function AppNav({
   name,
   email,
@@ -40,165 +159,62 @@ export function AppNav({
   org: CompanyBrand | null;
   company?: CompanyBrand | null;
 }) {
-  const pathname = usePathname() ?? "";
-  const current = (match: boolean) => (match ? ("page" as const) : undefined);
-  const active = {
-    dashboard: current(
-      pathname === "/dashboard" || pathname.startsWith("/interview"),
-    ),
-    progress: current(pathname.startsWith("/progress")),
-    openings: current(
-      pathname.startsWith("/hiring") &&
-        !pathname.startsWith("/hiring/organization"),
-    ),
-    organization: current(pathname.startsWith("/hiring/organization")),
-    settings: current(pathname.startsWith("/settings")),
-  };
+  const groups = useGroups(org);
+  const creating = (usePathname() ?? "") === "/interview/new";
   return (
-    <header className="nav">
-      <div className="container nav-inner">
-        <div className="nav-left">
-          <Brand company={company} />
-          <nav className="nav-links desktop-only" aria-label="Main">
-            <span className="nav-section">Practice</span>
-            <Link href="/dashboard" aria-current={active.dashboard}>
-              Dashboard
-            </Link>
-            <Link href="/progress" aria-current={active.progress}>
-              Progress
-            </Link>
-            {org && (
-              <>
-                <span className="nav-divider" aria-hidden="true" />
-                <span className="nav-section company-brand">
-                  {org.logoUrl && (
-                    <Image
-                      src={org.logoUrl}
-                      alt=""
-                      width={20}
-                      height={20}
-                      unoptimized
-                    />
-                  )}
-                  Hiring · {org.name}
-                </span>
-                <Link href="/hiring" aria-current={active.openings}>
-                  Openings
-                </Link>
-                <Link
-                  href="/hiring/organization"
-                  aria-current={active.organization}
+    <>
+      <aside className="sidebar">
+        <Brand company={company} />
+        <Link
+          href="/interview/new"
+          className={"button side-cta" + (creating ? " current" : "")}
+          aria-current={creating ? "page" : undefined}
+        >
+          <Plus size={18} aria-hidden="true" />
+          New interview
+        </Link>
+        <nav className="side-nav" aria-label="Main">
+          <NavGroups groups={groups} />
+        </nav>
+        <UserCard name={name} email={email} />
+      </aside>
+      <header className="topbar">
+        <Brand company={company} />
+        <Dialog.Root>
+          <Dialog.Trigger
+            className="button secondary icon"
+            aria-label="Open navigation"
+          >
+            <Menu size={20} />
+          </Dialog.Trigger>
+          <Dialog.Portal>
+            <Dialog.Overlay className="dialog-overlay" />
+            <Dialog.Content className="drawer">
+              <div className="cluster between">
+                <Dialog.Title className="sr-only">Navigation</Dialog.Title>
+                <Brand />
+                <Dialog.Close
+                  className="button ghost icon"
+                  aria-label="Close navigation"
                 >
-                  Organization
-                </Link>
-              </>
-            )}
-          </nav>
-        </div>
-        <div className="cluster" style={{ gap: 6 }}>
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger
-              className="button ghost icon"
-              aria-label="Account"
-            >
-              <span className="avatar" aria-hidden="true">
-                {initials(name, email)}
-              </span>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Portal>
-              <DropdownMenu.Content className="menu" align="end" sideOffset={8}>
-                <div className="menu-head">
-                  <span className="avatar" aria-hidden="true">
-                    {initials(name, email)}
-                  </span>
-                  <div className="min-w-0">
-                    <strong>{name}</strong>
-                    <p className="muted small">{email}</p>
-                  </div>
-                </div>
-                <div className="menu-separator" />
-                <DropdownMenu.Item className="menu-item" asChild>
-                  <Link href="/settings">
-                    <Settings size={16} aria-hidden="true" />
-                    Settings
-                  </Link>
-                </DropdownMenu.Item>
-                {org && (
-                  <DropdownMenu.Item className="menu-item" asChild>
-                    <Link href="/hiring/organization">
-                      <Building2 size={16} aria-hidden="true" />
-                      Organization
-                    </Link>
-                  </DropdownMenu.Item>
-                )}
-                <div className="menu-separator" />
-                <DropdownMenu.Item
-                  className="menu-item"
-                  onSelect={() => signOut()}
-                >
-                  <LogOut size={16} aria-hidden="true" />
-                  Sign out
-                </DropdownMenu.Item>
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
-          </DropdownMenu.Root>
-          <Dialog.Root>
-            <Dialog.Trigger
-              className="button ghost icon mobile-only"
-              aria-label="Open navigation"
-            >
-              <Menu size={20} />
-            </Dialog.Trigger>
-            <Dialog.Portal>
-              <Dialog.Overlay className="dialog-overlay" />
-              <Dialog.Content className="dialog-content card stack">
-                <div className="cluster between">
-                  <Dialog.Title>Navigation</Dialog.Title>
-                  <Dialog.Close
-                    className="button ghost icon"
-                    aria-label="Close navigation"
-                  >
-                    <X size={20} />
-                  </Dialog.Close>
-                </div>
-                <Dialog.Description className="sr-only">
-                  SkillMirror pages
-                </Dialog.Description>
-                <nav
-                  className="stack-sm nav-mobile"
-                  aria-label="Mobile navigation"
-                >
-                  <span className="nav-section">Practice</span>
-                  <Link href="/dashboard" aria-current={active.dashboard}>
-                    Dashboard
-                  </Link>
-                  <Link href="/progress" aria-current={active.progress}>
-                    Progress
-                  </Link>
-                  {org && (
-                    <>
-                      <span className="nav-section">Hiring · {org.name}</span>
-                      <Link href="/hiring" aria-current={active.openings}>
-                        Openings
-                      </Link>
-                      <Link
-                        href="/hiring/organization"
-                        aria-current={active.organization}
-                      >
-                        Organization
-                      </Link>
-                    </>
-                  )}
-                  <span className="nav-section">Account</span>
-                  <Link href="/settings" aria-current={active.settings}>
-                    Settings
-                  </Link>
-                </nav>
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
-        </div>
-      </div>
-    </header>
+                  <X size={20} />
+                </Dialog.Close>
+              </div>
+              <Dialog.Description className="sr-only">
+                SkillMirror pages
+              </Dialog.Description>
+              <Link href="/interview/new" className="button side-cta">
+                <Plus size={18} aria-hidden="true" />
+                New interview
+              </Link>
+              <nav className="side-nav" aria-label="Mobile navigation">
+                <NavGroups groups={groups} />
+              </nav>
+              <UserCard name={name} email={email} />
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      </header>
+    </>
   );
 }

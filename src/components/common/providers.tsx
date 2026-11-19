@@ -12,8 +12,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider
       attribute="class"
-      defaultTheme="dark"
-      forcedTheme="dark"
+      defaultTheme="light"
+      forcedTheme="light"
       enableSystem={false}
       disableTransitionOnChange
     >
@@ -21,12 +21,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <MotionConfig reducedMotion="user">{children}</MotionConfig>
         <Toaster
           position="bottom-right"
-          theme="dark"
+          theme="light"
           toastOptions={{
             style: {
-              background: "#0b1310",
-              border: "1px solid #283b31",
-              color: "#e9f3ed",
+              background: "#ffffff",
+              border: "1px solid #e6e8ee",
+              color: "#1d2230",
+              borderRadius: 14,
+              boxShadow: "0 18px 44px -18px rgb(16 24 40 / 0.25)",
             },
           }}
         />

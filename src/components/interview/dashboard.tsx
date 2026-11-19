@@ -3,20 +3,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CompanyInvites } from "./company-invites";
 import {
+  BriefcaseBusiness,
   CircleCheck,
-  ClipboardList,
+  FileUp,
   Gauge,
+  MessagesSquare,
   Plus,
   TrendingUp,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { errorMessage, requestJSON, send, showError } from "@/lib/utils/client";
-import { readable } from "@/lib/config/taxonomy";
-import {
-  PhasePlan,
-  ReadyChecklist,
-  ReportIncludes,
-} from "@/components/common/guides";
 import type { SessionStatus } from "@/types/interview";
 
 export type DashboardSession = {
@@ -30,7 +26,80 @@ export type DashboardSession = {
   overallScore: number | null;
   verdict: string | null;
 };
-const date = (value: string) => new Date(value).toLocaleDateString();
+type Status = DashboardSession["displayStatus"];
+// Plain-language status, its colour and where the row leads next.
+const statusInfo: Record<
+  Status,
+  { label: string; tone: string; page: string | null; action: string }
+> = {
+  completed: {
+    label: "Report ready",
+    tone: "success",
+    page: "report",
+    action: "View report",
+  },
+  processing: {
+    label: "Preparing report",
+    tone: "primary",
+    page: "processing",
+    action: "View status",
+  },
+  ended: {
+    label: "Preparing report",
+    tone: "primary",
+    page: "processing",
+    action: "View status",
+  },
+  failed: {
+    label: "Report needs a retry",
+    tone: "warning",
+    page: "processing",
+    action: "Retry report",
+  },
+  ready: {
+    label: "Ready to start",
+    tone: "",
+    page: "setup",
+    action: "Continue setup",
+  },
+  in_progress: {
+    label: "In progress",
+    tone: "primary",
+    page: "live",
+    action: "Continue",
+  },
+  draft: {
+    label: "Not started",
+    tone: "",
+    page: "prepare",
+    action: "Continue",
+  },
+  planning: {
+    label: "Not started",
+    tone: "",
+    page: "prepare",
+    action: "Continue",
+  },
+  interrupted: {
+    label: "Stopped early",
+    tone: "warning",
+    page: null,
+    action: "",
+  },
+  discarded: { label: "Discarded", tone: "", page: null, action: "" },
+  superseded: { label: "Replaced", tone: "", page: null, action: "" },
+};
+const date = (value: string) =>
+  new Date(value).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+const firstSteps = [
+  [BriefcaseBusiness, "Name your interview", "Role, company and length"],
+  [FileUp, "Upload your CV", "A PDF up to 5 MB"],
+  [MessagesSquare, "Talk, then read your report", "Score, clips and drills"],
+] as const;
 export function Dashboard({ firstName }: { firstName: string }) {
   const router = useRouter();
   const sessions = useQuery({
@@ -73,7 +142,6 @@ export function Dashboard({ firstName }: { firstName: string }) {
     <div className="stack-lg">
       <div className="page-header">
         <div className="stack-sm">
-          <span className="eyebrow">Practice</span>
           <h1>Welcome back{firstName ? ", " + firstName : ""}</h1>
           <p className="muted">
             Start a new mock interview or pick up where you left off.
@@ -90,181 +158,167 @@ export function Dashboard({ firstName }: { firstName: string }) {
             <CircleCheck size={19} aria-hidden="true" />
           </span>
           <small>Interviews completed</small>
-          <strong className="mono stat-value">{completed.length}</strong>
+          <strong className="stat-value">{completed.length}</strong>
         </div>
         <div className="card stat">
           <span className="stat-icon">
             <TrendingUp size={19} aria-hidden="true" />
           </span>
-          <small>Latest overall score</small>
-          <strong className="mono stat-value">
-            {latest ?? "—"}{" "}
-            {gain !== null && (
-              <span className="badge accent">
-                {gain >= 0 ? "+" : ""}
-                {gain} since first
-              </span>
-            )}
+          <small>Latest score</small>
+          <strong className="stat-value">
+            {latest ?? "–"}
+            {latest != null && <span className="stat-unit">/ 100</span>}
           </strong>
+          {gain !== null && (
+            <small className={gain > 0 ? "stat-note up" : "stat-note"}>
+              {gain > 0
+                ? "+" + gain + " since your first interview"
+                : gain === 0
+                  ? "Same as your first interview"
+                  : "Your first interview scored " + first}
+            </small>
+          )}
         </div>
         <div className="card stat">
           <span className="stat-icon">
             <Gauge size={19} aria-hidden="true" />
           </span>
-          <small>Best technical ceiling</small>
-          <strong className="mono stat-value">
-            {ceilings.length ? Math.max(...ceilings) : "—"}
+          <small>Best technical level</small>
+          <strong className="stat-value">
+            {ceilings.length ? "Level " + Math.max(...ceilings) : "–"}
+            {ceilings.length > 0 && <span className="stat-unit">of 5</span>}
           </strong>
         </div>
       </div>
       <CompanyInvites />
-      <div className="with-aside">
-        <div className="stack-lg">
-          <section className="stack">
-            <h2>Practice sessions</h2>
-            {sessions.isPending ? (
-              <p role="status">Loading interviews…</p>
-            ) : sessions.isError ? (
-              <div className="card stack">
-                <p role="alert" className="danger">
-                  {errorMessage(sessions.error)}
-                </p>
-                <button
-                  className="button secondary"
-                  onClick={() => void sessions.refetch()}
-                >
-                  Retry
-                </button>
-              </div>
-            ) : !items.length ? (
-              <div className="card stack center empty-state">
-                <span className="empty-icon">
-                  <ClipboardList size={28} aria-hidden="true" />
-                </span>
-                <h3>No interviews yet</h3>
-                <p className="muted">
-                  Upload your CV, choose a role and take a 10 or 20 minute mock
-                  interview. Your report appears here when it&apos;s ready.
-                </p>
-                <div>
-                  <Link className="button" href="/interview/new">
-                    New interview
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <div className="card scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      {[
-                        "Role",
-                        "Company",
-                        "Date",
-                        "Length",
-                        "Status",
-                        "Score",
-                        "Action",
-                      ].map((label) => (
-                        <th key={label} scope="col">
-                          {label}
-                        </th>
-                      ))}
+      <section className="stack">
+        <h2>Your interviews</h2>
+        {sessions.isPending ? (
+          <p role="status">Loading interviews…</p>
+        ) : sessions.isError ? (
+          <div className="card stack">
+            <p role="alert" className="danger">
+              {errorMessage(sessions.error)}
+            </p>
+            <div>
+              <button
+                className="button secondary"
+                onClick={() => void sessions.refetch()}
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        ) : !items.length ? (
+          <div className="card stack center empty-state">
+            <h3>No interviews yet</h3>
+            <p className="muted">
+              Your first mock interview takes 10 or 20 minutes. Your report
+              appears here when it&apos;s ready.
+            </p>
+            <ol className="first-steps">
+              {firstSteps.map(([Icon, title, text], index) => (
+                <li key={title}>
+                  <span className="first-step-num">{index + 1}</span>
+                  <Icon size={20} aria-hidden="true" />
+                  <strong>{title}</strong>
+                  <small>{text}</small>
+                </li>
+              ))}
+            </ol>
+            <div>
+              <Link className="button lg" href="/interview/new">
+                New interview
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="card scroll">
+            <table className="simple-table">
+              <thead>
+                <tr>
+                  {["Interview", "Date", "Status", "Score", ""].map((label) => (
+                    <th key={label || "action"} scope="col">
+                      {label || <span className="sr-only">Action</span>}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => {
+                  const info = statusInfo[item.displayStatus];
+                  return (
+                    <tr key={item.sessionId}>
+                      <td>
+                        <strong className="cell-title">{item.roleTitle}</strong>
+                        <small>
+                          {item.company} · {item.lengthMinutes} min
+                        </small>
+                      </td>
+                      <td className="nowrap">{date(item.createdAt)}</td>
+                      <td>
+                        <span className={"badge " + info.tone}>
+                          {info.label}
+                        </span>
+                      </td>
+                      <td>
+                        {item.overallScore != null ? (
+                          <strong className="score-cell">
+                            {item.overallScore}
+                            <small>/100</small>
+                          </strong>
+                        ) : (
+                          <small>Not scored yet</small>
+                        )}
+                      </td>
+                      <td className="action-cell">
+                        {info.page && (
+                          <Link
+                            className={
+                              "button sm " +
+                              (item.displayStatus === "completed"
+                                ? ""
+                                : "secondary")
+                            }
+                            href={
+                              "/interview/" + item.sessionId + "/" + info.page
+                            }
+                          >
+                            {info.action}
+                          </Link>
+                        )}
+                        {item.displayStatus === "interrupted" && (
+                          <div className="cluster" style={{ gap: 8 }}>
+                            {(item.durationMs ?? 0) >= 300000 && (
+                              <button
+                                className="button secondary sm"
+                                onClick={() => void action(item, "partial")}
+                              >
+                                Generate partial report
+                              </button>
+                            )}
+                            <button
+                              className="button ghost sm danger"
+                              onClick={() => {
+                                if (
+                                  confirm("Discard this interrupted interview?")
+                                )
+                                  void action(item, "discard");
+                              }}
+                            >
+                              Discard
+                            </button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((item) => {
-                      const base = "/interview/" + item.sessionId;
-                      const status = item.displayStatus;
-                      const link =
-                        status === "completed"
-                          ? "report"
-                          : status === "ready"
-                            ? "setup"
-                            : status === "in_progress"
-                              ? "live"
-                              : status === "draft" || status === "planning"
-                                ? "prepare"
-                                : ["ended", "processing", "failed"].includes(
-                                      status,
-                                    )
-                                  ? "processing"
-                                  : null;
-                      const label =
-                        status === "completed"
-                          ? "View report"
-                          : status === "ready"
-                            ? "Continue setup"
-                            : status === "failed"
-                              ? "Retry processing"
-                              : "Continue";
-                      const badge =
-                        status === "completed"
-                          ? "accent"
-                          : status === "processing"
-                            ? "primary"
-                            : status === "failed"
-                              ? "danger"
-                              : status === "interrupted"
-                                ? "warning"
-                                : "";
-                      return (
-                        <tr key={item.sessionId}>
-                          <td>{item.roleTitle}</td>
-                          <td>{item.company}</td>
-                          <td>{date(item.createdAt)}</td>
-                          <td>{item.lengthMinutes} min</td>
-                          <td>
-                            <span className={"badge " + badge}>
-                              {readable(status)}
-                            </span>
-                          </td>
-                          <td className="mono">{item.overallScore ?? "—"}</td>
-                          <td>
-                            {link && (
-                              <Link href={base + "/" + link}>{label}</Link>
-                            )}
-                            {status === "interrupted" && (
-                              <div className="cluster">
-                                {(item.durationMs ?? 0) >= 300000 && (
-                                  <button
-                                    className="button secondary"
-                                    onClick={() => void action(item, "partial")}
-                                  >
-                                    Generate partial report
-                                  </button>
-                                )}
-                                <button
-                                  className="button ghost danger"
-                                  onClick={() => {
-                                    if (
-                                      confirm(
-                                        "Discard this interrupted interview?",
-                                      )
-                                    )
-                                      void action(item, "discard");
-                                  }}
-                                >
-                                  Discard
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-          <ReportIncludes wide />
-        </div>
-        <aside aria-label="Interview guide">
-          <ReadyChecklist />
-          <PhasePlan />
-        </aside>
-      </div>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

@@ -8,9 +8,7 @@ import { errorMessage, requestJSON, send, showError } from "@/lib/utils/client";
 import { uploadFile, type SignedUpload } from "@/lib/supabase/upload";
 import { readable } from "@/lib/config/taxonomy";
 import type { OrgResponse } from "@/types/hiring";
-import { Mail, Video } from "lucide-react";
-import { GuideCard, IconList } from "@/components/common/guides";
-import { LogoMark } from "@/components/shell/brand";
+import { Building2, UserPlus, Users } from "lucide-react";
 export function Organization() {
   const router = useRouter();
   const query = useQuery({
@@ -87,28 +85,35 @@ export function Organization() {
   }
   return (
     <div className="stack-lg">
-      <div className="stack-sm">
-        <span className="eyebrow">SkillMirror for Teams</span>
-        <h1>Organization</h1>
-        <p className="muted">
-          Your team&apos;s name, logo and members. Candidates see your name and
-          logo when you invite them.
-        </p>
+      <div className="org-hero card">
+        <span className="org-logo">
+          {org.logoUrl ? (
+            <Image
+              src={org.logoUrl}
+              alt=""
+              width={64}
+              height={64}
+              unoptimized
+            />
+          ) : (
+            <Building2 size={28} aria-hidden="true" />
+          )}
+        </span>
+        <div className="stack-sm">
+          <h1>{org.name}</h1>
+          <p className="muted">
+            {data.members.length}{" "}
+            {data.members.length === 1 ? "member" : "members"} · You are{" "}
+            {owner ? "an owner" : "a recruiter"}
+          </p>
+        </div>
       </div>
-      <div className="with-aside">
-        <form className="card stack" onSubmit={save}>
-          <div className="cluster">
-            {org.logoUrl && (
-              <Image
-                src={org.logoUrl}
-                alt=""
-                width={48}
-                height={48}
-                unoptimized
-              />
-            )}
-            <h2>{org.name}</h2>
-          </div>
+      <form className="card stack" onSubmit={save}>
+        <div className="section-title">
+          <Building2 size={20} aria-hidden="true" />
+          <h2>Organization details</h2>
+        </div>
+        <div className="grid-2">
           <label className="field">
             Organization name
             <input
@@ -127,61 +132,30 @@ export function Organization() {
               type="url"
               defaultValue={org.website ?? ""}
               readOnly={!owner}
+              placeholder="https://"
             />
           </label>
-          {owner && (
-            <>
-              <label className="field">
-                Organization logo
-                <input type="file" name="logo" accept=".png,.jpg,.jpeg,.svg" />
-                <small>PNG, JPG or SVG up to 1 MB.</small>
-              </label>
-              <div>
-                <button className="button" disabled={busy}>
-                  Save organization
-                </button>
-              </div>
-            </>
-          )}
-        </form>
-        <aside aria-label="Brand preview">
-          <GuideCard title="How candidates see you">
-            <div className="brand-preview" aria-hidden="true">
-              <div className="brand-preview-bar">
-                <span className="brand">
-                  <LogoMark size={22} />
-                  <span>
-                    Skill<span className="brand-accent">Mirror</span>
-                  </span>
-                </span>
-                <span className="company-brand">
-                  {org.logoUrl && (
-                    <Image
-                      src={org.logoUrl}
-                      alt=""
-                      width={22}
-                      height={22}
-                      unoptimized
-                    />
-                  )}
-                  {org.name}
-                </span>
-              </div>
-              <p className="brand-preview-title">
-                {org.name} invited you to an AI interview
-              </p>
+        </div>
+        {owner && (
+          <>
+            <label className="field">
+              Organization logo
+              <input type="file" name="logo" accept=".png,.jpg,.jpeg,.svg" />
+              <small>PNG, JPG or SVG up to 1 MB.</small>
+            </label>
+            <div>
+              <button className="button" disabled={busy}>
+                Save organization
+              </button>
             </div>
-            <IconList
-              items={[
-                [Mail, "The invite page names your organization"],
-                [Video, "Your logo and name sit in the interview room header"],
-              ]}
-            />
-          </GuideCard>
-        </aside>
-      </div>
+          </>
+        )}
+      </form>
       <section className="card stack">
-        <h2>Members</h2>
+        <div className="section-title">
+          <Users size={20} aria-hidden="true" />
+          <h2>Members</h2>
+        </div>
         <div className="scroll">
           <table>
             <thead>
@@ -196,9 +170,19 @@ export function Organization() {
             <tbody>
               {data.members.map((person) => (
                 <tr key={person.userId}>
-                  <td>{person.name}</td>
+                  <td>
+                    <strong>{person.name}</strong>
+                  </td>
                   <td>{person.email}</td>
-                  <td>{readable(person.role)}</td>
+                  <td>
+                    <span
+                      className={
+                        "badge " + (person.role === "owner" ? "primary" : "")
+                      }
+                    >
+                      {readable(person.role)}
+                    </span>
+                  </td>
                   <td>{new Date(person.joinedAt).toLocaleDateString()}</td>
                   <td>
                     {owner &&
@@ -233,8 +217,11 @@ export function Organization() {
           </table>
         </div>
         {owner && (
-          <form className="stack" onSubmit={member}>
-            <h3>Add member</h3>
+          <form className="stack inset" onSubmit={member}>
+            <div className="section-title">
+              <UserPlus size={18} aria-hidden="true" />
+              <h3>Add member</h3>
+            </div>
             <div className="grid-2">
               <label className="field">
                 Member email

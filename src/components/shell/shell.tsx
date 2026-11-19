@@ -17,7 +17,7 @@ export async function Shell({
     getOrg(user.id),
   ]);
   return (
-    <>
+    <div className="app-shell">
       <AppNav
         name={profile?.fullName ?? ""}
         email={user.email ?? ""}
@@ -29,7 +29,9 @@ export async function Shell({
         }
         company={company}
       />
-      <main className="container page">{children}</main>
-    </>
+      <main className="app-main">
+        <div className="container page">{children}</div>
+      </main>
+    </div>
   );
 }

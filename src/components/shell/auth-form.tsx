@@ -11,6 +11,7 @@ import {
 } from "@/lib/auth/password";
 import { errorMessage, send } from "@/lib/utils/client";
 import { AuthLayout } from "./auth-layout";
+import { LogoMark } from "./brand";
 
 export type AuthScreen =
   "login" | "signup" | "forgot-password" | "reset-password";
@@ -53,14 +54,14 @@ export function AuthForm({
   ).href;
   const titles = {
     signup: "Create your account",
-    login: "Log in",
+    login: "Welcome back",
     "forgot-password": "Forgot password?",
     "reset-password": "Reset password",
   };
   const subtitles = {
     signup:
       "Practice with an adaptive AI interviewer, or run AI interviews for your team.",
-    login: "Welcome back. Pick up where you left off.",
+    login: "Log in to keep practicing with your AI interviewer.",
     "forgot-password": "Enter your email and we'll send you a reset link.",
     "reset-password": "Choose a new password for your account.",
   };
@@ -180,7 +181,10 @@ export function AuthForm({
     <AuthLayout>
       {complete ? (
         <div className="stack">
-          <h1>{signup ? "Check your email" : "Check your inbox"}</h1>
+          <div className="auth-head">
+            <LogoMark size={52} />
+            <h1>{signup ? "Check your email" : "Check your inbox"}</h1>
+          </div>
           <p className="muted">
             {signup
               ? "We sent a confirmation link to " + email + "."
@@ -205,7 +209,8 @@ export function AuthForm({
         </div>
       ) : (
         <div className="stack" style={{ gap: 22 }}>
-          <div className="stack-sm">
+          <div className="auth-head">
+            <LogoMark size={52} />
             <h1>{titles[screen]}</h1>
             <p className="muted">{subtitles[screen]}</p>
           </div>
@@ -273,7 +278,10 @@ export function AuthForm({
               </label>
             )}
             {login && (
-              <Link href={authPath("/forgot-password", next, intent)}>
+              <Link
+                className="auth-forgot"
+                href={authPath("/forgot-password", next, intent)}
+              >
                 Forgot password?
               </Link>
             )}
@@ -306,7 +314,7 @@ export function AuthForm({
           </form>
           {(signup || login) && !localMock && (
             <>
-              <p className="auth-divider">or</p>
+              <p className="auth-divider">or continue with</p>
               <button className="button secondary" onClick={google}>
                 Continue with Google
               </button>
@@ -314,6 +322,7 @@ export function AuthForm({
           )}
           {screen !== "reset-password" && (
             <Link
+              className="auth-switch"
               href={authPath(
                 signup || forgot ? "/login" : "/signup",
                 next,

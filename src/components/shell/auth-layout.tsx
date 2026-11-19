@@ -2,41 +2,32 @@ import { AudioLines, Gauge, ScanFace } from "lucide-react";
 import { Brand } from "./brand";
 
 const points = [
-  [Gauge, "Difficulty adapts after each answer"],
-  [ScanFace, "Gaze, posture and gestures read against your baseline"],
-  [AudioLines, "Pace, pauses and fillers, tied to timestamps"],
+  [Gauge, "Adapts to every answer"],
+  [ScanFace, "Reads gaze and posture"],
+  [AudioLines, "Times pace and fillers"],
 ] as const;
 
+// A single centered card on a soft warm backdrop, after Huru's sign-in page.
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <main className="auth">
-      <aside className="auth-brand">
+      <span className="auth-blob one" aria-hidden="true" />
+      <span className="auth-blob two" aria-hidden="true" />
+      <span className="auth-blob three" aria-hidden="true" />
+      <header className="auth-top">
         <Brand />
-        <div className="auth-copy">
-          <div className="auth-visual" aria-hidden="true">
-            <span className="auth-ring outer" />
-            <span className="auth-ring" />
-            <div className="orb auth-orb" />
-          </div>
-          <span className="eyebrow">AI interviewer</span>
-          <h2>Pressure-tested interviews.</h2>
-          <p className="muted">Every answer, every gesture, every second.</p>
-          <ul className="auth-points">
-            {points.map(([Icon, text]) => (
-              <li key={text}>
-                <Icon size={18} aria-hidden="true" />
-                {text}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <small>Runs in desktop Chrome or Edge.</small>
-      </aside>
+      </header>
       <section className="auth-form">
-        <div className="auth-mobile-brand">
-          <Brand />
-        </div>
-        <div className="card">{children}</div>
+        <div className="card auth-card">{children}</div>
+        <ul className="auth-points" aria-label="What SkillMirror does">
+          {points.map(([Icon, text]) => (
+            <li key={text}>
+              <Icon size={16} aria-hidden="true" />
+              {text}
+            </li>
+          ))}
+        </ul>
+        <small>Interviews run in desktop Chrome or Edge.</small>
       </section>
     </main>
   );

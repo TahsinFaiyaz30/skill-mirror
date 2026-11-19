@@ -209,6 +209,15 @@ export function ComposureCurve({
     </div>
   );
 }
+const eventLegend = [
+  ["nonverbal", "Body language"],
+  ["vocal", "Voice"],
+  ["integrity", "Integrity"],
+  ["live_vision", "Camera check"],
+  ["positive", "Strength"],
+] as const;
+// One row per signal over the same time axis: questions, fillers, events and
+// delivery lines. Every mark is a button that plays the clip at that moment.
 export function TimelineTracks({
   timeline,
   playhead,
@@ -223,85 +232,95 @@ export function TimelineTracks({
   const colors = useThemeColors(),
     duration = Math.max(1, timeline.durationMs);
   const place = (t: number) => Math.max(0, Math.min(100, (100 * t) / duration));
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * timeline.durationMs);
+  const present = new Set(timeline.events.map((item) => item.category));
   return (
-    <div className="stack-sm">
-      <div className="cluster between">
-        <time>00:00</time>
-        <time>{shortTime(timeline.durationMs)}</time>
-      </div>
-      <div className="timeline">
-        <div
-          className="timeline-head"
-          style={{ left: place(playhead) + "%" }}
-          aria-hidden="true"
-        />
-        <div className="timeline-row">
-          <span>Questions</span>
-          <div className="timeline-track">
-            {timeline.turns.map((turn) => (
-              <button
-                key={turn.turnIdx}
-                className="timeline-bar"
+    <div className="stack">
+      <ul className="timeline-legend" aria-label="Timeline legend">
+        <li>
+          <i className="swatch bar" />
+          Question
+        </li>
+        {timeline.fillers.length > 0 && (
+          <li>
+            <i
+              className="swatch dot"
+              style={{ background: colors["ev-vocal"] }}
+            />
+            Filler word
+          </li>
+        )}
+        {eventLegend
+          .filter(([key]) => present.has(key))
+          .map(([key, label]) => (
+            <li key={key}>
+              <i
+                className="swatch dot"
                 style={{
-                  left: place(turn.startMs) + "%",
-                  width:
-                    Math.max(1, place(turn.endMs) - place(turn.startMs)) + "%",
+                  background: "var(--ev-" + key.replace("_", "-") + ")",
                 }}
-                title={turn.label}
-                aria-label={turn.label + " at " + shortTime(turn.startMs)}
-                onClick={() => jump(turn.startMs)}
               />
+              {label}
+            </li>
+          ))}
+      </ul>
+      <div className="timeline">
+        <div className="timeline-row timeline-axis" aria-hidden="true">
+          <span />
+          <div className="timeline-ticks">
+            {ticks.map((at, index) => (
+              <time key={index} style={{ left: place(at) + "%" }}>
+                {shortTime(at)}
+              </time>
             ))}
           </div>
         </div>
-        {timeline.buckets.length > 0 && (
-          <div className="timeline-row">
-            <span>Delivery</span>
-            <div className="chart">
-              <ResponsiveContainer width="100%" height={108}>
-                <LineChart data={timeline.buckets}>
-                  <XAxis dataKey="t" hide />
-                  <YAxis hide domain={[0, 1]} yAxisId="percent" />
-                  <YAxis hide yAxisId="pitch" />
-                  <Line
-                    dataKey="ec"
-                    name="Eye contact"
-                    yAxisId="percent"
-                    stroke={colors.accent}
-                    dot={false}
-                    isAnimationActive={false}
-                  />
-                  <Line
-                    dataKey="tension"
-                    name="Tension"
-                    yAxisId="percent"
-                    stroke={colors["ev-nonverbal"]}
-                    dot={false}
-                    isAnimationActive={false}
-                  />
-                  <Line
-                    dataKey="f0"
-                    name="Pitch"
-                    yAxisId="pitch"
-                    stroke={colors.primary}
-                    dot={false}
-                    isAnimationActive={false}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: colors.surface,
-                      borderColor: colors.border,
-                    }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+        <div className="timeline-row">
+          <span className="timeline-label">
+            Questions
+            <small>{timeline.turns.length} answered</small>
+          </span>
+          <div className="timeline-track">
+            <div
+              className="timeline-head"
+              style={{ left: place(playhead) + "%" }}
+              aria-hidden="true"
+            />
+            {timeline.turns.map((turn, index) => {
+              const width = Math.max(
+                1,
+                place(turn.endMs) - place(turn.startMs),
+              );
+              return (
+                <button
+                  key={turn.turnIdx}
+                  className="timeline-bar"
+                  style={{
+                    left: place(turn.startMs) + "%",
+                    width: width + "%",
+                  }}
+                  title={turn.label}
+                  aria-label={turn.label + " at " + shortTime(turn.startMs)}
+                  onClick={() => jump(turn.startMs)}
+                >
+                  {width > 4 && <span aria-hidden="true">Q{index + 1}</span>}
+                </button>
+              );
+            })}
           </div>
-        )}
+        </div>
         {timeline.fillers.length > 0 && (
           <div className="timeline-row">
-            <span>Fillers</span>
-            <div className="timeline-track">
+            <span className="timeline-label">
+              Fillers
+              <small>{timeline.fillers.length} heard</small>
+            </span>
+            <div className="timeline-track thin">
+              <div
+                className="timeline-head"
+                style={{ left: place(playhead) + "%" }}
+                aria-hidden="true"
+              />
               {timeline.fillers.map((item, i) => (
                 <button
                   key={i}
@@ -319,8 +338,16 @@ export function TimelineTracks({
           </div>
         )}
         <div className="timeline-row">
-          <span>Events</span>
-          <div className="timeline-track">
+          <span className="timeline-label">
+            Moments
+            <small>{timeline.events.length} noted</small>
+          </span>
+          <div className="timeline-track thin">
+            <div
+              className="timeline-head"
+              style={{ left: place(playhead) + "%" }}
+              aria-hidden="true"
+            />
             {timeline.events.map((item) => (
               <button
                 key={item.id}
@@ -341,9 +368,74 @@ export function TimelineTracks({
             ))}
           </div>
         </div>
+        {timeline.buckets.length > 0 && (
+          <div className="timeline-row">
+            <span className="timeline-label">
+              Delivery
+              <small>
+                <i className="line-key" style={{ background: colors.accent }} />
+                Eye contact{" "}
+                <i
+                  className="line-key"
+                  style={{ background: colors["ev-nonverbal"] }}
+                />
+                Tension{" "}
+                <i
+                  className="line-key"
+                  style={{ background: colors.primary }}
+                />
+                Pitch
+              </small>
+            </span>
+            <div className="chart timeline-chart">
+              <ResponsiveContainer width="100%" height={96}>
+                <LineChart data={timeline.buckets}>
+                  <XAxis dataKey="t" hide />
+                  <YAxis hide domain={[0, 1]} yAxisId="percent" />
+                  <YAxis hide yAxisId="pitch" />
+                  <Line
+                    dataKey="ec"
+                    name="Eye contact"
+                    yAxisId="percent"
+                    stroke={colors.accent}
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                  <Line
+                    dataKey="tension"
+                    name="Tension"
+                    yAxisId="percent"
+                    stroke={colors["ev-nonverbal"]}
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                  <Line
+                    dataKey="f0"
+                    name="Pitch"
+                    yAxisId="pitch"
+                    stroke={colors.primary}
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                  <Tooltip
+                    isAnimationActive={false}
+                    contentStyle={{
+                      background: colors.surface,
+                      borderColor: colors.border,
+                      borderRadius: 12,
+                    }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
       </div>
-      <div className="cluster">
-        <label className="cluster">
+      <div className="timeline-controls">
+        <label className="timeline-seek">
           <span>Seek through the interview</span>
           <input
             type="range"
@@ -353,16 +445,21 @@ export function TimelineTracks({
             value={Math.min(duration, playhead)}
             onChange={(event) => seek(Number(event.target.value))}
           />
+          <time>{shortTime(Math.min(duration, playhead))}</time>
         </label>
         <button
           type="button"
-          className="button secondary"
+          className="button"
           onClick={() => jump(playhead)}
           disabled={playhead >= timeline.durationMs}
         >
           Play from playhead
         </button>
       </div>
+      <small>
+        Select any mark to replay that moment. Drag the slider to move the
+        playhead.
+      </small>
     </div>
   );
 }

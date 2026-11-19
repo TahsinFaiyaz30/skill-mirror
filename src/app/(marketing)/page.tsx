@@ -5,45 +5,46 @@ import {
   ArrowRight,
   AudioLines,
   Bookmark,
+  BriefcaseBusiness,
   Check,
   ChevronDown,
   Clock,
   Eye,
   FileText,
   Gauge,
-  Layers3,
   Lock,
+  MessagesSquare,
   Mic,
   Play,
   ScanFace,
   ShieldCheck,
   Video,
 } from "lucide-react";
-import { ScrollGuide } from "@/components/common/scroll-guide";
 import { Brand } from "@/components/shell/brand";
 import { PRACTICE_TEMPLATES } from "@/lib/config/constants";
 import { PHASE_LABELS } from "@/lib/config/taxonomy";
 
+// The same order the app uses: name the interview, add a CV, talk, read.
 const steps = [
+  [
+    BriefcaseBusiness,
+    "Name your interview",
+    "Pick the role, company and seniority, then choose 10 or 20 minutes.",
+  ],
   [
     FileText,
     "Upload your CV",
-    "Start with the experience and skills you want to put to the test.",
-  ],
-  [
-    Layers3,
-    "AI plans your interview",
-    "Get questions shaped by the role, seniority and your own projects.",
+    "Your skills, experience and projects shape every question you get.",
   ],
   [
     Video,
-    "Live adaptive interview",
-    "Answer out loud as the interviewer probes, adjusts and follows up.",
+    "Talk it through",
+    "Answer out loud. The interviewer probes, adjusts and follows up.",
   ],
   [
     Activity,
-    "Timestamped feedback report",
-    "Replay key moments and practice with specific drills.",
+    "Read your report",
+    "Get a score, replay key moments and practice with specific drills.",
   ],
 ] as const;
 
@@ -144,9 +145,9 @@ export default function Landing() {
             <Brand />
             <nav className="lp-nav-links" aria-label="Sections">
               <a href="#how-it-works">How it works</a>
-              <a href="#what-we-measure">What we measure</a>
+              <a href="#what-we-measure">Features</a>
               <a href="#sample-report">Report</a>
-              <a href="#hiring">For hiring teams</a>
+              <a href="#hiring">For teams</a>
               <a href="#faq">FAQ</a>
             </nav>
           </div>
@@ -154,8 +155,8 @@ export default function Landing() {
             <Link className="lp-login" href="/login">
               Log in
             </Link>
-            <Link className="button" href="/signup">
-              Get started
+            <Link className="button sm" href="/signup">
+              Start free
             </Link>
           </div>
         </div>
@@ -165,48 +166,48 @@ export default function Landing() {
         <section className="lp-hero">
           <div className="container lp-hero-grid">
             <div className="lp-hero-copy">
-              <span className="lp-pill">
-                <span className="lp-pill-dot" aria-hidden="true" />
-                AI interviewer for practice and hiring
+              <span className="lp-kicker">
+                AI-powered video interview practice
               </span>
               <h1 className="lp-title">
-                Pressure-tested <span className="grad-text">interviews.</span>
+                AI mock interviews that show you{" "}
+                <span className="grad-text">exactly what to fix.</span>
               </h1>
+              <p className="lp-tagline">
+                Practice out loud. Get scored. Replay every moment.
+              </p>
               <p className="lp-lead">
-                An AI interviewer that adapts to your level, reads your body
-                language and voice, and shows you exactly what to fix, with
-                video proof.
+                An interviewer that adapts to your level, reads your voice and
+                body language, and backs every note with video.
               </p>
               <div className="lp-cta">
                 <Link className="button lg" href="/signup">
-                  Start practicing
+                  Start practicing free
                   <ArrowRight size={18} aria-hidden="true" />
                 </Link>
-                <Link
-                  className="button secondary lg"
-                  href="/signup?intent=hiring"
-                >
-                  Hire with AI interviews
-                </Link>
+                <a className="button secondary lg" href="#how-it-works">
+                  See how it works
+                  <ArrowDown size={18} aria-hidden="true" />
+                </a>
               </div>
-              <ul className="lp-points">
-                <li>
-                  <Check size={16} aria-hidden="true" />
-                  Adapts after every answer
+              <ul className="lp-chips">
+                <li className="hot">
+                  <Check size={15} aria-hidden="true" />
+                  Free to practice
                 </li>
                 <li>
-                  <Check size={16} aria-hidden="true" />
-                  Reads body language and voice
+                  <BriefcaseBusiness size={15} aria-hidden="true" />
+                  11 tech and product roles
                 </li>
                 <li>
-                  <Check size={16} aria-hidden="true" />
-                  Video proof for every note
+                  <Clock size={15} aria-hidden="true" />
+                  10 or 20 minutes
                 </li>
               </ul>
-              <a className="lp-sample-link" href="#sample-report">
-                See a sample report
-                <ArrowDown size={16} aria-hidden="true" />
-              </a>
+              <Link className="lp-sample-link" href="/signup?intent=hiring">
+                Hiring? Run first-round interviews with AI
+                <ArrowRight size={16} aria-hidden="true" />
+              </Link>
             </div>
 
             <div className="lp-visual" aria-hidden="true">
@@ -254,8 +255,6 @@ export default function Landing() {
                 </div>
                 <div className="lp-stage">
                   <div className="lp-orb-wrap">
-                    <span className="lp-ripple" />
-                    <span className="lp-ripple" />
                     <div className="orb" />
                   </div>
                   <p className="lp-speaker">
@@ -357,20 +356,43 @@ export default function Landing() {
           </div>
         </section>
 
-        <div className="lp-marquee">
-          <p className="lp-marquee-label">Practice for the role you want</p>
-          <div className="lp-marquee-track">
-            {[0, 1].map((copy) => (
-              <div
-                key={copy}
-                className="lp-marquee-group"
-                aria-hidden={copy === 1 ? true : undefined}
-              >
-                {roles.map((role) => (
-                  <span key={role}>{role}</span>
-                ))}
-              </div>
-            ))}
+        <section className="lp-statement" aria-label="What SkillMirror is">
+          <div className="container">
+            <p>
+              <span>SkillMirror is an AI interview practice platform.</span> You
+              answer real questions out loud while a live AI interviewer adapts
+              to every answer. It reads your voice and body language, scores
+              your technical depth from level 1 to 5, and then shows you what to
+              change, with the video to prove it.
+            </p>
+            <ul className="lp-stat-row">
+              <li>
+                <MessagesSquare size={20} aria-hidden="true" />
+                <b>Adaptive</b>
+                <span>difficulty after every answer</span>
+              </li>
+              <li>
+                <ScanFace size={20} aria-hidden="true" />
+                <b>Body language</b>
+                <span>read against your own baseline</span>
+              </li>
+              <li>
+                <Play size={20} aria-hidden="true" />
+                <b>Video proof</b>
+                <span>for every key moment</span>
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <div className="lp-roles">
+          <div className="container">
+            <p>Practice for the role you want</p>
+            <ul>
+              {roles.map((role) => (
+                <li key={role}>{role}</li>
+              ))}
+            </ul>
           </div>
         </div>
 
@@ -379,32 +401,34 @@ export default function Landing() {
             <div className="lp-section-head">
               <span className="eyebrow">How it works</span>
               <h2 className="lp-h2">
-                From CV to <span className="grad-text">video-proof</span>{" "}
-                feedback.
+                How a SkillMirror interview{" "}
+                <span className="grad-text">works.</span>
               </h2>
               <p className="lp-sub">
-                Four steps, one interview engine. The same flow powers practice
-                sessions and company interviews.
+                Four steps, about 20 minutes, and a report you can act on the
+                same day.
               </p>
             </div>
-            <div className="lp-steps">
+            <ol className="lp-steps">
               {steps.map(([Icon, title, detail], index) => (
-                <article className="lp-step" key={title}>
+                <li className="lp-step" key={title}>
                   <div className="lp-step-top">
                     <span className="lp-icon">
                       <Icon size={22} aria-hidden="true" />
                     </span>
-                    <span className="lp-step-num">0{index + 1}</span>
                   </div>
-                  <h3>{title}</h3>
+                  <h3>
+                    <span className="lp-step-num">{index + 1}</span>
+                    {title}
+                  </h3>
                   <p>{detail}</p>
-                </article>
+                </li>
               ))}
-            </div>
+            </ol>
           </div>
         </section>
 
-        <section id="what-we-measure" className="lp-section">
+        <section id="what-we-measure" className="lp-section lp-alt">
           <div className="container">
             <div className="lp-section-head">
               <span className="eyebrow">What we measure</span>
@@ -447,7 +471,7 @@ export default function Landing() {
               <article className="lp-measure">
                 <div className="lp-viz" aria-hidden="true">
                   <svg className="lp-pose" viewBox="0 0 300 168">
-                    <g fill="none" stroke="#2fe08a" strokeWidth="1.5">
+                    <g fill="none" stroke="#fd7c68" strokeWidth="1.5">
                       <ellipse
                         cx="150"
                         cy="62"
@@ -462,12 +486,12 @@ export default function Landing() {
                       />
                       <path
                         d="M138 56l-60-26M162 56l60-26"
-                        stroke="#7ef5c3"
+                        stroke="#fdc458"
                         strokeOpacity="0.45"
                         strokeDasharray="2 4"
                       />
                     </g>
-                    <g fill="#2fe08a">
+                    <g fill="#fd7c68">
                       <circle cx="138" cy="56" r="3.5" />
                       <circle cx="162" cy="56" r="3.5" />
                       <circle cx="150" cy="72" r="3" />
@@ -477,7 +501,7 @@ export default function Landing() {
                       <circle cx="76" cy="166" r="3" />
                       <circle cx="224" cy="166" r="3" />
                     </g>
-                    <g fill="#7ef5c3">
+                    <g fill="#fdc458">
                       <circle cx="74" cy="28" r="5" fillOpacity="0.25" />
                       <circle cx="74" cy="28" r="2.5" />
                       <circle cx="226" cy="28" r="5" fillOpacity="0.25" />
@@ -533,7 +557,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <section id="sample-report" className="lp-section">
+        <section id="sample-report" className="lp-section lp-deep">
           <div className="container lp-report">
             <div className="stack" style={{ gap: 22 }}>
               <span className="eyebrow">Sample report</span>
@@ -694,7 +718,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <section className="lp-section" style={{ paddingTop: 0 }}>
+        <section className="lp-section lp-alt">
           <div className="container">
             <div className="lp-section-head center">
               <span className="eyebrow">Privacy by design</span>
@@ -733,7 +757,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <section id="faq" className="lp-section" style={{ paddingTop: 0 }}>
+        <section id="faq" className="lp-section">
           <div className="container">
             <div className="lp-section-head center">
               <span className="eyebrow">FAQ</span>
@@ -765,7 +789,7 @@ export default function Landing() {
                 <span className="grad-text">already tested.</span>
               </h2>
               <p className="lp-sub">
-                Upload your CV, pick the role, and get pressure-tested in 10 or
+                Name the role, upload your CV, and get pressure-tested in 10 or
                 20 minutes.
               </p>
               <div className="lp-cta" style={{ justifyContent: "center" }}>
@@ -791,8 +815,8 @@ export default function Landing() {
             <div className="stack" style={{ alignContent: "start" }}>
               <Brand />
               <p className="muted" style={{ maxWidth: 300 }}>
-                Pressure-tested interviews. Every answer, every gesture, every
-                second.
+                AI mock interviews that show you exactly what to fix. Every
+                answer, every gesture, every second.
               </p>
             </div>
             <div>
@@ -850,7 +874,6 @@ export default function Landing() {
           </div>
         </div>
       </footer>
-      <ScrollGuide />
     </div>
   );
 }
