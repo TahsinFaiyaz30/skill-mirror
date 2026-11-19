@@ -136,7 +136,7 @@ describe("Gemini Interactions API, TTS, and Live API", () => {
     else process.env.GEMINI_API_KEY = originalGeminiKey;
   });
 
-  it("uses SDK default API version for Interactions and v1alpha only for Live auth tokens", () => {
+  it("uses v1beta for Interactions/TTS and v1alpha only for Live auth tokens", () => {
     delete process.env.GEMINI_API_KEY;
     expect(() => gemini()).toThrow("GEMINI_API_KEY is not configured.");
     expect(() => geminiLiveAuth()).toThrow("GEMINI_API_KEY is not configured.");
@@ -151,8 +151,10 @@ describe("Gemini Interactions API, TTS, and Live API", () => {
     const liveAuth = geminiLiveAuth() as unknown as {
       apiClient: { getApiVersion(): string };
     };
-    expect(standard.apiClient.getApiVersion()).toBe("v1");
-    expect(standard.interactions.getClient()._options.api_version).toBe("v1");
+    expect(standard.apiClient.getApiVersion()).toBe("v1beta");
+    expect(standard.interactions.getClient()._options.api_version).toBe(
+      "v1beta",
+    );
     expect(liveAuth.apiClient.getApiVersion()).toBe("v1alpha");
   });
 
@@ -229,7 +231,7 @@ describe("Gemini Interactions API, TTS, and Live API", () => {
 
     expect(captured).toHaveLength(2);
     expect(captured[0].url).toBe(
-      "https://generativelanguage.googleapis.com/v1/interactions",
+      "https://generativelanguage.googleapis.com/v1beta/interactions",
     );
     expect(captured[0].body).toMatchObject({
       model: "gemini-3.8-flash",

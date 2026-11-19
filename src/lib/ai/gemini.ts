@@ -8,7 +8,11 @@ function requireGeminiKey() {
   return apiKey;
 }
 
-export const gemini = () => new GoogleGenAI({ apiKey: requireGeminiKey() });
+export const gemini = () =>
+  new GoogleGenAI({
+    apiKey: requireGeminiKey(),
+    httpOptions: { apiVersion: "v1beta" },
+  });
 
 export const geminiLiveAuth = () =>
   new GoogleGenAI({

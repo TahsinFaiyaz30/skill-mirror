@@ -8,7 +8,10 @@ if (!apiKey) {
   );
   process.exitCode = 1;
 } else {
-  const client = new GoogleGenAI({ apiKey });
+  const client = new GoogleGenAI({
+    apiKey,
+    httpOptions: { apiVersion: "v1beta" },
+  });
   const model = process.env.MODEL_TTS || "gemini-3.8-flash-lite-tts";
   const style =
     "Speak as a calm, professional interviewer at a natural pace.";
