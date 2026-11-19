@@ -8,6 +8,9 @@ import { errorMessage, requestJSON, send, showError } from "@/lib/utils/client";
 import { uploadFile, type SignedUpload } from "@/lib/supabase/upload";
 import { readable } from "@/lib/config/taxonomy";
 import type { OrgResponse } from "@/types/hiring";
+import { Mail, Video } from "lucide-react";
+import { GuideCard, IconList } from "@/components/common/guides";
+import { LogoMark } from "@/components/shell/brand";
 export function Organization() {
   const router = useRouter();
   const query = useQuery({
@@ -83,56 +86,100 @@ export function Organization() {
     }
   }
   return (
-    <div className="stack">
-      <h1>Organization</h1>
-      <form className="card stack" onSubmit={save}>
-        <div className="cluster">
-          {org.logoUrl && (
-            <Image
-              src={org.logoUrl}
-              alt=""
-              width={48}
-              height={48}
-              unoptimized
+    <div className="stack-lg">
+      <div className="stack-sm">
+        <span className="eyebrow">SkillMirror for Teams</span>
+        <h1>Organization</h1>
+        <p className="muted">
+          Your team&apos;s name, logo and members. Candidates see your name and
+          logo when you invite them.
+        </p>
+      </div>
+      <div className="with-aside">
+        <form className="card stack" onSubmit={save}>
+          <div className="cluster">
+            {org.logoUrl && (
+              <Image
+                src={org.logoUrl}
+                alt=""
+                width={48}
+                height={48}
+                unoptimized
+              />
+            )}
+            <h2>{org.name}</h2>
+          </div>
+          <label className="field">
+            Organization name
+            <input
+              name="name"
+              defaultValue={org.name}
+              minLength={2}
+              maxLength={80}
+              required
+              readOnly={!owner}
             />
+          </label>
+          <label className="field">
+            Website
+            <input
+              name="website"
+              type="url"
+              defaultValue={org.website ?? ""}
+              readOnly={!owner}
+            />
+          </label>
+          {owner && (
+            <>
+              <label className="field">
+                Organization logo
+                <input type="file" name="logo" accept=".png,.jpg,.jpeg,.svg" />
+                <small>PNG, JPG or SVG up to 1 MB.</small>
+              </label>
+              <div>
+                <button className="button" disabled={busy}>
+                  Save organization
+                </button>
+              </div>
+            </>
           )}
-          <h2>{org.name}</h2>
-        </div>
-        <label className="field">
-          Organization name
-          <input
-            name="name"
-            defaultValue={org.name}
-            minLength={2}
-            maxLength={80}
-            required
-            readOnly={!owner}
-          />
-        </label>
-        <label className="field">
-          Website
-          <input
-            name="website"
-            type="url"
-            defaultValue={org.website ?? ""}
-            readOnly={!owner}
-          />
-        </label>
-        {owner && (
-          <>
-            <label className="field">
-              Organization logo
-              <input type="file" name="logo" accept=".png,.jpg,.jpeg,.svg" />
-              <small>PNG, JPG or SVG up to 1 MB.</small>
-            </label>
-            <div>
-              <button className="button" disabled={busy}>
-                Save organization
-              </button>
+        </form>
+        <aside aria-label="Brand preview">
+          <GuideCard title="How candidates see you">
+            <div className="brand-preview" aria-hidden="true">
+              <div className="brand-preview-bar">
+                <span className="brand">
+                  <LogoMark size={22} />
+                  <span>
+                    Skill<span className="brand-accent">Mirror</span>
+                  </span>
+                </span>
+                <span className="company-brand">
+                  {org.logoUrl && (
+                    <Image
+                      src={org.logoUrl}
+                      alt=""
+                      width={22}
+                      height={22}
+                      unoptimized
+                    />
+                  )}
+                  {org.name}
+                </span>
+              </div>
+              <p className="brand-preview-title">
+                {org.name} invited you to an AI interview
+              </p>
             </div>
-          </>
-        )}
-      </form>
+            <IconList
+              items={[
+                [Mail, "The invite page names your organization"],
+                [Video, "Your logo and name sit in the interview room header"],
+              ]}
+            />
+          </GuideCard>
+        </aside>
+      </div>
       <section className="card stack">
         <h2>Members</h2>
         <div className="scroll">

@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowRight,
   AudioLines,
+  Bookmark,
   Check,
   ChevronDown,
   Clock,
@@ -12,12 +13,16 @@ import {
   Gauge,
   Layers3,
   Lock,
+  Mic,
   Play,
   ScanFace,
   ShieldCheck,
   Video,
 } from "lucide-react";
+import { ScrollGuide } from "@/components/common/scroll-guide";
 import { Brand } from "@/components/shell/brand";
+import { PRACTICE_TEMPLATES } from "@/lib/config/constants";
+import { PHASE_LABELS } from "@/lib/config/taxonomy";
 
 const steps = [
   [
@@ -57,14 +62,28 @@ const roles = [
   "Product Designer",
 ];
 
-const phases = [
-  ["Intro", "done"],
-  ["Your experience", "done"],
-  ["Technical", "now"],
-  ["Behavioral", ""],
-  ["Your questions", ""],
-  ["Wrap-up", ""],
-] as const;
+// The hero mock follows the real 20-minute practice plan, 9:40 in.
+const elapsed = 580;
+let phaseStart = 0;
+const timeline = Object.entries(PRACTICE_TEMPLATES[20].budgets).map(
+  ([phase, ms]) => {
+    const start = phaseStart;
+    phaseStart += ms / 1000;
+    return {
+      label: PHASE_LABELS[phase as keyof typeof PHASE_LABELS],
+      seconds: ms / 1000,
+      progress: Math.min(1, Math.max(0, (elapsed - start) / (ms / 1000))),
+    };
+  },
+);
+const total = phaseStart;
+const current = timeline.findIndex((phase) => phase.progress < 1);
+// Key moments at 04:22 (the one in the sample report below) and 08:05.
+const moments = [262, 485];
+const clock = (seconds: number) =>
+  String(Math.floor(seconds / 60)).padStart(2, "0") +
+  ":" +
+  String(seconds % 60).padStart(2, "0");
 
 const wave = [
   10, 18, 26, 14, 30, 22, 34, 16, 24, 32, 12, 28, 20, 34, 18, 26, 12, 30, 22,
@@ -192,11 +211,25 @@ export default function Landing() {
 
             <div className="lp-visual" aria-hidden="true">
               <div className="lp-float one">
-                <span className="lp-float-label">Technical ceiling</span>
-                <span className="lp-float-value">
-                  Level 5 <span className="lp-up">▲ 1</span>
+                <span className="lp-float-label">Adaptive difficulty</span>
+                <span className="lp-level">
+                  <span className="lp-float-value">
+                    Level 4<small>/ 5</small>
+                    <span className="lp-up">▲</span>
+                  </span>
+                  <span className="lp-level-bars">
+                    {[1, 2, 3, 4, 5].map((level) => (
+                      <i
+                        key={level}
+                        className={
+                          level < 4 ? "done" : level === 4 ? "now" : undefined
+                        }
+                        style={{ height: 4 + level * 4 }}
+                      />
+                    ))}
+                  </span>
                 </span>
-                <small>Difficulty raised after a strong answer</small>
+                <small>Up from level 3 after a strong answer</small>
               </div>
               <div className="lp-window">
                 <div className="lp-window-bar">
@@ -211,8 +244,13 @@ export default function Landing() {
                       LIVE
                     </span>
                   </span>
-                  <span>Technical · System design</span>
-                  <span className="mono lp-timer">12:48</span>
+                  <span>Backend Engineer</span>
+                  <span className="lp-timer">
+                    <span className="tracking-dot green" />
+                    <span className="mono">
+                      {clock(elapsed)} / {clock(total)}
+                    </span>
+                  </span>
                 </div>
                 <div className="lp-stage">
                   <div className="lp-orb-wrap">
@@ -221,59 +259,98 @@ export default function Landing() {
                     <div className="orb" />
                   </div>
                   <p className="lp-speaker">
-                    <b>Interviewer</b> · <em>Speaking</em>
+                    <b>Interviewer</b> · <em>Listening</em>
                   </p>
                   <div className="lp-question">
                     <span className="eyebrow" style={{ justifySelf: "center" }}>
-                      Question 4
+                      Technical · System Design
                     </span>
                     <h3>
                       How would your design handle a sudden spike in traffic?
                     </h3>
                   </div>
-                  <div className="lp-wave">
-                    {wave.map((height, index) => (
+                  <div className="lp-answer">
+                    <Mic size={14} />
+                    <span className="lp-wave">
+                      {wave.map((height, index) => (
+                        <span
+                          key={index}
+                          style={
+                            {
+                              "--h": height + "px",
+                              "--d": -(index * 0.09).toFixed(2) + "s",
+                            } as React.CSSProperties
+                          }
+                        />
+                      ))}
+                    </span>
+                    <span className="mono">01:12</span>
+                  </div>
+                </div>
+                <div className="lp-progress">
+                  <div className="lp-progress-head">
+                    <span>
+                      Phase {current + 1} of {timeline.length} ·{" "}
+                      <b>{timeline[current].label}</b>
+                    </span>
+                    <span className="lp-saved">
+                      <Bookmark size={13} />
+                      {moments.length} key moments
+                    </span>
+                  </div>
+                  <div className="lp-track">
+                    {timeline.map(({ label, seconds, progress }) => (
                       <span
-                        key={index}
-                        style={
-                          {
-                            "--h": height + "px",
-                            "--d": -(index * 0.09).toFixed(2) + "s",
-                          } as React.CSSProperties
+                        key={label}
+                        className={
+                          progress === 1 ? "done" : progress > 0 ? "now" : ""
                         }
-                      />
+                        style={{ flexGrow: seconds }}
+                      >
+                        <i style={{ width: progress * 100 + "%" }} />
+                      </span>
+                    ))}
+                    {moments.map((at) => (
+                      <b key={at} style={{ left: (at / total) * 100 + "%" }} />
                     ))}
                   </div>
                 </div>
-                <div className="lp-phases">
-                  {phases.map(([label, state]) => (
-                    <span
-                      key={label}
-                      className={
-                        "badge " +
-                        (state === "now"
-                          ? "primary"
-                          : state === "done"
-                            ? "accent"
-                            : "")
-                      }
-                    >
-                      {state === "done" ? "✓ " : ""}
-                      {label}
-                    </span>
-                  ))}
-                </div>
               </div>
               <div className="lp-float two">
-                <span className="lp-float-label">Live signals</span>
-                <span className="lp-signal">
-                  Gaze <b>steady</b>
+                <span className="lp-float-head">
+                  <span className="lp-float-label">Live signals</span>
+                  <small>vs. your baseline</small>
                 </span>
                 <span className="lp-signal">
-                  Posture <b>upright</b>
+                  Gaze
+                  <svg viewBox="0 0 48 12" className="lp-spark">
+                    <line x1="0" y1="6" x2="48" y2="6" />
+                    <polyline points="0,6 6,5 12,6 18,4 24,6 30,5 36,7 42,6 48,6" />
+                  </svg>
+                  <b>steady</b>
                 </span>
                 <span className="lp-signal">
-                  Pace <b>142 wpm</b>
+                  Posture
+                  <svg viewBox="0 0 48 12" className="lp-spark">
+                    <line x1="0" y1="6" x2="48" y2="6" />
+                    <polyline points="0,5 8,5 14,6 20,9 26,7 32,5 40,5 48,5" />
+                  </svg>
+                  <b>upright</b>
+                </span>
+                <span className="lp-signal">
+                  Pace
+                  <span className="lp-range">
+                    <i />
+                  </span>
+                  <b>142 wpm</b>
+                </span>
+                <span className="lp-signal warn">
+                  Fillers
+                  <span className="lp-ticks">
+                    <i />
+                    <i />
+                  </span>
+                  <b>um ×2</b>
                 </span>
               </div>
             </div>
@@ -345,19 +422,19 @@ export default function Landing() {
                 <div className="lp-viz" aria-hidden="true">
                   <div className="lp-ladder">
                     <div>
-                      Level 6<span>—</span>
+                      Level 5<span>—</span>
                     </div>
                     <div className="now">
-                      Level 5<span>Now</span>
-                    </div>
-                    <div className="pass">
-                      Level 4<span>✓</span>
+                      Level 4<span>Now</span>
                     </div>
                     <div className="pass">
                       Level 3<span>✓</span>
                     </div>
                     <div className="pass">
                       Level 2<span>✓</span>
+                    </div>
+                    <div className="pass">
+                      Level 1<span>✓</span>
                     </div>
                   </div>
                 </div>
@@ -773,6 +850,7 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+      <ScrollGuide />
     </div>
   );
 }

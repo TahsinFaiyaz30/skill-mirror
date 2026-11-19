@@ -12,6 +12,11 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { errorMessage, requestJSON, send, showError } from "@/lib/utils/client";
 import { readable } from "@/lib/config/taxonomy";
+import {
+  PhasePlan,
+  ReadyChecklist,
+  ReportIncludes,
+} from "@/components/common/guides";
 import type { SessionStatus } from "@/types/interview";
 
 export type DashboardSession = {
@@ -113,138 +118,153 @@ export function Dashboard({ firstName }: { firstName: string }) {
         </div>
       </div>
       <CompanyInvites />
-      <section className="stack">
-        <h2>Practice sessions</h2>
-        {sessions.isPending ? (
-          <p role="status">Loading interviews…</p>
-        ) : sessions.isError ? (
-          <div className="card stack">
-            <p role="alert" className="danger">
-              {errorMessage(sessions.error)}
-            </p>
-            <button
-              className="button secondary"
-              onClick={() => void sessions.refetch()}
-            >
-              Retry
-            </button>
-          </div>
-        ) : !items.length ? (
-          <div className="card stack center empty-state">
-            <span className="empty-icon">
-              <ClipboardList size={28} aria-hidden="true" />
-            </span>
-            <h3>No interviews yet</h3>
-            <p className="muted">
-              Upload your CV, choose a role and take a 10 or 20 minute mock
-              interview. Your report appears here when it&apos;s ready.
-            </p>
-            <div>
-              <Link className="button" href="/interview/new">
-                New interview
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <div className="card scroll">
-            <table>
-              <thead>
-                <tr>
-                  {[
-                    "Role",
-                    "Company",
-                    "Date",
-                    "Length",
-                    "Status",
-                    "Score",
-                    "Action",
-                  ].map((label) => (
-                    <th key={label} scope="col">
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => {
-                  const base = "/interview/" + item.sessionId;
-                  const status = item.displayStatus;
-                  const link =
-                    status === "completed"
-                      ? "report"
-                      : status === "ready"
-                        ? "setup"
-                        : status === "in_progress"
-                          ? "live"
-                          : status === "draft" || status === "planning"
-                            ? "prepare"
-                            : ["ended", "processing", "failed"].includes(status)
-                              ? "processing"
-                              : null;
-                  const label =
-                    status === "completed"
-                      ? "View report"
-                      : status === "ready"
-                        ? "Continue setup"
-                        : status === "failed"
-                          ? "Retry processing"
-                          : "Continue";
-                  const badge =
-                    status === "completed"
-                      ? "accent"
-                      : status === "processing"
-                        ? "primary"
-                        : status === "failed"
-                          ? "danger"
-                          : status === "interrupted"
-                            ? "warning"
-                            : "";
-                  return (
-                    <tr key={item.sessionId}>
-                      <td>{item.roleTitle}</td>
-                      <td>{item.company}</td>
-                      <td>{date(item.createdAt)}</td>
-                      <td>{item.lengthMinutes} min</td>
-                      <td>
-                        <span className={"badge " + badge}>
-                          {readable(status)}
-                        </span>
-                      </td>
-                      <td className="mono">{item.overallScore ?? "—"}</td>
-                      <td>
-                        {link && <Link href={base + "/" + link}>{label}</Link>}
-                        {status === "interrupted" && (
-                          <div className="cluster">
-                            {(item.durationMs ?? 0) >= 300000 && (
-                              <button
-                                className="button secondary"
-                                onClick={() => void action(item, "partial")}
-                              >
-                                Generate partial report
-                              </button>
-                            )}
-                            <button
-                              className="button ghost danger"
-                              onClick={() => {
-                                if (
-                                  confirm("Discard this interrupted interview?")
-                                )
-                                  void action(item, "discard");
-                              }}
-                            >
-                              Discard
-                            </button>
-                          </div>
-                        )}
-                      </td>
+      <div className="with-aside">
+        <div className="stack-lg">
+          <section className="stack">
+            <h2>Practice sessions</h2>
+            {sessions.isPending ? (
+              <p role="status">Loading interviews…</p>
+            ) : sessions.isError ? (
+              <div className="card stack">
+                <p role="alert" className="danger">
+                  {errorMessage(sessions.error)}
+                </p>
+                <button
+                  className="button secondary"
+                  onClick={() => void sessions.refetch()}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : !items.length ? (
+              <div className="card stack center empty-state">
+                <span className="empty-icon">
+                  <ClipboardList size={28} aria-hidden="true" />
+                </span>
+                <h3>No interviews yet</h3>
+                <p className="muted">
+                  Upload your CV, choose a role and take a 10 or 20 minute mock
+                  interview. Your report appears here when it&apos;s ready.
+                </p>
+                <div>
+                  <Link className="button" href="/interview/new">
+                    New interview
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="card scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      {[
+                        "Role",
+                        "Company",
+                        "Date",
+                        "Length",
+                        "Status",
+                        "Score",
+                        "Action",
+                      ].map((label) => (
+                        <th key={label} scope="col">
+                          {label}
+                        </th>
+                      ))}
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                  </thead>
+                  <tbody>
+                    {items.map((item) => {
+                      const base = "/interview/" + item.sessionId;
+                      const status = item.displayStatus;
+                      const link =
+                        status === "completed"
+                          ? "report"
+                          : status === "ready"
+                            ? "setup"
+                            : status === "in_progress"
+                              ? "live"
+                              : status === "draft" || status === "planning"
+                                ? "prepare"
+                                : ["ended", "processing", "failed"].includes(
+                                      status,
+                                    )
+                                  ? "processing"
+                                  : null;
+                      const label =
+                        status === "completed"
+                          ? "View report"
+                          : status === "ready"
+                            ? "Continue setup"
+                            : status === "failed"
+                              ? "Retry processing"
+                              : "Continue";
+                      const badge =
+                        status === "completed"
+                          ? "accent"
+                          : status === "processing"
+                            ? "primary"
+                            : status === "failed"
+                              ? "danger"
+                              : status === "interrupted"
+                                ? "warning"
+                                : "";
+                      return (
+                        <tr key={item.sessionId}>
+                          <td>{item.roleTitle}</td>
+                          <td>{item.company}</td>
+                          <td>{date(item.createdAt)}</td>
+                          <td>{item.lengthMinutes} min</td>
+                          <td>
+                            <span className={"badge " + badge}>
+                              {readable(status)}
+                            </span>
+                          </td>
+                          <td className="mono">{item.overallScore ?? "—"}</td>
+                          <td>
+                            {link && (
+                              <Link href={base + "/" + link}>{label}</Link>
+                            )}
+                            {status === "interrupted" && (
+                              <div className="cluster">
+                                {(item.durationMs ?? 0) >= 300000 && (
+                                  <button
+                                    className="button secondary"
+                                    onClick={() => void action(item, "partial")}
+                                  >
+                                    Generate partial report
+                                  </button>
+                                )}
+                                <button
+                                  className="button ghost danger"
+                                  onClick={() => {
+                                    if (
+                                      confirm(
+                                        "Discard this interrupted interview?",
+                                      )
+                                    )
+                                      void action(item, "discard");
+                                  }}
+                                >
+                                  Discard
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+          <ReportIncludes wide />
+        </div>
+        <aside aria-label="Interview guide">
+          <ReadyChecklist />
+          <PhasePlan />
+        </aside>
+      </div>
     </div>
   );
 }

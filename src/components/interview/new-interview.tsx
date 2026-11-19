@@ -1,5 +1,5 @@
 "use client";
-import { FileUp } from "lucide-react";
+import { Building2, Clock, FileUp, Lock, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -8,6 +8,24 @@ import { ROLE_FAMILIES, SENIORITIES, readable } from "@/lib/config/taxonomy";
 import { errorMessage, requestJSON, send } from "@/lib/utils/client";
 import { uploadFile, type SignedUpload } from "@/lib/supabase/upload";
 import type { ParsedCV, SessionPublic, VoiceName } from "@/types/interview";
+import {
+  FlowSteps,
+  GuideCard,
+  IconList,
+  PhasePlan,
+} from "@/components/common/guides";
+const cvStep = [
+  "Add your CV",
+  "A PDF up to 5 MB and 10 pages. Your skills, experience and projects shape the questions.",
+] as const;
+const reviewStep = [
+  "Check what we read",
+  "Remove any skill you don't want to be asked about.",
+] as const;
+const setupStep = [
+  "Set up camera and mic",
+  "Setup checks your framing, posture, gaze, microphone and audio.",
+] as const;
 type CVRow = {
   cvId: string;
   fileName: string;
@@ -97,6 +115,32 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
   const [file, setFile] = useState<File | null>(null);
   const [description, setDescription] = useState("");
   const [voice, setVoice] = useState<VoiceName>("Kore");
+  const [length, setLength] = useState<10 | 20>(20);
+  const company = existing?.session.company ?? "";
+  const flow = companyMode
+    ? [
+        cvStep,
+        reviewStep,
+        setupStep,
+        [
+          "Interview",
+          company +
+            " receives your recording, transcript, evaluation and a summary of your CV.",
+        ] as const,
+      ]
+    : [
+        cvStep,
+        reviewStep,
+        [
+          "Choose your target",
+          "Company, role, seniority and an optional job description.",
+        ] as const,
+        setupStep,
+        [
+          "Interview, then report",
+          "Answer out loud. Your report appears on your dashboard when it's ready.",
+        ] as const,
+      ];
   const cvQuery = useQuery({
     queryKey: ["cvs"],
     queryFn: () => requestJSON<{ items: CVRow[] }>("/api/cv"),
@@ -203,297 +247,354 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
           </li>
         ))}
       </ol>
-      {error && (
-        <p className="danger" role="alert">
-          {error}
-        </p>
-      )}
-      {step === 0 && (
-        <div className="card stack">
-          <div
-            className="inset stack-sm dropzone"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              chooseFile(e.dataTransfer.files[0] ?? null);
-            }}
-          >
-            <FileUp size={24} />
-            {unpaidAI && (
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={syntheticMaterial}
-                  onChange={(e) => setSyntheticMaterial(e.target.checked)}
-                />
-                I am using a fictional CV without personal or confidential
-                information for this unpaid AI demo.
-              </label>
-            )}
-            <label className="field">
-              Upload your CV
-              <input
-                type="file"
-                accept="application/pdf,.pdf"
-                onChange={(e) => chooseFile(e.target.files?.[0] ?? null)}
-              />
-            </label>
-            <small>
-              {file
-                ? file.name
-                : "Drop a PDF here or choose a file. Up to 5 MB and 10 pages."}
-            </small>
-          </div>
-          {available.length > 0 && (
-            <fieldset className="stack-sm">
-              <legend>Or use a previous CV</legend>
-              {available.map((item) => (
-                <label className="check inset" key={item.cvId}>
-                  <input
-                    type="radio"
-                    checked={item.cvId === previous}
-                    onChange={() => {
-                      setFile(null);
-                      setPrevious(item.cvId);
-                    }}
-                  />
-                  <span>
-                    {item.fileName}
-                    <br />
-                    <small>{item.headline}</small>
-                  </span>
-                </label>
-              ))}
-            </fieldset>
-          )}
-          {state !== "idle" && (
-            <div className="stack-sm" aria-live="polite">
-              <progress />
-              <p>
-                {state === "uploading"
-                  ? "Uploading your CV…"
-                  : "Reading your CV…"}
-              </p>
-            </div>
-          )}
-          <div>
-            <button
-              className="button"
-              disabled={
-                state !== "idle" ||
-                (!file && !previous) ||
-                (unpaidAI && !syntheticMaterial)
-              }
-              onClick={() => void readCv()}
-            >
-              {error ? "Retry" : "Read CV"}
-            </button>
-          </div>
-        </div>
-      )}
-      {step === 1 && cv && (
-        <div className="card stack">
-          <div className="stack-sm">
-            <h2>{cv.parsed.full_name}</h2>
-            <p>{cv.parsed.headline}</p>
-            <p className="cluster">
-              <span className="badge">
-                {readable(cv.parsed.seniority_estimate)}
-              </span>
-              {cv.parsed.total_years_experience} years of experience
+      <div className="with-aside">
+        <div className="stack">
+          {error && (
+            <p className="danger" role="alert">
+              {error}
             </p>
-          </div>
-          <h3>Skills</h3>
-          {Object.entries(
-            Object.groupBy(
-              cv.parsed.skills.filter(
-                (skill) => !cv.parsed.skills_removed.includes(skill.name),
-              ),
-              (skill) => skill.category,
-            ),
-          ).map(([category, skills]) => (
-            <div key={category} className="stack-sm">
-              <small>{readable(category)}</small>
-              <div className="cluster">
-                {skills?.map((skill) => (
-                  <span
-                    key={skill.name}
-                    className="badge"
-                    title={skill.evidence}
-                  >
-                    {skill.name}
-                    <button
-                      type="button"
-                      className="ml-2"
-                      aria-label={"Remove " + skill.name}
-                      onClick={() =>
-                        setCv({
-                          ...cv,
-                          parsed: {
-                            ...cv.parsed,
-                            skills_removed: [
-                              ...cv.parsed.skills_removed,
-                              skill.name,
-                            ],
-                          },
-                        })
-                      }
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
+          )}
+          {step === 0 && (
+            <div className="card stack">
+              <div
+                className="inset stack-sm dropzone"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  chooseFile(e.dataTransfer.files[0] ?? null);
+                }}
+              >
+                <FileUp size={24} />
+                {unpaidAI && (
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={syntheticMaterial}
+                      onChange={(e) => setSyntheticMaterial(e.target.checked)}
+                    />
+                    I am using a fictional CV without personal or confidential
+                    information for this unpaid AI demo.
+                  </label>
+                )}
+                <label className="field">
+                  Upload your CV
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    onChange={(e) => chooseFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <small>
+                  {file
+                    ? file.name
+                    : "Drop a PDF here or choose a file. Up to 5 MB and 10 pages."}
+                </small>
+              </div>
+              {available.length > 0 && (
+                <fieldset className="stack-sm">
+                  <legend>Or use a previous CV</legend>
+                  {available.map((item) => (
+                    <label className="check inset" key={item.cvId}>
+                      <input
+                        type="radio"
+                        checked={item.cvId === previous}
+                        onChange={() => {
+                          setFile(null);
+                          setPrevious(item.cvId);
+                        }}
+                      />
+                      <span>
+                        {item.fileName}
+                        <br />
+                        <small>{item.headline}</small>
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+              )}
+              {state !== "idle" && (
+                <div className="stack-sm" aria-live="polite">
+                  <progress />
+                  <p>
+                    {state === "uploading"
+                      ? "Uploading your CV…"
+                      : "Reading your CV…"}
+                  </p>
+                </div>
+              )}
+              <div>
+                <button
+                  className="button"
+                  disabled={
+                    state !== "idle" ||
+                    (!file && !previous) ||
+                    (unpaidAI && !syntheticMaterial)
+                  }
+                  onClick={() => void readCv()}
+                >
+                  {error ? "Retry" : "Read CV"}
+                </button>
               </div>
             </div>
-          ))}
-          <div className="grid-2">
-            <div className="stack-sm">
-              <h3>Experience</h3>
-              {cv.parsed.experience.map((job, index) => (
-                <p key={index}>
-                  {job.title} · {job.company}
+          )}
+          {step === 1 && cv && (
+            <div className="card stack">
+              <div className="stack-sm">
+                <h2>{cv.parsed.full_name}</h2>
+                <p>{cv.parsed.headline}</p>
+                <p className="cluster">
+                  <span className="badge">
+                    {readable(cv.parsed.seniority_estimate)}
+                  </span>
+                  {cv.parsed.total_years_experience} years of experience
                 </p>
+              </div>
+              <h3>Skills</h3>
+              {Object.entries(
+                Object.groupBy(
+                  cv.parsed.skills.filter(
+                    (skill) => !cv.parsed.skills_removed.includes(skill.name),
+                  ),
+                  (skill) => skill.category,
+                ),
+              ).map(([category, skills]) => (
+                <div key={category} className="stack-sm">
+                  <small>{readable(category)}</small>
+                  <div className="cluster">
+                    {skills?.map((skill) => (
+                      <span
+                        key={skill.name}
+                        className="badge"
+                        title={skill.evidence}
+                      >
+                        {skill.name}
+                        <button
+                          type="button"
+                          className="ml-2"
+                          aria-label={"Remove " + skill.name}
+                          onClick={() =>
+                            setCv({
+                              ...cv,
+                              parsed: {
+                                ...cv.parsed,
+                                skills_removed: [
+                                  ...cv.parsed.skills_removed,
+                                  skill.name,
+                                ],
+                              },
+                            })
+                          }
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
               ))}
-            </div>
-            <div className="stack-sm">
-              <h3>Projects</h3>
-              {cv.parsed.projects.map((project, index) => (
-                <p key={index}>
-                  {project.name} · {project.role}
-                </p>
-              ))}
-            </div>
-          </div>
-          <div className="cluster">
-            {[
-              ...cv.parsed.links.github,
-              cv.parsed.links.linkedin,
-              cv.parsed.links.portfolio,
-            ]
-              .flatMap((link) => {
-                try {
-                  const url = new URL(link);
-                  return url.protocol === "https:" || url.protocol === "http:"
-                    ? [url]
-                    : [];
-                } catch {
-                  return [];
-                }
-              })
-              .map((url) => (
-                <a
-                  className="badge"
-                  key={url.href}
-                  href={url.href}
-                  target="_blank"
-                  rel="noreferrer"
+              <div className="grid-2">
+                <div className="stack-sm">
+                  <h3>Experience</h3>
+                  {cv.parsed.experience.map((job, index) => (
+                    <p key={index}>
+                      {job.title} · {job.company}
+                    </p>
+                  ))}
+                </div>
+                <div className="stack-sm">
+                  <h3>Projects</h3>
+                  {cv.parsed.projects.map((project, index) => (
+                    <p key={index}>
+                      {project.name} · {project.role}
+                    </p>
+                  ))}
+                </div>
+              </div>
+              <div className="cluster">
+                {[
+                  ...cv.parsed.links.github,
+                  cv.parsed.links.linkedin,
+                  cv.parsed.links.portfolio,
+                ]
+                  .flatMap((link) => {
+                    try {
+                      const url = new URL(link);
+                      return url.protocol === "https:" ||
+                        url.protocol === "http:"
+                        ? [url]
+                        : [];
+                    } catch {
+                      return [];
+                    }
+                  })
+                  .map((url) => (
+                    <a
+                      className="badge"
+                      key={url.href}
+                      href={url.href}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {url.hostname}
+                    </a>
+                  ))}
+              </div>
+              <div className="cluster">
+                <button className="button secondary" onClick={() => setStep(0)}>
+                  Back
+                </button>
+                <button
+                  className="button"
+                  disabled={state !== "idle"}
+                  onClick={() => void confirmCv()}
                 >
-                  {url.hostname}
-                </a>
-              ))}
-          </div>
-          <div className="cluster">
-            <button className="button secondary" onClick={() => setStep(0)}>
-              Back
-            </button>
-            <button
-              className="button"
-              disabled={state !== "idle"}
-              onClick={() => void confirmCv()}
-            >
-              This looks right
-            </button>
-          </div>
-        </div>
-      )}
-      {step === 2 && (
-        <form className="card stack" onSubmit={create}>
-          <h2>Interview target</h2>
-          <div className="grid-2">
-            <label className="field">
-              Company
-              <input name="company" list="companies" required maxLength={80} />
-              <datalist id="companies">
-                {companies.map((x) => (
-                  <option key={x} value={x} />
-                ))}
-              </datalist>
-            </label>
-            <label className="field">
-              Role title
-              <input name="roleTitle" list="roles" required maxLength={80} />
-              <datalist id="roles">
-                {roleOptions.map((x) => (
-                  <option key={x} value={x} />
-                ))}
-              </datalist>
-            </label>
-            <label className="field">
-              Role family
-              <select name="roleFamily">
-                {ROLE_FAMILIES.map((x) => (
-                  <option key={x} value={x}>
-                    {readable(x)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              Seniority
-              <select
-                name="seniority"
-                defaultValue={cv?.parsed.seniority_estimate ?? "mid"}
-              >
-                {SENIORITIES.map((x) => (
-                  <option key={x} value={x}>
-                    {readable(x)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <label className="field">
-            Job description (optional)
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              maxLength={6000}
-            />
-            <small>{description.length} / 6,000</small>
-          </label>
-          <fieldset className="stack-sm">
-            <legend>Length</legend>
-            <div className="cluster">
-              <label className="check inset">
-                <input
-                  type="radio"
-                  name="lengthMinutes"
-                  value="20"
-                  defaultChecked
-                />
-                Standard 20 min
-              </label>
-              <label className="check inset">
-                <input type="radio" name="lengthMinutes" value="10" />
-                Quick 10 min
-              </label>
+                  This looks right
+                </button>
+              </div>
             </div>
-          </fieldset>
-          <VoiceSelect voice={voice} setVoice={setVoice} />
-          <div className="cluster">
-            <button
-              type="button"
-              className="button secondary"
-              onClick={() => setStep(1)}
-            >
-              Back
-            </button>
-            <button className="button" disabled={state !== "idle"}>
-              Create interview
-            </button>
-          </div>
-        </form>
-      )}
+          )}
+          {step === 2 && (
+            <form className="card stack" onSubmit={create}>
+              <h2>Interview target</h2>
+              <div className="grid-2">
+                <label className="field">
+                  Company
+                  <input
+                    name="company"
+                    list="companies"
+                    required
+                    maxLength={80}
+                  />
+                  <datalist id="companies">
+                    {companies.map((x) => (
+                      <option key={x} value={x} />
+                    ))}
+                  </datalist>
+                </label>
+                <label className="field">
+                  Role title
+                  <input
+                    name="roleTitle"
+                    list="roles"
+                    required
+                    maxLength={80}
+                  />
+                  <datalist id="roles">
+                    {roleOptions.map((x) => (
+                      <option key={x} value={x} />
+                    ))}
+                  </datalist>
+                </label>
+                <label className="field">
+                  Role family
+                  <select name="roleFamily">
+                    {ROLE_FAMILIES.map((x) => (
+                      <option key={x} value={x}>
+                        {readable(x)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  Seniority
+                  <select
+                    name="seniority"
+                    defaultValue={cv?.parsed.seniority_estimate ?? "mid"}
+                  >
+                    {SENIORITIES.map((x) => (
+                      <option key={x} value={x}>
+                        {readable(x)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <label className="field">
+                Job description (optional)
+                <textarea
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  maxLength={6000}
+                />
+                <small>{description.length} / 6,000</small>
+              </label>
+              <fieldset className="stack-sm">
+                <legend>Length</legend>
+                <div className="cluster">
+                  <label className="check inset">
+                    <input
+                      type="radio"
+                      name="lengthMinutes"
+                      value="20"
+                      defaultChecked
+                      onChange={() => setLength(20)}
+                    />
+                    Standard 20 min
+                  </label>
+                  <label className="check inset">
+                    <input
+                      type="radio"
+                      name="lengthMinutes"
+                      value="10"
+                      onChange={() => setLength(10)}
+                    />
+                    Quick 10 min
+                  </label>
+                </div>
+              </fieldset>
+              <VoiceSelect voice={voice} setVoice={setVoice} />
+              <div className="cluster">
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => setStep(1)}
+                >
+                  Back
+                </button>
+                <button className="button" disabled={state !== "idle"}>
+                  Create interview
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+        <aside aria-label="Interview guide">
+          <FlowSteps title="What happens next" steps={flow} current={step} />
+          {step === 2 ? (
+            <PhasePlan minutes={length} />
+          ) : companyMode ? (
+            <GuideCard title="Who sees what">
+              <IconList
+                items={[
+                  [
+                    Building2,
+                    company +
+                      " sees this interview. Your practice reports stay private.",
+                  ],
+                  [
+                    ShieldCheck,
+                    "You review the consent terms before recording starts",
+                  ],
+                  [Clock, "Recordings are deleted after 30 days by default"],
+                ]}
+              />
+            </GuideCard>
+          ) : (
+            <GuideCard title="Private by default">
+              <IconList
+                items={[
+                  [Lock, "Practice reports are private to you"],
+                  [Clock, "Recordings are deleted after 30 days by default"],
+                  [
+                    ShieldCheck,
+                    "Delete a session or all your data any time in Settings",
+                  ],
+                ]}
+              />
+            </GuideCard>
+          )}
+        </aside>
+      </div>
     </section>
   );
 }

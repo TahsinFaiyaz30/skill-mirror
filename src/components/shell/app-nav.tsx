@@ -21,7 +21,7 @@ export async function signOut(next = "/login") {
     showError(error);
   }
 }
-function initials(name: string, email: string) {
+export function initials(name: string, email: string) {
   const words = name.trim().split(/\s+/).filter(Boolean);
   const letters =
     words.length > 1
