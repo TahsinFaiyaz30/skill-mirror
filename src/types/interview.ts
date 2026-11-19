@@ -226,6 +226,7 @@ export type InterviewConfigPublic = Pick<
   | "requireHeadphones"
 > & {
   presentation: PresentationTiming;
+  collectDelivery: boolean;
   voiceName: VoiceName;
   interviewerName: string | null;
 };
@@ -266,6 +267,7 @@ export type Consent = {
   recording: boolean;
   coachingOnly: boolean;
   freeTierData: boolean;
+  syntheticInputs?: boolean;
   retention: boolean;
   shareWithCompany?: boolean;
   acceptedAt: string;
@@ -279,12 +281,16 @@ export type RecordingSegment = {
   uploaded: boolean;
 };
 type MediaFile = { path: string; bytes: number };
-export type SessionMedia = {
-  videoSegments?: RecordingSegment[];
+export type CaptureFiles = {
   micAudio?: MediaFile & { durationMs: number; startOffsetMs: number };
   timeline?: MediaFile;
   landmarks?: MediaFile;
   pitch?: MediaFile;
+};
+export type SessionMedia = CaptureFiles & {
+  videoSegments?: RecordingSegment[];
+  captureIds?: (string | null)[];
+  additionalCaptures?: Record<number, CaptureFiles>;
   snapshotsCount?: number;
   deleted?: boolean;
 };
@@ -395,7 +401,10 @@ export type VoiceSummary = {
   liveWpm: number | null;
 };
 export type TurnMetricSummary = {
-  vision: VisionSummary | null;
+  vision:
+    | VisionSummary
+    | Pick<VisionSummary, "faceVisiblePct" | "multiFacePct">
+    | null;
   voice: VoiceSummary | null;
 };
 export type TurnTone = z.infer<typeof toneSchema>["turns"][number];
@@ -470,6 +479,7 @@ export type SessionPublic = {
 export type Playback = {
   segments: { index: number; startMs: number; endMs: number; url: string }[];
   landmarksUrl: string | null;
+  additionalLandmarksUrls?: string[];
   snapshots: Record<string, string>;
   deleted: boolean;
 };

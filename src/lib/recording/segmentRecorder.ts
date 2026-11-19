@@ -11,11 +11,11 @@ export class SegmentRecorder {
     { done: Promise<void>; stop: () => void }
   >();
   private current: MediaRecorder | null = null;
-  private nextIndex = 0;
   constructor(
     private stream: MediaStream,
     private clock: () => number,
     private onSegment: (segment: Segment) => void,
+    private nextIndex = 0,
   ) {}
   start() {
     this.current = this.create();

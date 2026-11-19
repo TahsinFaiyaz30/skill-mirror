@@ -87,6 +87,10 @@ export function preloadVision() {
     throw error;
   }));
 }
+function nextSample(due: number, now: number, interval: number) {
+  if (!Number.isFinite(due)) return now + interval;
+  return due + (Math.floor((now - due) / interval) + 1) * interval;
+}
 export class VisionEngine {
   face?: Stamped<FaceFeatures>;
   pose?: Stamped<PoseFeatures>;
@@ -98,9 +102,9 @@ export class VisionEngine {
   private active = false;
   private callback: number | null = null;
   private extractor = new FeatureExtractor();
-  private lastFace = -Infinity;
-  private lastPose = -Infinity;
-  private lastHand = -Infinity;
+  private nextFace = -Infinity;
+  private nextPose = -Infinity;
+  private nextHand = -Infinity;
   private lastLuma = -Infinity;
   private lastLog = -Infinity;
   private lastCheck = 0;
@@ -120,6 +124,7 @@ export class VisionEngine {
       onFrame: (frame: FrameFeatures) => void;
       onTier: (tier: VisionTier) => void;
       setup?: boolean;
+      onFaceCount?: (count: number, time: number) => void;
     },
   ) {
     this.tier = tier;
@@ -161,8 +166,16 @@ export class VisionEngine {
     const interval = this.tier === "full" ? 1 : 4 / 3;
     const ratio = this.video.videoWidth / this.video.videoHeight || 16 / 9;
     const { gaze, posture } = this.options.calibration();
-    if (now - this.lastFace >= (1000 / FACE_FPS_TARGET) * interval) {
+    const faceInterval = (1000 / FACE_FPS_TARGET) * interval;
+    const poseInterval = (1000 / POSE_FPS_TARGET) * interval;
+    const handInterval = (1000 / HAND_FPS_TARGET) * interval;
+    if (now >= this.nextFace) {
+      this.nextFace = nextSample(this.nextFace, now, faceInterval);
       const out = this.models.face.detectForVideo(this.video, now);
+      if (this.options.onFaceCount) {
+        this.options.onFaceCount(out.faceLandmarks.length, tMs);
+        return;
+      }
       const faces = out.faceLandmarks.map((points, i) => ({
         points,
         matrix: out.facialTransformationMatrixes[i]?.data,
@@ -175,12 +188,9 @@ export class VisionEngine {
       }));
       frame.face = this.extractor.face(faces, ratio, tMs, gaze);
       this.face = { tMs, value: frame.face };
-      this.lastFace = now;
     }
-    if (
-      this.frame % 2 === 0 &&
-      now - this.lastPose >= (1000 / POSE_FPS_TARGET) * interval
-    ) {
+    if (this.options.onFaceCount) return;
+    if (this.frame % 2 === 0 && now >= this.nextPose) {
       const out = this.models.pose.detectForVideo(this.video, now);
       frame.pose = this.extractor.pose(
         out.landmarks[0] ?? [],
@@ -189,12 +199,12 @@ export class VisionEngine {
         posture,
       );
       this.pose = { tMs, value: frame.pose };
-      this.lastPose = now;
+      this.nextPose = nextSample(this.nextPose, now, poseInterval);
     }
     if (
       this.frame % 2 === 1 &&
       this.tier !== "severe" &&
-      now - this.lastHand >= (1000 / HAND_FPS_TARGET) * interval
+      now >= this.nextHand
     ) {
       const out = this.models.hand.detectForVideo(this.video, now);
       const hands = out.landmarks.map((points, i) => ({
@@ -212,7 +222,7 @@ export class VisionEngine {
         this.pose?.value,
       );
       this.hand = { tMs, value: frame.hand };
-      this.lastHand = now;
+      this.nextHand = nextSample(this.nextHand, now, handInterval);
     }
     if (now - this.lastLuma >= (this.options.setup ? 250 : 5000)) {
       this.measureLuma();

@@ -272,7 +272,7 @@ export interface ReportData {
   practicePlan: PracticeDrill[];
   summaryLists: NarrativeSummary;
   eligibility: { certificate: boolean; reasons: string[] };
-  baseline: Baseline;
+  baseline: Baseline | null;
   companyView?: CompanyView;
 }
 export type CandidateSummary = {

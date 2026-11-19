@@ -25,8 +25,10 @@ import {
 import { EventDetector, makeEvent, perTurnEvents } from "@/lib/vision/events";
 import { preloadVision, VisionEngine } from "@/lib/vision/engine";
 import { writeLandmarkLog } from "@/lib/vision/landmarkLog";
+import { FacePresence, integrityOnly } from "@/lib/vision/integrity";
 import { MicRecorder } from "@/lib/recording/micRecorder";
 import { SegmentRecorder } from "@/lib/recording/segmentRecorder";
+import { SEGMENTS_PER_CAPTURE } from "@/lib/recording/captures";
 import { SnapshotRing } from "@/lib/recording/snapshotRing";
 import { gzip, patchMedia, uploader } from "@/lib/recording/uploader";
 import { captureConstraints, mediaSession } from "./mediaSession";
@@ -64,7 +66,7 @@ type TranscriptItem = {
 type PendingEnd = {
   endReason: EndReason;
   durationMs: number;
-  baseline: Baseline;
+  baseline: Baseline | null;
   media: SessionMedia;
 };
 export const pendingEndKey = (id: string) => "skill-mirror:end:" + id;
@@ -101,7 +103,11 @@ export class TurnEngine {
   private timer?: ReturnType<typeof setInterval>;
   private perfZero: number | null = null;
   private epochZero = 0;
+  private captureIndex = 0;
+  private readonly captureId = crypto.randomUUID();
+  private startAbort?: AbortController;
   private readonly aggregate = new VisionAggregator();
+  private readonly presence = new FacePresence();
   private readonly detector = new EventDetector((event) =>
     this.addEvent(event),
   );
@@ -149,6 +155,9 @@ export class TurnEngine {
   private get sid() {
     return this.data.session.id;
   }
+  private get integrityOnlyMode() {
+    return !this.data.config.collectDelivery;
+  }
   private get base() {
     return "/api/sessions/" + this.sid;
   }
@@ -183,18 +192,25 @@ export class TurnEngine {
     return client;
   }
   async start() {
+    if (this.startAbort && !this.startAbort.signal.aborted) return;
+    this.closing = false;
+    const signal = (this.startAbort = new AbortController()).signal;
     try {
       this.setStage("CONNECTING");
       const playback = (this.playback = new PlaybackBus());
       await playback.context.resume();
+      signal.throwIfAborted();
       const { stream, video } = await mediaSession.open();
+      signal.throwIfAborted();
       mediaSession.calibration =
         this.data.session.calibration ?? mediaSession.calibration;
       this.mix = await mixedRecordingStream(stream, playback);
+      signal.throwIfAborted();
       const calibration = mediaSession.calibration;
       this.audio = new AudioEngine({
         now: this.clock,
         noiseFloor: calibration.audio.noiseFloorDb,
+        measureDelivery: !this.integrityOnlyMode,
         echo: () =>
           calibration.echoSafe &&
           (this.playback?.playing || this.stage === "AI_SPEAKING"),
@@ -227,10 +243,31 @@ export class TurnEngine {
         },
       });
       await this.audio.start(stream);
+      signal.throwIfAborted();
       if (!mediaSession.mockCalibration) {
         try {
           const { models, tier } = await preloadVision();
+          signal.throwIfAborted();
           this.vision = new VisionEngine(video, models, tier, {
+            onFaceCount: this.integrityOnlyMode
+              ? (count, time) => {
+                  if (time < 0) return;
+                  this.presence.add(time, count);
+                  const turn = this.turn?.directive.turnIdx ?? null;
+                  this.detector.observe(
+                    "face_missing",
+                    count === 0,
+                    time,
+                    turn,
+                  );
+                  this.detector.observe(
+                    "multiple_faces",
+                    count > 1,
+                    time,
+                    turn,
+                  );
+                }
+              : undefined,
             calibration: () => mediaSession.calibration,
             clock: this.clock,
             context: () => ({
@@ -267,7 +304,25 @@ export class TurnEngine {
         }
       }
       const client = (this.client = await this.createClient());
+      signal.throwIfAborted();
       await client.connect(this.sid);
+      signal.throwIfAborted();
+      const t0EpochMs = Date.now();
+      const result = await send<{
+        directive: Directive;
+        t0EpochMs?: number;
+        captureIndex?: number;
+      }>(
+        this.base + "/start",
+        "POST",
+        { t0EpochMs, captureId: this.captureId },
+        signal,
+      );
+      signal.throwIfAborted();
+      this.captureIndex = result.captureIndex ?? 0;
+      this.epochZero = result.t0EpochMs ?? t0EpochMs;
+      this.perfZero =
+        performance.now() - Math.max(0, Date.now() - this.epochZero);
       this.videoRecorder = new SegmentRecorder(
         this.mix.stream,
         this.clock,
@@ -276,6 +331,7 @@ export class TurnEngine {
           uploader.push({
             sessionId: this.sid,
             kind: "video_segment",
+            captureIndex: this.captureIndex,
             index,
             blob,
             commit: async (path, bytes) => {
@@ -287,34 +343,28 @@ export class TurnEngine {
                 bytes,
                 uploaded: true,
               };
-              await patchMedia(this.sid, { videoSegments: [segment] });
+              await patchMedia(
+                this.sid,
+                { videoSegments: [segment] },
+                this.captureIndex,
+              );
             },
           });
         },
+        this.captureIndex * SEGMENTS_PER_CAPTURE,
       );
       this.micRecorder = new MicRecorder(this.mix.microphone, this.clock);
-      this.perfZero = performance.now();
-      this.epochZero = Date.now();
       this.videoRecorder.start();
       this.micRecorder.start();
-      const result = await send<{ directive: Directive; t0EpochMs?: number }>(
-        this.base + "/start",
-        "POST",
-        { t0EpochMs: this.epochZero },
-      );
-      if (result.t0EpochMs) {
-        const elapsed = Date.now() - result.t0EpochMs;
-        this.epochZero = result.t0EpochMs;
-        this.perfZero -= elapsed;
-      }
       playback.onEmpty = () => this.speechComplete();
       this.installListeners();
       for (const track of stream.getTracks()) this.watchTrack(track);
       this.timer = setInterval(this.tick, 80);
       this.deliver(result.directive);
     } catch (error) {
-      this.dispose();
-      this.onError(error);
+      const cancelled = signal.aborted;
+      this.dispose(!cancelled);
+      if (!cancelled) this.onError(error);
     }
   }
   private deliver(
@@ -354,6 +404,7 @@ export class TurnEngine {
       directive,
       scenario: directive.presentation ?? this.store.getState().scenario,
       caption: "",
+      speechUnavailable: false,
       transcript: this.turn.transcript,
       phaseElapsed: 0,
     });
@@ -382,8 +433,15 @@ export class TurnEngine {
       return;
     }
     if (!turn) return;
+    if (event.type === "speechUnavailable") {
+      this.store.setState({ speechUnavailable: true });
+      return;
+    }
     if (event.type === "speechStarted" || event.type === "audioChunk") {
       if (this.playback?.gate === false) return;
+      if (this.stage === "LISTENING") turn.complete = false;
+      this.store.setState({ speechUnavailable: false });
+      turn.speechAt ??= this.clock();
       if (this.stage === "AI_SPEAKING") {
         turn.lastOutputAt = this.clock();
         turn.speechAt ??= turn.lastOutputAt;
@@ -393,11 +451,18 @@ export class TurnEngine {
       turn.relayed = true;
       if (event.type === "audioChunk") this.playback?.play(event.audio);
     } else if (event.type === "modelTurnComplete") {
+      if (this.stage === "LISTENING") {
+        this.saveInterviewerSpeech(turn);
+        return;
+      }
       if (this.stage === "AI_SPEAKING" && !turn.relayed) return;
       turn.complete = true;
       this.speechComplete();
     } else if (event.type === "toolCallCancelled") {
       if (turn.toolId && event.ids.includes(turn.toolId)) turn.toolId = null;
+    } else if (event.type === "interrupted" && this.stage === "LISTENING") {
+      this.saveInterviewerSpeech(turn);
+      this.playback?.clear();
     } else if (event.type === "interrupted" && this.stage === "AI_SPEAKING") {
       this.playback?.clear();
       turn.relayed = true;
@@ -410,7 +475,8 @@ export class TurnEngine {
       this.playback?.gate !== false
     ) {
       if (this.stage === "AI_SPEAKING") turn.lastOutputAt = this.clock();
-      turn.aiText += event.text;
+      turn.speechAt ??= this.clock();
+      turn.aiText = event.replace ? event.text : turn.aiText + event.text;
       this.store.setState({ caption: turn.aiText.slice(-140) });
     } else if (
       event.type === "inputTranscript" &&
@@ -457,8 +523,29 @@ export class TurnEngine {
       }
     }
   }
+  private saveInterviewerSpeech(turn: ActiveTurn) {
+    if (turn.aiText.trim())
+      this.transcripts.push({
+        speaker: "ai",
+        text: turn.aiText.slice(0, 12000),
+        startMs: turn.speechAt ?? turn.start,
+        endMs: this.clock(),
+        turnIdx: turn.directive.turnIdx,
+      });
+    turn.aiText = "";
+    turn.speechAt = null;
+  }
   private speechComplete() {
     const turn = this.turn;
+    if (
+      turn &&
+      this.stage === "LISTENING" &&
+      turn.complete &&
+      !this.playback?.playing
+    ) {
+      this.saveInterviewerSpeech(turn);
+      return;
+    }
     if (
       this.stage !== "AI_SPEAKING" ||
       !turn ||
@@ -468,14 +555,7 @@ export class TurnEngine {
       return;
     const time = this.clock(),
       mode = turn.directive.mode;
-    if (turn.aiText.trim())
-      this.transcripts.push({
-        speaker: "ai",
-        text: turn.aiText.slice(0, 12000),
-        startMs: turn.speechAt ?? turn.start,
-        endMs: time,
-        turnIdx: turn.directive.turnIdx,
-      });
+    this.saveInterviewerSpeech(turn);
     if (mode !== "presentation_interrupt") {
       turn.askStartMs ??= time;
       turn.askEndMs = time;
@@ -512,6 +592,11 @@ export class TurnEngine {
   repeat() {
     if (this.stage === "LISTENING") this.client?.sendText(REPEAT_QUESTION);
   }
+  retrySpeech() {
+    if (!this.turn || !this.store.getState().speechUnavailable) return;
+    if (this.stage === "AI_SPEAKING") this.deliver(this.turn.directive);
+    else this.repeat();
+  }
 
   private async submit(
     event: StrategistInput["event"],
@@ -522,6 +607,7 @@ export class TurnEngine {
     const turn = this.turn;
     if (!turn || turn.submitted || this.closing) return;
     turn.submitted = true;
+    this.saveInterviewerSpeech(turn);
     const at = this.clock();
     this.setStage("EVALUATING");
     if (event === "presentation_interrupt")
@@ -542,22 +628,25 @@ export class TurnEngine {
       ? Math.max(askEndMs, turn.lastSpeechEndMs ?? at)
       : at;
     const start = turn.answerStartMs ?? askEndMs;
-    const vision = summarizeVision(
-      this.aggregate.seconds(start, answerEndMs),
-      [...this.events.values()],
-      start,
-      answerEndMs,
-    );
-    const voice =
-      this.audio?.summary(
-        turn.answerStartMs,
-        answerEndMs,
-        askEndMs,
-        transcript,
-      ) ?? null;
+    const vision = this.integrityOnlyMode
+      ? null
+      : summarizeVision(
+          this.aggregate.seconds(start, answerEndMs),
+          [...this.events.values()],
+          start,
+          answerEndMs,
+        );
+    const voice = this.integrityOnlyMode
+      ? null
+      : (this.audio?.summary(
+          turn.answerStartMs,
+          answerEndMs,
+          askEndMs,
+          transcript,
+        ) ?? null);
     if (finishAnswer && turn.directive.turnIdx === 0)
       this.calibrationWindow = { start: turn.answerStartMs, end: answerEndMs };
-    if (finishAnswer) {
+    if (finishAnswer && vision) {
       const baseline = computeBaseline(
         this.aggregate.seconds(),
         [...this.events.values()],
@@ -587,7 +676,12 @@ export class TurnEngine {
         answerStartMs: turn.answerStartMs,
         answerEndMs,
       },
-      metrics: { vision, voice },
+      metrics: {
+        vision: this.integrityOnlyMode
+          ? this.presence.between(start, answerEndMs)
+          : vision,
+        voice,
+      },
     };
     if (finishAnswer && transcript.trim())
       this.transcripts.push({
@@ -643,6 +737,7 @@ export class TurnEngine {
     if (
       turn &&
       stage === "AI_SPEAKING" &&
+      this.data.session.aiMode !== "pipeline" &&
       !turn.complete &&
       !this.playback?.playing &&
       time - turn.lastOutputAt >= 6000
@@ -664,7 +759,11 @@ export class TurnEngine {
       this.store.getState().caption
     )
       this.store.setState({ caption: "" });
-    if (turn && stage === "LISTENING") {
+    if (
+      turn &&
+      stage === "LISTENING" &&
+      !this.store.getState().speechUnavailable
+    ) {
       const { askEndMs, answerStartMs, lastSpeechEndMs } = turn;
       const candidateQuestions = turn.directive.mode === "candidate_questions";
       const deadlineStart = candidateQuestions ? askEndMs : answerStartMs;
@@ -756,6 +855,16 @@ export class TurnEngine {
       this.store.setState({ tracking: "green" });
       return;
     }
+    if (this.integrityOnlyMode) {
+      const { faceVisiblePct, multiFacePct } = this.presence.between(
+        time - 2000,
+        time,
+      );
+      this.store.setState({
+        tracking: !faceVisiblePct || multiFacePct ? "red" : "green",
+      });
+      return;
+    }
     const face = this.vision?.face?.value;
     if (face?.count === 1) this.lastFaceSeen = time;
     const metrics = summarizeVision(
@@ -784,6 +893,7 @@ export class TurnEngine {
     canvas.getContext("2d")?.drawImage(video, 0, 0, width, height);
     const data = canvas.toDataURL("image/jpeg", quality);
     this.client?.sendFrame(data.slice(data.indexOf(",") + 1));
+    if (this.integrityOnlyMode) return;
     canvas.toBlob(
       (blob) => {
         if (blob) this.snapshots.push(time, blob);
@@ -793,9 +903,14 @@ export class TurnEngine {
     );
   }
   private addEvent(event: SessionEvent) {
+    if (this.integrityOnlyMode) {
+      if (!integrityOnly(event)) return;
+      event.data = {};
+    }
     this.events.set(event.id, event);
     this.pending.set(event.id, { ...event });
     this.store.setState({ count: this.events.size });
+    if (this.integrityOnlyMode) return;
     if (
       this.data.config.kind !== "practice" &&
       event.type === "presentation_interrupt"
@@ -857,6 +972,7 @@ export class TurnEngine {
       uploader.push({
         sessionId: this.sid,
         kind,
+        captureIndex: this.captureIndex,
         blob,
         commit: async (path, bytes) => {
           const key = kind === "mic_audio" ? "micAudio" : kind;
@@ -869,12 +985,13 @@ export class TurnEngine {
                   startOffsetMs: this.micRecorder?.startOffsetMs ?? 0,
                 }
               : { path, bytes };
-          await patchMedia(this.sid, { [key]: file });
+          await patchMedia(this.sid, { [key]: file }, this.captureIndex);
         },
       });
     };
     const raw = mic ?? this.micRecorder?.blob();
     if (raw?.size) put("mic_audio", raw);
+    if (this.integrityOnlyMode) return;
     const timeline = {
       version: 1,
       t0EpochMs: this.epochZero,
@@ -884,7 +1001,11 @@ export class TurnEngine {
       seconds: this.aggregate.seconds(),
     };
     put("timeline", await gzip(new Blob([JSON.stringify(timeline)])));
-    if (final) {
+    if (
+      final ||
+      this.vision?.landmarks.length ||
+      this.audio?.pitch.frames.length
+    ) {
       put(
         "landmarks",
         await gzip(new Blob([writeLandmarkLog(this.vision?.landmarks ?? [])])),
@@ -1091,13 +1212,15 @@ export class TurnEngine {
         ),
       );
     if (this.blur !== null) this.handleFocus();
-    const baseline = computeBaseline(
-      this.aggregate.seconds(),
-      [...this.events.values()],
-      mediaSession.calibration,
-      this.calibrationWindow?.start ?? null,
-      this.calibrationWindow?.end ?? null,
-    );
+    const baseline = this.integrityOnlyMode
+      ? null
+      : computeBaseline(
+          this.aggregate.seconds(),
+          [...this.events.values()],
+          mediaSession.calibration,
+          this.calibrationWindow?.start ?? null,
+          this.calibrationWindow?.end ?? null,
+        );
     try {
       const [, mic] = await Promise.all([
         this.videoRecorder?.stop(),
@@ -1118,7 +1241,11 @@ export class TurnEngine {
       media: this.media,
     });
   }
-  dispose(stopMedia = false) {
+  dispose(stopMedia = true) {
+    this.closing = true;
+    this.startAbort?.abort();
+    void this.videoRecorder?.stop();
+    void this.micRecorder?.stop();
     if (this.timer) clearInterval(this.timer);
     this.client?.close();
     this.audio?.stop();

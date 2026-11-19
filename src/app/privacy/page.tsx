@@ -1,5 +1,6 @@
 import { Brand } from "@/components/shell/brand";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
+import { unpaidAI } from "@/lib/config/env";
 export default function Page() {
   return (
     <>
@@ -23,9 +24,10 @@ export default function Page() {
             starts, you review the consent terms and choose whether to continue.
           </p>
           <p>
-            Free-tier AI providers may use submitted inputs to improve their
-            products. Recordings and replay landmarks are automatically deleted
-            after 30 days by default. Interview insights remain available after
+            {unpaidAI &&
+              "This deployment uses unpaid AI services for synthetic demonstrations. Use fictional CVs and answers and simulated camera and microphone input. "}
+            Recordings and replay landmarks are automatically deleted after 30
+            days by default. Interview insights remain available after
             recordings expire.
           </p>
           <p>

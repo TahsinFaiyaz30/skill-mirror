@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildSessionConfig, toPublicConfig } from "@/lib/config/sessionConfig";
 import type { InterviewerClient, LiveEvent } from "@/lib/live/directives";
 import { TurnEngine } from "@/lib/live/turnEngine";
+import { PipelineInterviewerClient } from "@/lib/live/pipelineClient";
+import type { PlaybackBus } from "@/lib/audio/playback";
 import type { Directive } from "@/types/interview";
 
 const client = () =>
@@ -52,6 +54,12 @@ function createRoom() {
       rms: number;
     };
     turn: { askEndMs: number | null };
+    transcripts: {
+      speaker: string;
+      text: string;
+      startMs: number;
+      endMs: number;
+    }[];
     reconnect: (background: boolean) => Promise<void>;
     createClient: () => Promise<InterviewerClient>;
     deliver: (directive: Directive) => void;
@@ -88,6 +96,64 @@ function createRoom() {
 afterEach(() => vi.useRealTimers());
 
 describe("Live connection recovery", () => {
+  it("preserves each interviewer reply during candidate-led Q&A", () => {
+    const { room, question, clock } = createRoom();
+    room.deliver({ ...question, mode: "candidate_questions" });
+    for (const [i, text] of [
+      "Any questions?",
+      "We pair on reviews.",
+      "Usually twice a week.",
+    ].entries()) {
+      clock.mockReturnValue(1000 + i * 2000);
+      room.handle({ type: "speechStarted" });
+      room.handle({ type: "outputTranscript", text });
+      clock.mockReturnValue(1900 + i * 2000);
+      room.handle({ type: "modelTurnComplete" });
+      room.handle({ type: "modelTurnComplete" });
+      room.handle({ type: "inputTranscript", text: "Can you tell me more?" });
+    }
+    expect(room.transcripts.map((x) => x.text)).toEqual([
+      "Any questions?",
+      "We pair on reviews.",
+      "Usually twice a week.",
+    ]);
+    expect(room.transcripts.map((x) => x.startMs)).toEqual([1000, 3000, 5000]);
+  });
+  it("waits for successful fallback audio before opening the answer turn", async () => {
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(new Uint8Array([1])));
+    try {
+      const events: LiveEvent[] = [];
+      const playWav = vi.fn().mockResolvedValue(undefined);
+      const client = new PipelineInterviewerClient(
+        (e) => events.push(e),
+        "Kore",
+        { playWav } as unknown as PlaybackBus,
+        () => false,
+      );
+      const { question } = createRoom();
+      client.deliverDirective(question);
+      await vi.waitFor(() =>
+        expect(events.map((e) => e.type)).toEqual(["speechUnavailable"]),
+      );
+      expect(playWav).not.toHaveBeenCalled();
+      client.deliverDirective(question);
+      await vi.waitFor(() =>
+        expect(events.map((e) => e.type)).toEqual([
+          "speechUnavailable",
+          "speechStarted",
+          "outputTranscript",
+          "modelTurnComplete",
+        ]),
+      );
+      expect(playWav).toHaveBeenCalledOnce();
+      client.close();
+    } finally {
+      fetch.mockRestore();
+    }
+  });
   it.each([
     { background: true, mode: "ask", destination: "LISTENING" },
     {

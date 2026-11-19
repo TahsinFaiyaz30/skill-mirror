@@ -15,15 +15,19 @@ export const publicEnv = z
   .object({
     appUrl: z.url().default("http://localhost:3000"),
     aiMode: aiModes.default("live"),
+    aiDataTier: z.enum(["unpaid", "paid"]).default("unpaid"),
     supabaseUrl: optionalURL,
     supabaseAnonKey: optional,
   })
   .parse({
     appUrl: process.env.NEXT_PUBLIC_APP_URL || undefined,
     aiMode: process.env.NEXT_PUBLIC_AI_MODE || undefined,
+    aiDataTier: process.env.NEXT_PUBLIC_AI_DATA_TIER || undefined,
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   });
+export const unpaidAI =
+  publicEnv.aiMode !== "mock" && publicEnv.aiDataTier === "unpaid";
 export const localMock =
   publicEnv.aiMode === "mock" &&
   !publicEnv.supabaseUrl &&

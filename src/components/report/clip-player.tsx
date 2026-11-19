@@ -49,8 +49,22 @@ export function ClipPlayer({
     continuePlaying = useRef(false);
   const segment = segments[active];
   const landmarks = useQuery({
-    queryKey: ["landmarks", playback.landmarksUrl],
-    queryFn: () => loadLandmarks(playback.landmarksUrl!),
+    queryKey: [
+      "landmarks",
+      playback.landmarksUrl,
+      playback.additionalLandmarksUrls,
+    ],
+    queryFn: async () =>
+      (
+        await Promise.all(
+          [
+            playback.landmarksUrl!,
+            ...(playback.additionalLandmarksUrls ?? []),
+          ].map(loadLandmarks),
+        )
+      )
+        .flat()
+        .sort((a, b) => a.tMs - b.tMs),
     enabled: overlay && Boolean(playback.landmarksUrl),
     staleTime: 3000000,
   });

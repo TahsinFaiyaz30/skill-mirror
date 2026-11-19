@@ -65,6 +65,15 @@ const asUser = (id: string, query: string, params: unknown[] = []) =>
     return tx.query(query, params);
   });
 describe("Postgres row level security", () => {
+  it("restricts CV storage path writes to server-managed uploads", async () => {
+    const result = await asUser(
+      candidate,
+      "SELECT has_table_privilege('candidate_cvs','SELECT') AS readable, has_column_privilege('candidate_cvs','storage_path','UPDATE') AS writable, has_column_privilege('candidate_cvs','storage_path','INSERT') AS insertable",
+    );
+    expect(result.rows).toEqual([
+      { readable: true, writable: false, insertable: false },
+    ]);
+  });
   it("creates each profile and grants users access to their own profile only", async () => {
     const result = await asUser(candidate, "SELECT id FROM profiles");
     expect(result.rows).toEqual([{ id: candidate }]);

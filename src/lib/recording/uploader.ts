@@ -13,6 +13,7 @@ type Job = {
   kind: UploadKind;
   blob: Blob;
   index?: number;
+  captureIndex?: number;
   eventId?: string;
   commit?: (path: string, bytes: number) => Promise<unknown> | unknown;
 };
@@ -24,17 +25,14 @@ export class Uploader {
   private current?: Job;
   private worker: Promise<void> | null = null;
   private listeners = new Set<() => void>();
-  get pendingCount() {
-    return this.queued.length + Number(!!this.current);
-  }
-  get bytesPending() {
-    return this.queued.reduce(
-      (n, j) => n + j.blob.size,
-      this.current?.blob.size ?? 0,
-    );
-  }
-  get failures() {
-    return this.broken.length;
+  status(sessionId: string) {
+    const jobs = this.queued.filter((job) => job.sessionId === sessionId);
+    if (this.current?.sessionId === sessionId) jobs.push(this.current);
+    return {
+      pending: jobs.length,
+      bytes: jobs.reduce((total, job) => total + job.blob.size, 0),
+      failed: this.broken.filter((job) => job.sessionId === sessionId).length,
+    };
   }
   onProgress(listener: () => void) {
     this.listeners.add(listener);
@@ -49,13 +47,15 @@ export class Uploader {
     this.queued.push(job);
     this.run();
   }
-  retry() {
-    this.queued.unshift(...this.broken);
-    this.broken = [];
+  retry(sessionId: string) {
+    this.queued.unshift(
+      ...this.broken.filter((job) => job.sessionId === sessionId),
+    );
+    this.broken = this.broken.filter((job) => job.sessionId !== sessionId);
     this.run();
   }
-  async drain() {
-    while (this.worker) await this.worker;
+  async drain(sessionId: string) {
+    while (this.status(sessionId).pending && this.worker) await this.worker;
   }
   private run() {
     if (!this.worker)
@@ -79,7 +79,12 @@ export class Uploader {
             signed ??= await send<SignedUpload>(
               "/api/sessions/" + job.sessionId + "/upload-url",
               "POST",
-              { kind: job.kind, index: job.index, eventId: job.eventId },
+              {
+                kind: job.kind,
+                index: job.index,
+                eventId: job.eventId,
+                captureIndex: job.captureIndex,
+              },
             );
             const bucket =
               job.kind === "video_segment" || job.kind === "mic_audio"
@@ -102,8 +107,15 @@ export class Uploader {
   }
 }
 export const uploader = new Uploader();
-export const patchMedia = (sessionId: string, media: SessionMedia) =>
-  send("/api/sessions/" + sessionId + "/media", "PATCH", media);
+export const patchMedia = (
+  sessionId: string,
+  media: SessionMedia,
+  captureIndex = 0,
+) =>
+  send("/api/sessions/" + sessionId + "/media", "PATCH", {
+    ...media,
+    captureIndex,
+  });
 export async function gzip(blob: Blob) {
   const compressed = await new Response(
     blob.stream().pipeThrough(new CompressionStream("gzip")),

@@ -518,6 +518,7 @@ export const retakeInvite = route(async (_request, context: Params<"id">) => {
       .update(interviewSessions)
       .set({
         status: "superseded",
+        endedAt: session.endedAt ?? session.lastActiveAt ?? new Date(),
         endReason: session.endReason ?? "interrupted",
       })
       .where(eq(interviewSessions.id, session.id));

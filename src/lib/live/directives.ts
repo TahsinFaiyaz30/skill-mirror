@@ -16,6 +16,7 @@ export type LiveEvent =
       replace?: boolean;
     }
   | { type: "modelTurnComplete" | "interrupted" | "speechStarted" }
+  | { type: "speechUnavailable" }
   | {
       type: "toolCall";
       id: string;

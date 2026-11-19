@@ -1,44 +1,26 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
-import { randomBytes } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   getProfile,
   requireSessionAccess,
   requireUser,
 } from "@/lib/auth/guards";
-import { localMock, publicEnv, serverEnv } from "@/lib/config/env";
-import { db, mockDir } from "@/lib/db";
+import { publicEnv } from "@/lib/config/env";
+import { db } from "@/lib/db";
 import {
   certificates,
   competencyResults,
   interviewSessions,
   reports,
   softSkillResults,
+  turns,
 } from "@/lib/db/schema";
 import { signCertificate, verifyCertificate } from "@/lib/cert/sign";
+import { assessmentFields, signingSecret } from "@/lib/cert/issue";
 import type { CertificatePayload } from "@/types/report";
 import { fail, json, route, type Params } from "@/lib/utils/http";
 import { owner } from "./session";
 
-async function signingSecret() {
-  const configured = serverEnv().CERT_SIGNING_SECRET;
-  if (configured) return configured;
-  if (!localMock) fail("INTERNAL", "Certificate signing is not configured.");
-  const root = mockDir();
-  await mkdir(root, { recursive: true });
-  const file = join(root, "certificate-key");
-  try {
-    await writeFile(file, randomBytes(32).toString("hex"), {
-      flag: "wx",
-      mode: 0o600,
-    });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-  }
-  return readFile(file, "utf8");
-}
 export const createCertificate = route(
   async (_request, context: Params<"id">) => {
     const { session, database } = await requireSessionAccess(
@@ -53,12 +35,29 @@ export const createCertificate = route(
       .where(eq(reports.sessionId, session.id));
     if (report?.status !== "completed" || !report.data?.eligibility.certificate)
       fail("CONFLICT", "This interview is not eligible for a certificate.");
+    const evaluated = await database
+      .selectDistinct({ key: turns.competencyKey })
+      .from(turns)
+      .where(
+        and(
+          eq(turns.sessionId, session.id),
+          eq(turns.itemKind, "technical"),
+          isNotNull(turns.difficulty),
+          isNotNull(turns.scores),
+          sql`${turns.scores}->>'scoringFailed' IS DISTINCT FROM 'true'`,
+        ),
+      );
+    const keys = new Set(evaluated.map((turn) => turn.key));
+    const competencies = report.data.technical.competencies.filter(
+      (item) => !item.notAssessed && keys.has(item.key),
+    );
+    if (!competencies.length)
+      fail("CONFLICT", "At least one technical competency must be assessed.");
     let [existing] = await database
       .select()
       .from(certificates)
       .where(eq(certificates.sessionId, session.id));
     if (!existing) {
-      const { headline, softSkills, technical } = report.data;
       const slug = nanoid(12);
       const payload: CertificatePayload = {
         certId: slug,
@@ -66,18 +65,7 @@ export const createCertificate = route(
         role: session.roleTitle + " (" + session.seniority + ")",
         company: session.company,
         issuedAt: new Date().toISOString(),
-        overallScore: headline.overallScore,
-        verdict: headline.verdict ?? "",
-        maturityLevel: softSkills.maturityLevel,
-        maturityLabel: softSkills.maturityLabel,
-        competencies: technical.competencies
-          .filter((item) => !item.notAssessed)
-          .map((item) => ({
-            name: item.subLabel ?? item.displayName,
-            ceiling: item.ceiling,
-            expected: technical.expectedLevel,
-          })),
-        integrity: headline.integrityBadge === "clean" ? "clean" : "minor",
+        ...assessmentFields(report.data, competencies),
         sessionId: session.id,
       };
       [existing] = await database
@@ -97,6 +85,8 @@ export const createCertificate = route(
           .from(certificates)
           .where(eq(certificates.sessionId, session.id));
     }
+    if (existing.revoked)
+      fail("CONFLICT", "This certificate has been revoked.");
     return json({
       slug: existing.slug,
       url: new URL("/verify/" + existing.slug, publicEnv.appUrl).href,
@@ -108,13 +98,19 @@ export async function certificateBySlug(slug: string) {
   const [row] = await (
     await db()
   )
-    .select()
+    .select({
+      payload: certificates.payload,
+      signature: certificates.signature,
+      revoked: certificates.revoked,
+      reportStatus: reports.status,
+    })
     .from(certificates)
+    .leftJoin(reports, eq(reports.sessionId, certificates.sessionId))
     .where(eq(certificates.slug, slug));
   if (!row) return null;
   return {
     valid: verifyCertificate(row.payload, row.signature, await signingSecret()),
-    revoked: row.revoked,
+    revoked: row.revoked || row.reportStatus !== "completed",
     payload: row.payload,
   };
 }

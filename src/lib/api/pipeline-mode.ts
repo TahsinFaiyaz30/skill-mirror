@@ -5,10 +5,16 @@ import { whisper } from "@/lib/ai/groq";
 import { speakGemini } from "@/lib/ai/gemini";
 import { body, fail, json, route } from "@/lib/utils/http";
 import { owner } from "./session";
+import { unpaidAI } from "@/lib/config/env";
 async function pipelineSession(id: string) {
   const { session } = await requireSessionAccess(id, owner);
   if (session.aiMode !== "pipeline" || session.status !== "in_progress")
     fail("CONFLICT", "Pipeline audio is unavailable for this interview.");
+  if (unpaidAI && !session.consent?.syntheticInputs)
+    fail(
+      "CONFLICT",
+      "Confirm synthetic interview materials before using pipeline audio.",
+    );
   return session;
 }
 export const stt = route(async (request) => {

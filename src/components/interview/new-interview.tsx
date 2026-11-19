@@ -3,7 +3,7 @@ import { FileUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { publicEnv } from "@/lib/config/env";
+import { unpaidAI } from "@/lib/config/env";
 import { ROLE_FAMILIES, SENIORITIES, readable } from "@/lib/config/taxonomy";
 import { errorMessage, requestJSON, send } from "@/lib/utils/client";
 import { uploadFile, type SignedUpload } from "@/lib/supabase/upload";
@@ -44,31 +44,19 @@ export function VoiceSelect({
   voice: VoiceName;
   setVoice: (value: VoiceName) => void;
 }) {
+  const [previewError, setPreviewError] = useState("");
   async function preview(value: VoiceName) {
-    const fallback = () => {
-      const utterance = new SpeechSynthesisUtterance(
-        "Hi, I’ll be interviewing you today.",
-      );
-      utterance.lang = "en-US";
-      const voices = speechSynthesis
-        .getVoices()
-        .filter((option) => option.lang === "en-US" && option.localService);
-      utterance.voice = voices[value === "Kore" ? 0 : 1] ?? voices[0] ?? null;
-      speechSynthesis.speak(utterance);
-    };
-    if (publicEnv.aiMode === "mock") {
-      fallback();
-      return;
-    }
+    setPreviewError("");
     try {
       await new Audio("/audio/voice-" + value.toLowerCase() + ".wav").play();
     } catch {
-      fallback();
+      setPreviewError("The voice preview could not play. Try again.");
     }
   }
   return (
     <fieldset className="stack-sm">
       <legend>Interviewer voice</legend>
+      {previewError && <p role="alert">{previewError}</p>}
       <div className="cluster">
         {(["Kore", "Charon"] as const).map((name) => (
           <div key={name} className="inset cluster">
@@ -105,6 +93,7 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
   const [error, setError] = useState("");
   const [cv, setCv] = useState<{ cvId: string; parsed: ParsedCV } | null>(null);
   const [previous, setPrevious] = useState("");
+  const [syntheticMaterial, setSyntheticMaterial] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [description, setDescription] = useState("");
   const [voice, setVoice] = useState<VoiceName>("Kore");
@@ -132,7 +121,9 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
         cvId = signed.cvId;
       }
       setState("parsing");
-      setCv(await send("/api/cv/" + cvId + "/parse", "POST"));
+      setCv(
+        await send("/api/cv/" + cvId + "/parse", "POST", { syntheticMaterial }),
+      );
       setStep(1);
     } catch (error) {
       setError(errorMessage(error));
@@ -228,6 +219,17 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
             }}
           >
             <FileUp size={24} />
+            {unpaidAI && (
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={syntheticMaterial}
+                  onChange={(e) => setSyntheticMaterial(e.target.checked)}
+                />
+                I am using a fictional CV without personal or confidential
+                information for this unpaid AI demo.
+              </label>
+            )}
             <label className="field">
               Upload your CV
               <input
@@ -277,7 +279,11 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
           <div>
             <button
               className="button"
-              disabled={state !== "idle" || (!file && !previous)}
+              disabled={
+                state !== "idle" ||
+                (!file && !previous) ||
+                (unpaidAI && !syntheticMaterial)
+              }
               onClick={() => void readCv()}
             >
               {error ? "Retry" : "Read CV"}

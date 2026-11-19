@@ -1,4 +1,5 @@
 "use client";
+import { unpaidAI } from "@/lib/config/env";
 import { useState } from "react";
 import {
   DndContext,
@@ -435,6 +436,11 @@ function QuestionDialog({
                   </label>
                   <label className="field">
                     Upload document
+                    {unpaidAI && (
+                      <small>
+                        Use fictional, non-confidential questions on this demo.
+                      </small>
+                    )}
                     <input
                       type="file"
                       accept=".pdf,.docx,.txt,.md"

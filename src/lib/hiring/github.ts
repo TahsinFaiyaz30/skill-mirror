@@ -44,7 +44,7 @@ export async function enrichProjects(
         fetch("https://api.github.com/repos/" + path + suffix, {
           headers: {
             Accept: accept,
-            ...(token && { Authorization: "Bearer " + token }),
+            ...(!suffix && token && { Authorization: "Bearer " + token }),
           },
           signal: AbortSignal.timeout(4000),
           redirect: "error",
@@ -52,13 +52,11 @@ export async function enrichProjects(
           .then((res) => (res.ok ? res : null))
           .catch(() => null);
       try {
-        const [repo, languages, readme] = await Promise.all([
-          request(""),
-          request("/languages"),
-          request("/readme", "application/vnd.github.raw+json"),
-        ]);
+        const repo = await request("");
         if (!repo) return null;
         const details = (await repo.json()) as {
+          private: boolean;
+          visibility?: string;
           name: string;
           description: string | null;
           topics?: string[];
@@ -66,6 +64,15 @@ export async function enrichProjects(
           stargazers_count?: number;
           pushed_at?: string;
         };
+        if (
+          details.private !== false ||
+          (details.visibility && details.visibility !== "public")
+        )
+          return null;
+        const [languages, readme] = await Promise.all([
+          request("/languages"),
+          request("/readme", "application/vnd.github.raw+json"),
+        ]);
         const languageNames = languages
           ? Object.keys(await languages.json())
           : [];

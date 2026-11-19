@@ -1,5 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
+import { publicEnv, unpaidAI } from "@/lib/config/env";
 import { useEffect, useRef, useState } from "react";
 import { mediaSession } from "@/lib/live/mediaSession";
 import { preloadVision, VisionEngine } from "@/lib/vision/engine";
@@ -99,6 +100,8 @@ export function SetupWizard({
   const [busy, setBusy] = useState(false);
   const calibrationRef = useRef(calibration);
   const visionRef = useRef<VisionEngine | null>(null);
+  const mounted = useRef(false);
+  const handoff = useRef(false);
 
   function saveCalibration(value: Calibration) {
     calibrationRef.current = value;
@@ -140,12 +143,24 @@ export function SetupWizard({
     };
   }, []);
 
-  useEffect(() => () => visionRef.current?.stop(), []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      visionRef.current?.stop();
+      if (
+        !handoff.current ||
+        window.location.pathname !== "/interview/" + session.id + "/live"
+      )
+        mediaSession.close();
+    };
+  }, [session.id]);
   async function open(mock = false) {
     setError("");
     setBusy(true);
     try {
       const media = await mediaSession.open();
+      if (!mounted.current) return;
       setStream(media.stream);
       mediaSession.mockCalibration = mock;
       if (mock) {
@@ -159,6 +174,7 @@ export function SetupWizard({
         setStep(7);
       } else {
         const { models, tier } = await preloadVision();
+        if (!mounted.current) return;
         let last = 0,
           goodSince: number | null = null;
         const vision = new VisionEngine(media.video, models, tier, {
@@ -166,6 +182,13 @@ export function SetupWizard({
           clock: () => -1,
           context: () => ({ state: "X", turnIdx: null }),
           setup: true,
+          onFaceCount: config.collectDelivery
+            ? undefined
+            : (count) => {
+                const now = performance.now();
+                goodSince = count === 1 ? (goodSince ?? now) : null;
+                setFramed(goodSince !== null && now - goodSince >= 2000);
+              },
           onFrame: () => {
             const now = performance.now();
             if (now - last < 100) return;
@@ -302,7 +325,11 @@ export function SetupWizard({
     config.kind === "company"
       ? "A human at " + session.company + " makes the hiring decision."
       : "AI feedback is coaching, not a hiring decision.",
-    "Google's free-tier API may use inputs to improve its products.",
+    session.aiMode === "mock"
+      ? "This interview uses simulated AI."
+      : publicEnv.aiDataTier === "unpaid"
+        ? "I am using fictional materials and simulated camera and microphone input for this demo."
+        : "Interview materials will be processed by the configured AI providers.",
     "Recordings auto-delete after 30 days.",
     ...(config.kind === "company"
       ? [
@@ -328,6 +355,7 @@ export function SetupWizard({
           recording: true,
           coachingOnly: true,
           freeTierData: true,
+          ...(unpaidAI && { syntheticInputs: true }),
           retention: true,
           shareWithCompany: config.kind === "company",
           acceptedAt: new Date().toISOString(),
@@ -341,6 +369,8 @@ export function SetupWizard({
       }
       visionRef.current?.stop();
       visionRef.current = null;
+      if (!mounted.current) return;
+      handoff.current = true;
       router.push("/interview/" + session.id + "/live");
     } catch (error) {
       setError(errorMessage(error));
@@ -375,6 +405,12 @@ export function SetupWizard({
       </div>
       <div className="card stack">
         <h2>{labels[step]}</h2>
+        {step === 1 && unpaidAI && (
+          <p>
+            This demo uses unpaid AI services. Use synthetic camera and
+            microphone input and fictional interview material.
+          </p>
+        )}
         {error && (
           <p role="alert" className="danger">
             {error}
@@ -423,7 +459,16 @@ export function SetupWizard({
         {step === 2 && (
           <>
             <ul className="stack-sm">
-              {framingChecks(face, pose, luma).map((check) => (
+              {(config.collectDelivery
+                ? framingChecks(face, pose, luma)
+                : [
+                    {
+                      label: "One face in view",
+                      pass: framed,
+                      message: "Face the camera for two seconds.",
+                    },
+                  ]
+              ).map((check) => (
                 <li key={check.label}>
                   <span
                     className={"badge " + (check.pass ? "accent" : "warning")}
@@ -457,7 +502,7 @@ export function SetupWizard({
               disabled={!framed}
               onClick={() => {
                 setProgress(0);
-                setStep(3);
+                setStep(config.collectDelivery ? 3 : 5);
               }}
             >
               Next

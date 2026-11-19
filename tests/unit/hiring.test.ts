@@ -1,12 +1,47 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { csvCell, encodeCSV, parseCandidateCsv } from "@/lib/hiring/csv";
 import {
   emailMatches,
   maskEmail,
   newInviteToken,
 } from "@/lib/hiring/invitations";
-import { repositoryPath } from "@/lib/hiring/github";
+import { enrichProjects, repositoryPath } from "@/lib/hiring/github";
 describe("hiring helpers", () => {
+  it("only fetches project content after GitHub confirms public visibility", async () => {
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        Response.json({ private: true, visibility: "private" }),
+      );
+    try {
+      expect(
+        await enrichProjects(
+          ["https://github.com/team/engine"],
+          "fixture-token",
+        ),
+      ).toEqual([]);
+      expect(fetch).toHaveBeenCalledTimes(1);
+      fetch
+        .mockResolvedValueOnce(
+          Response.json({
+            private: false,
+            visibility: "public",
+            name: "engine",
+          }),
+        )
+        .mockResolvedValueOnce(Response.json({ TypeScript: 1 }))
+        .mockResolvedValueOnce(new Response("Project notes"));
+      const projects = await enrichProjects(
+        ["https://github.com/team/engine"],
+        "fixture-token",
+      );
+      expect(projects[0].summary).toContain("Project notes");
+      for (const [, options] of fetch.mock.calls.slice(2))
+        expect(new Headers(options?.headers).has("authorization")).toBe(false);
+    } finally {
+      fetch.mockRestore();
+    }
+  });
   it("writes UTF-8 BOM, RFC 4180 quoting and spreadsheet-safe cells", () => {
     expect(
       encodeCSV([

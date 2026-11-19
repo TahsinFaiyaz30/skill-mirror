@@ -304,6 +304,7 @@ export function toPublicConfig(
     feedbackVisibility,
     requireHeadphones,
     presentation: { prepMs, talkMs, interruptAtMs },
+    collectDelivery: config.evaluation.nonverbalPolicy !== "off",
     voiceName: config.ai.voiceName,
     interviewerName: interviewerName ?? config.ai.interviewerName,
   };

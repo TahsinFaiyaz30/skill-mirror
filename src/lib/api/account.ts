@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { timingSafeEqual } from "node:crypto";
+import { captureFiles } from "@/lib/recording/captures";
 import { db, type Database } from "@/lib/db";
 import { authIdentity } from "@/lib/db/authSchema";
 import {
@@ -201,22 +202,58 @@ export const retention = route(async (request) => {
   const cutoff = new Date(
     Date.now() - serverEnv().RECORDING_RETENTION_DAYS * 86400000,
   );
+  await database
+    .update(interviewSessions)
+    .set({
+      media: sql`${interviewSessions.media} || '{"deleted":true,"purgeRecordings":true}'::jsonb`,
+    })
+    .where(
+      and(
+        sql`(${interviewSessions.endedAt} is not null or ${interviewSessions.status} in ('in_progress', 'discarded', 'superseded'))`,
+        sql`coalesce(${interviewSessions.endedAt}, ${interviewSessions.lastActiveAt}, ${interviewSessions.startedAt}, ${interviewSessions.createdAt}) < ${cutoff.toISOString()}::timestamptz`,
+        sql`coalesce((${interviewSessions.media}->>'deleted')::boolean,false) = false`,
+      ),
+    );
   const old = await database
     .select()
     .from(interviewSessions)
     .where(
-      and(
-        lt(interviewSessions.endedAt, cutoff),
-        sql`coalesce((${interviewSessions.media}->>'deleted')::boolean,false) = false`,
-      ),
+      sql`${interviewSessions.media} @> '{"purgeRecordings":true}'::jsonb`,
     );
   for (const session of old) {
     await removePrefix("recordings", session.userId + "/" + session.id);
-    if (session.media.landmarks)
-      await removeObjects("artifacts", [session.media.landmarks.path]);
+    const landmarks = captureFiles(session.media).flatMap((part) =>
+      part.landmarks ? [part.landmarks.path] : [],
+    );
+    if (landmarks.length) await removeObjects("artifacts", landmarks);
+    await removePrefix(
+      "artifacts",
+      session.userId + "/" + session.id + "/snapshots",
+    );
     await database
       .update(interviewSessions)
-      .set({ media: { ...session.media, deleted: true } })
+      .set({
+        media: sql`${interviewSessions.media} - 'purgeRecordings'`,
+      })
+      .where(eq(interviewSessions.id, session.id));
+  }
+  const legacy = await database
+    .select({ id: interviewSessions.id, userId: interviewSessions.userId })
+    .from(interviewSessions)
+    .where(sql`${interviewSessions.media} @> '{"purgeDelivery":true}'::jsonb`)
+    .limit(50);
+  for (const session of legacy) {
+    const prefix = session.userId + "/" + session.id;
+    await removeObjects(
+      "artifacts",
+      ["timeline.json.gz", "landmarks.bin.gz", "pitch.bin.gz"].map(
+        (name) => prefix + "/" + name,
+      ),
+    );
+    await removePrefix("artifacts", prefix + "/snapshots");
+    await database
+      .update(interviewSessions)
+      .set({ media: sql`${interviewSessions.media} - 'purgeDelivery'` })
       .where(eq(interviewSessions.id, session.id));
   }
   const current = await database

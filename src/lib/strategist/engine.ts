@@ -504,14 +504,14 @@ export function replayTechnical(
         t.itemKind === "technical" &&
         t.competencyKey === key &&
         t.difficulty !== null &&
-        t.scores,
+        t.scores &&
+        !t.scores.scoringFailed,
     );
     group.forEach((turn, index) => {
       const scores = turn.scores!,
         level = turn.difficulty!,
         source = turn.parentSource ?? turn.questionSource;
-      if (!scores.scoringFailed)
-        comp.theta = updateTheta(comp.theta, level, scores.total);
+      comp.theta = updateTheta(comp.theta, level, scores.total);
       if (
         source === "company" ||
         config.mode === "scripted" ||
@@ -519,12 +519,11 @@ export function replayTechnical(
       )
         return;
       if (turn.followUpType === "weak") {
-        if (!scores.scoringFailed)
-          comp = applyStaircase(
-            comp,
-            level,
-            scores.outcome === "pass" ? "pass" : "fail",
-          );
+        comp = applyStaircase(
+          comp,
+          level,
+          scores.outcome === "pass" ? "pass" : "fail",
+        );
       } else {
         comp.items++;
         const nextIsWeak =

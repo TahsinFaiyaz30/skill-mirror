@@ -43,6 +43,13 @@
       "when": 1795068149681,
       "tag": "0005_preserve_closed_company_interviews",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795068149682,
+      "tag": "0006_protect_interview_evidence",
+      "breakpoints": false
     }
   ]
 }

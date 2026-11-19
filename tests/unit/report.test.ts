@@ -93,6 +93,7 @@ describe("report scoring", () => {
   );
   it("drops delivery dimensions in off mode without losing content scoring or integrity", () => {
     const report = build("off");
+    expect(report.baseline).toBeNull();
     expect(report.softSkills).toMatchObject({
       dimensions: [],
       maturityScore: null,
@@ -131,6 +132,20 @@ describe("report scoring", () => {
         10000,
       ),
     ).toBeNull();
+  });
+  it("requires a successful technical evaluation for a practice certificate", () => {
+    const { session, turns, baseline } = goldenFixture("scored");
+    session.kind = "practice";
+    const technical = turns.filter((turn) => turn.itemKind === "technical");
+    for (const turn of technical)
+      turn.scores = { ...turn.scores!, scoringFailed: true, outcome: "na" };
+    const score = () =>
+      buildReport(session, technical, baseline, [], [], [], null, []).report;
+    expect(score().components.technical).toBeNull();
+    expect(score().eligibility.certificate).toBe(false);
+    technical[0].scores!.scoringFailed = false;
+    technical[0].scores!.outcome = "pass";
+    expect(score().eligibility.certificate).toBe(true);
   });
   it("renormalizes overall weights when a component is missing", () => {
     expect(

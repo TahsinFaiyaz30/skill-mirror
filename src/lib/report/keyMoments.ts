@@ -4,16 +4,7 @@ import type { MetricSecond, SessionEvent } from "@/types/interview";
 import type { MomentCandidate, ReportData, TimedWord } from "@/types/report";
 import { identifyFillers } from "./voiceMetrics";
 
-export const integrityOnly = (event: SessionEvent) =>
-  event.category === "integrity" ||
-  (event.category === "live_vision" &&
-    [
-      "second_person",
-      "reading_notes",
-      "phone_use",
-      "left_frame",
-      "looking_off_screen",
-    ].includes(event.type));
+import { integrityOnly } from "@/lib/vision/integrity";
 const answerStart = (turn: TurnRow) => turn.answerStartMs ?? turn.askEndMs ?? 0;
 const isWeakAnswer = (turn: TurnRow) =>
   turn.scoreTotal !== null &&
@@ -119,7 +110,7 @@ export function reportTimeline(
   timeline: MetricSecond[],
   words: TimedWord[],
   events: SessionEvent[],
-  baseline: ReportData["baseline"],
+  baseline: NonNullable<ReportData["baseline"]>,
 ): ReportData["timeline"] {
   const off = session.config.evaluation.nonverbalPolicy === "off";
   const buckets = new Map<number, MetricSecond[]>();

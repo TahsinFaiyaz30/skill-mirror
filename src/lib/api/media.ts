@@ -19,6 +19,8 @@ import { uploadURL, type Bucket } from "@/lib/supabase/storage";
 import { finalizeCoverage } from "@/lib/strategist/engine";
 import { defaultCalibration } from "@/lib/vision/features";
 import { computeBaseline } from "@/lib/vision/aggregator";
+import { integrityOnly } from "@/lib/vision/integrity";
+import { captureFiles, SEGMENTS_PER_CAPTURE } from "@/lib/recording/captures";
 import { body, fail, json, ok, route, type Params } from "@/lib/utils/http";
 import { ms } from "./live";
 import { interrupted, owner } from "./session";
@@ -26,7 +28,7 @@ import { interrupted, owner } from "./session";
 const bytes = z.number().int().nonnegative().max(52428800);
 const object = z.object({ path: z.string().max(255), bytes });
 const recording = object.extend({
-  index: z.number().int().min(0).max(100),
+  index: z.number().int().nonnegative().max(2147483647),
   startMs: ms,
   endMs: ms,
   uploaded: z.boolean(),
@@ -91,28 +93,59 @@ const artifactPaths = {
 };
 const snapshotPath = (prefix: string, eventId: string) =>
   prefix + "/snapshots/" + eventId + ".jpg";
-function validateMedia(prefix: string, media: SessionMedia) {
+const capturePrefix = (prefix: string, capture: number) =>
+  capture ? prefix + "/captures/" + capture : prefix;
+function validateMedia(prefix: string, media: SessionMedia, capture = 0) {
+  const part = capturePrefix(prefix, capture);
   if (
     media.videoSegments?.some(
-      (s) => s.path !== videoPath(prefix, s.index) || s.endMs < s.startMs,
+      (s) =>
+        Math.floor(s.index / SEGMENTS_PER_CAPTURE) !== capture ||
+        s.path !== videoPath(prefix, s.index) ||
+        s.endMs < s.startMs,
     ) ||
-    (media.micAudio && media.micAudio.path !== micPath(prefix)) ||
+    (media.micAudio && media.micAudio.path !== micPath(part)) ||
     (Object.keys(artifactPaths) as (keyof typeof artifactPaths)[]).some(
       (key) =>
-        media[key] && media[key]?.path !== prefix + "/" + artifactPaths[key],
+        media[key] && media[key]?.path !== part + "/" + artifactPaths[key],
     )
   )
     fail("BAD_REQUEST", "Invalid session recording path.");
 }
-function mergeMedia(previous: SessionMedia, current: SessionMedia) {
+function mergeMedia(
+  previous: SessionMedia,
+  current: SessionMedia,
+  capture = 0,
+) {
   const video = new Map(
     (previous.videoSegments ?? []).map((item) => [item.index, item]),
   );
   for (const item of current.videoSegments ?? [])
     video.set(item.index, { ...video.get(item.index), ...item });
+  const { micAudio, timeline, landmarks, pitch } = current;
+  const part = {
+    ...(micAudio && { micAudio }),
+    ...(timeline && { timeline }),
+    ...(landmarks && { landmarks }),
+    ...(pitch && { pitch }),
+  };
+  const files = capture
+    ? {
+        additionalCaptures: {
+          ...previous.additionalCaptures,
+          [capture]: { ...previous.additionalCaptures?.[capture], ...part },
+        },
+      }
+    : part;
   return {
     ...previous,
-    ...current,
+    ...files,
+    ...(current.snapshotsCount !== undefined && {
+      snapshotsCount: Math.max(
+        previous.snapshotsCount ?? 0,
+        current.snapshotsCount,
+      ),
+    }),
     videoSegments: [...video.values()].sort((a, b) => a.index - b.index),
   };
 }
@@ -127,15 +160,27 @@ export const mediaUpload = route(async (request, context: Params<"id">) => {
     owner,
   );
   requireMediaWriteStatus(session.status);
-  const { kind, index, eventId } = await body(
+  if (session.media.deleted)
+    fail("CONFLICT", "Recording retention has expired for this interview.");
+  const { kind, index, eventId, captureIndex } = await body(
     request,
     z.object({
       kind: uploadKind,
-      index: z.number().int().min(0).max(100).optional(),
+      index: recording.shape.index.optional(),
+      captureIndex: z.number().int().nonnegative().default(0),
       eventId: z.uuid().optional(),
     }),
   );
   const prefix = session.userId + "/" + session.id;
+  if (captureIndex && !session.media.captureIds?.[captureIndex])
+    fail("BAD_REQUEST", "Unknown recording capture.");
+  const part = capturePrefix(prefix, captureIndex);
+  if (
+    session.config.evaluation.nonverbalPolicy === "off" &&
+    kind !== "video_segment" &&
+    kind !== "mic_audio"
+  )
+    fail("FORBIDDEN", "Delivery analysis is disabled for this interview.");
   const bucket: Bucket =
     kind === "video_segment" || kind === "mic_audio"
       ? "recordings"
@@ -143,12 +188,14 @@ export const mediaUpload = route(async (request, context: Params<"id">) => {
   let path: string;
   if (kind === "video_segment") {
     if (index === undefined) fail("BAD_REQUEST", "Supply a segment index.");
+    if (Math.floor(index / SEGMENTS_PER_CAPTURE) !== captureIndex)
+      fail("BAD_REQUEST", "Invalid segment index.");
     path = videoPath(prefix, index);
-  } else if (kind === "mic_audio") path = micPath(prefix);
+  } else if (kind === "mic_audio") path = micPath(part);
   else if (kind === "snapshot") {
     if (!eventId) fail("BAD_REQUEST", "Supply the snapshot event ID.");
     path = snapshotPath(prefix, eventId);
-  } else path = prefix + "/" + artifactPaths[kind];
+  } else path = part + "/" + artifactPaths[kind];
   return json(
     await uploadURL(
       bucket,
@@ -162,8 +209,20 @@ export const patchMediaRoute = route(async (request, context: Params<"id">) => {
     (await context.params).id,
     owner,
   );
-  const media = await body(request, mediaSchema);
-  validateMedia(session.userId + "/" + session.id, media);
+  const { captureIndex, ...media } = await body(
+    request,
+    mediaSchema.extend({
+      captureIndex: z.number().int().nonnegative().default(0),
+    }),
+  );
+  if (captureIndex && !session.media.captureIds?.[captureIndex])
+    fail("BAD_REQUEST", "Unknown recording capture.");
+  if (
+    session.config.evaluation.nonverbalPolicy === "off" &&
+    (media.timeline || media.landmarks || media.pitch)
+  )
+    fail("FORBIDDEN", "Delivery analysis is disabled for this interview.");
+  validateMedia(session.userId + "/" + session.id, media, captureIndex);
   return database.transaction(async (tx) => {
     const [s] = await tx
       .select({
@@ -175,9 +234,11 @@ export const patchMediaRoute = route(async (request, context: Params<"id">) => {
       .for("update");
     if (!s) fail("NOT_FOUND", "Interview not found.");
     requireMediaWriteStatus(s.status);
+    if (s.media.deleted)
+      fail("CONFLICT", "Recording retention has expired for this interview.");
     await tx
       .update(interviewSessions)
-      .set({ media: mergeMedia(s.media, media) })
+      .set({ media: mergeMedia(s.media, media, captureIndex) })
       .where(eq(interviewSessions.id, session.id));
     return ok();
   });
@@ -205,7 +266,12 @@ export const telemetry = route(async (request, context: Params<"id">) => {
         .optional(),
     }),
   );
-  const items = input.events ?? [],
+  const items =
+      session.config.evaluation.nonverbalPolicy === "off"
+        ? (input.events ?? [])
+            .filter(integrityOnly)
+            .map((event) => ({ ...event, data: {}, snapshotPath: null }))
+        : (input.events ?? []),
     transcripts = input.transcripts ?? [];
   const prefix = session.userId + "/" + session.id;
   for (const event of items)
@@ -290,11 +356,17 @@ export const endSession = route(async (request, context: Params<"id">) => {
     z.object({
       endReason: z.enum(END_REASONS),
       durationMs: ms,
-      baseline: baselineSchema,
+      baseline: baselineSchema.nullable(),
       media: mediaSchema,
     }),
   );
   validateMedia(session.userId + "/" + session.id, input.media);
+  const off = session.config.evaluation.nonverbalPolicy === "off";
+  if (
+    off &&
+    (input.media.timeline || input.media.landmarks || input.media.pitch)
+  )
+    fail("FORBIDDEN", "Delivery analysis is disabled for this interview.");
   return database.transaction(async (tx) => {
     const [s] = await tx
       .select()
@@ -312,7 +384,7 @@ export const endSession = route(async (request, context: Params<"id">) => {
       .set({
         status: "ended",
         endedAt: new Date(),
-        baseline: input.baseline,
+        baseline: off ? null : input.baseline,
         endReason: input.endReason,
         durationMs: Math.min(s.config.hardCapMs, input.durationMs),
         media: mergeMedia(s.media, input.media),
@@ -348,7 +420,9 @@ export const partialSession = route(async (_request, context: Params<"id">) => {
     );
   const elapsed = Math.max(
     ...(session.media.videoSegments ?? []).map((s) => s.endMs),
-    session.media.micAudio?.durationMs ?? 0,
+    ...captureFiles(session.media).map(
+      (part) => part.micAudio?.durationMs ?? 0,
+    ),
   );
   if (elapsed < PARTIAL_MIN_MS)
     fail(

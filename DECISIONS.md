@@ -41,5 +41,5 @@ The built-in image generation tool produced the fictional webcam frame for `test
 
 ## External acceptance
 
-- No configured Gemini, Groq, Supabase, or Resend credentials were present. The Live and pipeline provider calls, cloud Auth email and Google OAuth, project quotas and latency, and production deployment remain unverified. The tone-check WAV is included. The Kore and Charon provider WAVs require the configured TTS generation script.
+- No configured Gemini, Groq, Supabase, or Resend credentials were present. The Live and pipeline provider calls, cloud Auth email and Google OAuth, project quotas and latency, and production deployment remain unverified. The tone-check WAV and Google AI Studio’s published Kore and Charon preview clips are included. The preview generator can replace the clips with the interview greeting when a Gemini TTS key is configured.
 - The MediaPipe sign-check overlay and synthetic geometry tests are in place. A physical sign check, real-camera calibration, 20-minute connection and segment timing, and Wi-Fi interruption acceptance remain to be measured. The thresholds are those in the spec.

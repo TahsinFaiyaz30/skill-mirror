@@ -29,7 +29,7 @@ import {
   LIVE_VAD_PREFIX_MS,
   LIVE_VAD_SILENCE_MS,
 } from "@/lib/config/constants";
-import { serverEnv } from "@/lib/config/env";
+import { serverEnv, unpaidAI } from "@/lib/config/env";
 import {
   ANSWER_STATUSES,
   STRATEGIST_EVENTS,
@@ -42,6 +42,8 @@ import {
 } from "@/lib/strategist/engine";
 import type { Item, InterviewContext } from "@/lib/strategist/state";
 import { owner } from "./session";
+import { faceVisibility, integrityOnly } from "@/lib/vision/integrity";
+import { reserveCapture } from "@/lib/recording/captures";
 import {
   ApiError,
   body,
@@ -98,7 +100,15 @@ const strategistInput = z.object({
     answerEndMs: ms,
   }),
   metrics: z
-    .object({ vision: vision.nullable(), voice: voice.nullable() })
+    .object({
+      vision: z
+        .union([
+          vision,
+          vision.pick({ faceVisiblePct: true, multiFacePct: true }),
+        ])
+        .nullable(),
+      voice: voice.nullable(),
+    })
     .nullable(),
   elapsedMs: ms,
 });
@@ -161,10 +171,11 @@ export const startSession = route(async (request, context: Params<"id">) => {
     (await context.params).id,
     owner,
   );
-  const { t0EpochMs } = await body(
+  const { t0EpochMs, captureId } = await body(
     request,
     z.object({
       t0EpochMs: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+      captureId: z.uuid().optional(),
     }),
   );
   const interview = await interviewContext(session);
@@ -174,11 +185,30 @@ export const startSession = route(async (request, context: Params<"id">) => {
       .from(interviewSessions)
       .where(eq(interviewSessions.id, session.id))
       .for("update");
-    if (s.status === "in_progress" && s.strategistState)
+    if (unpaidAI && s.aiMode !== "mock" && !s.consent?.syntheticInputs)
+      fail(
+        "CONFLICT",
+        "Confirm synthetic interview materials before starting this demo.",
+      );
+    if (s.media.deleted)
+      fail("CONFLICT", "Recording retention has expired for this interview.");
+    const capture = captureId
+      ? reserveCapture(s.media, captureId, s.status === "in_progress")
+      : null;
+    if (s.status === "in_progress" && s.strategistState) {
+      await tx
+        .update(interviewSessions)
+        .set({
+          lastActiveAt: new Date(),
+          ...(capture && { media: { ...s.media, captureIds: capture.ids } }),
+        })
+        .where(eq(interviewSessions.id, s.id));
       return json({
         directive: s.strategistState.lastDirective,
         t0EpochMs: s.t0EpochMs,
+        captureIndex: capture?.index ?? 0,
       });
+    }
     if (s.organizationRemoved)
       fail("CONFLICT", "This opening is no longer accepting interviews.");
     if (
@@ -219,10 +249,15 @@ export const startSession = route(async (request, context: Params<"id">) => {
         startedAt: at,
         lastActiveAt: at,
         t0EpochMs,
+        ...(capture && { media: { ...s.media, captureIds: capture.ids } }),
         strategistState: state,
       })
       .where(eq(interviewSessions.id, s.id));
-    return json({ directive: state.lastDirective });
+    return json({
+      directive: state.lastDirective,
+      t0EpochMs,
+      captureIndex: capture?.index ?? 0,
+    });
   });
 });
 
@@ -232,6 +267,11 @@ export const strategist = route(async (request, context: Params<"id">) => {
     owner,
   );
   const input: StrategistInput = await body(request, strategistInput);
+  if (session.config.evaluation.nonverbalPolicy === "off" && input.metrics)
+    input.metrics = {
+      vision: faceVisibility(input.metrics.vision),
+      voice: null,
+    };
   const snapshot = session.strategistState;
   if (session.status !== "in_progress" || !snapshot)
     fail("CONFLICT", "This interview is not running.");
@@ -433,25 +473,34 @@ export const observationKinds = [
   "confident_gesture",
   "other",
 ];
-const flagObservation = {
+const flagObservation = (off: boolean) => ({
   name: "flag_observation",
   behavior: Behavior.NON_BLOCKING,
-  description:
-    "Call silently, without saying anything about it, when you see something on camera a human interviewer would note: another person, the candidate reading from notes, a phone or another screen, leaving the frame, eating, or a clearly nervous or clearly confident gesture.",
+  description: off
+    ? "Silently flag only the listed interview integrity events."
+    : "Call silently, without saying anything about it, when you see something on camera a human interviewer would note: another person, the candidate reading from notes, a phone or another screen, leaving the frame, eating, or a clearly nervous or clearly confident gesture.",
   parameters: {
     type: Type.OBJECT,
     properties: {
-      type: { type: Type.STRING, enum: observationKinds },
+      type: {
+        type: Type.STRING,
+        enum: off
+          ? observationKinds.filter((type) =>
+              integrityOnly({ category: "live_vision", type }),
+            )
+          : observationKinds,
+      },
       description: { type: Type.STRING, maxLength: "120" },
     },
     required: ["type", "description"],
   },
-};
+});
 export function buildLiveConnectConfig(
   session: SessionRow,
   interview: InterviewContext,
   resumptionHandle?: string,
 ): LiveConnectConfig {
+  const off = session.config.evaluation.nonverbalPolicy === "off";
   return {
     responseModalities: [Modality.AUDIO],
     speechConfig: {
@@ -460,17 +509,20 @@ export function buildLiveConnectConfig(
     systemInstruction: {
       parts: [
         {
-          text: p5({
-            interviewerName:
-              session.config.ai.interviewerName ||
-              interview.plan.persona.interviewer_name,
-            interviewerStyle: interview.plan.persona.style.replace(/\.$/, ""),
-            company: session.company,
-            candidateFirstName: interview.firstName,
-            seniority: session.seniority,
-            roleTitle: session.roleTitle,
-            toneInstructions: session.config.ai.toneInstructions,
-          }),
+          text: p5(
+            {
+              interviewerName:
+                session.config.ai.interviewerName ||
+                interview.plan.persona.interviewer_name,
+              interviewerStyle: interview.plan.persona.style.replace(/\.$/, ""),
+              company: session.company,
+              candidateFirstName: interview.firstName,
+              seniority: session.seniority,
+              roleTitle: session.roleTitle,
+              toneInstructions: session.config.ai.toneInstructions,
+            },
+            off,
+          ),
         },
       ],
     },
@@ -491,7 +543,7 @@ export function buildLiveConnectConfig(
     },
     contextWindowCompression: { slidingWindow: {} },
     sessionResumption: resumptionHandle ? { handle: resumptionHandle } : {},
-    tools: [{ functionDeclarations: [nextStep, flagObservation] }],
+    tools: [{ functionDeclarations: [nextStep, flagObservation(off)] }],
   };
 }
 
@@ -509,6 +561,8 @@ export const token = route(async (request) => {
     !["ready", "in_progress"].includes(session.status)
   )
     fail("CONFLICT", "A live connection is unavailable for this interview.");
+  if (!session.consent || (unpaidAI && !session.consent.syntheticInputs))
+    fail("CONFLICT", "Complete setup and consent before connecting.");
   const interview = await interviewContext(session);
   const model = serverEnv().MODEL_LIVE;
   const expiresAtEpochMs = Date.now() + LIVE_TOKEN_TTL_MS;
@@ -529,7 +583,11 @@ export const token = route(async (request) => {
     return json({ token: result.name, model, expiresAtEpochMs });
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    const info = error as { name?: string; status?: number; statusCode?: number };
+    const info = error as {
+      name?: string;
+      status?: number;
+      statusCode?: number;
+    };
     console.warn("SkillMirror live token creation failed", {
       type: info?.name,
       status: info?.status ?? info?.statusCode,

@@ -66,8 +66,8 @@ export function Processing({
     running.current = true;
     setError("");
     try {
-      await uploader.drain();
-      if (uploader.failures) return;
+      await uploader.drain(id);
+      if (uploader.status(id).failed) return;
       const key = pendingEndKey(id);
       const end = sessionStorage.getItem(key);
       if (end) {
@@ -89,12 +89,7 @@ export function Processing({
   }, [base, id, refetch]);
 
   useEffect(() => {
-    const sync = () =>
-      setUploads({
-        pending: uploader.pendingCount,
-        bytes: uploader.bytesPending,
-        failed: uploader.failures,
-      });
+    const sync = () => setUploads(uploader.status(id));
     const unsubscribe = uploader.onProgress(sync);
     sync();
     const timer = setInterval(
@@ -102,7 +97,7 @@ export function Processing({
       6000,
     );
     const warning = (event: BeforeUnloadEvent) => {
-      if (uploader.pendingCount) {
+      if (uploader.status(id).pending) {
         event.preventDefault();
         event.returnValue = "";
       }
@@ -113,7 +108,7 @@ export function Processing({
       clearInterval(timer);
       window.removeEventListener("beforeunload", warning);
     };
-  }, []);
+  }, [id]);
 
   useEffect(() => {
     const current = status.data;
@@ -171,7 +166,7 @@ export function Processing({
           <button
             className="button"
             onClick={() => {
-              uploader.retry();
+              uploader.retry(id);
               void run();
             }}
           >

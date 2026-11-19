@@ -9,6 +9,7 @@ import type {
   WordTrack,
 } from "@/types/report";
 import { alignWords } from "./align";
+import { integrityOnly } from "@/lib/vision/integrity";
 import { keyMomentCandidates, reportTimeline } from "./keyMoments";
 import {
   aggregateDelivery,
@@ -102,13 +103,22 @@ export function buildReport(
   segments: (typeof transcriptSegments.$inferSelect)[],
 ) {
   const policy = session.config.evaluation.nonverbalPolicy;
+  turns = turns.map((turn) =>
+    turn.scores?.scoringFailed
+      ? { ...turn, scores: null, scoreTotal: null }
+      : turn,
+  );
+  if (policy === "off") events = events.filter(integrityOnly);
   const words = track
     ? new Map(
         [...alignWords(turns, track)].map(([key, value]) => [key, value.words]),
       )
     : new Map();
   const alignedWords = [...words.values()].flat().sort((a, b) => a.s - b.s);
-  const delivery = aggregateDelivery(turns, timeline, pitch, words);
+  const delivery =
+    policy === "off"
+      ? aggregateDelivery([], [], [], new Map())
+      : aggregateDelivery(turns, timeline, pitch, words);
   const technical = technicalResults(session, turns);
   const pressure = pressureTurns(turns, technical.competencies);
   const soft = softSkills(policy, turns, delivery, baseline.fields, pressure);
@@ -218,7 +228,8 @@ export function buildReport(
         turn.answerTranscriptFinal?.trim() || turn.answerTranscriptLive || "",
       scores: turn.scores,
       outcome: turn.scores?.outcome ?? null,
-      composure: turn.finalMetrics?.composure ?? null,
+      composure:
+        policy === "off" ? null : (turn.finalMetrics?.composure ?? null),
       voice: policy === "off" ? null : (turn.finalMetrics?.voice ?? null),
       vision: policy === "off" ? null : (turn.finalMetrics?.vision ?? null),
       tone: policy === "off" ? null : turn.tone,
@@ -235,7 +246,7 @@ export function buildReport(
       integrity.badge,
       technical.competencies,
     ),
-    baseline,
+    baseline: policy === "off" ? null : baseline,
     ...(recommend && {
       companyView: companyView(
         session,

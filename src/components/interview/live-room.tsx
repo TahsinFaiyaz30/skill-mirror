@@ -1,5 +1,11 @@
 "use client";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useStore } from "zustand";
@@ -102,7 +108,15 @@ export function LiveRoom({
     engine.done(mock ? answer : undefined);
     setAnswer("");
   }, [answer, engine, mock]);
-  useEffect(() => () => engine.dispose(), [engine]);
+  const pendingDispose = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  useEffect(() => {
+    clearTimeout(pendingDispose.current);
+    return () => {
+      pendingDispose.current = setTimeout(() => engine.dispose(), 0);
+    };
+  }, [engine]);
   useEffect(() => {
     const update = () => setOffline(!navigator.onLine);
     const key = (event: KeyboardEvent) => {
@@ -277,6 +291,17 @@ export function LiveRoom({
             <p className="danger" role="alert">
               {error}
             </p>
+          )}
+          {state.speechUnavailable && (
+            <div role="alert">
+              <p>
+                The interviewer audio could not play. Retry to hear the
+                question.
+              </p>
+              <button className="button" onClick={() => engine.retrySpeech()}>
+                Retry audio
+              </button>
+            </div>
           )}
         </div>
         <div className="room-caption" aria-live="polite" aria-atomic="true">

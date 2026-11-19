@@ -1,9 +1,11 @@
 import { gunzipSync } from "node:zlib";
 import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { REPORT_LEASE_MS } from "@/lib/config/constants";
+import { correctedCertificate } from "@/lib/cert/issue";
 import type { Database } from "@/lib/db";
 import {
   candidateCvs,
+  certificates,
   competencyResults,
   events,
   interviewSessions,
@@ -27,6 +29,8 @@ import { basicItem } from "@/lib/strategist/state";
 import { wordsIn, clamp } from "@/lib/utils/math";
 import { computeBaseline } from "@/lib/vision/aggregator";
 import { defaultCalibration } from "@/lib/vision/features";
+import { faceVisibility } from "@/lib/vision/integrity";
+import { captureFiles } from "@/lib/recording/captures";
 import { makeEvent, perTurnEvents } from "@/lib/vision/events";
 import { readPitchTrack } from "@/lib/audio/pitch";
 import type { MetricSecond, StrategistInput } from "@/types/interview";
@@ -117,27 +121,46 @@ export async function processInterview(
   const loadSession = async () =>
     (await database.select().from(interviewSessions).where(sw))[0];
   const off = original.config.evaluation.nonverbalPolicy === "off";
+  const captures = captureFiles(original.media);
+  const microphones = captures.flatMap((part) =>
+    part.micAudio ? [part.micAudio] : [],
+  );
   const fileBytes = async (
     file: { path: string } | undefined,
     bucket: "artifacts" | "recordings" = "artifacts",
   ) => (file ? readObject(bucket, file.path).catch(() => null) : null);
   const rawTimeline = async (): Promise<MetricSecond[]> => {
-    try {
-      const bytes = await fileBytes(original.media.timeline);
-      return bytes
-        ? (JSON.parse(gunzipSync(bytes).toString()).seconds ?? [])
-        : [];
-    } catch {
-      return [];
-    }
+    if (off) return [];
+    const parts = await Promise.all(
+      captures.map(async (part) => {
+        try {
+          const bytes = await fileBytes(part.timeline);
+          return bytes
+            ? ((JSON.parse(gunzipSync(bytes).toString())
+                .seconds as MetricSecond[]) ?? [])
+            : [];
+        } catch {
+          return [];
+        }
+      }),
+    );
+    return [
+      ...new Map(parts.flat().map((second) => [second.t, second])).values(),
+    ].sort((a, b) => a.t - b.t);
   };
   const loadPitch = async () => {
-    try {
-      const bytes = await fileBytes(original.media.pitch);
-      return bytes ? readPitchTrack(gunzipSync(bytes)) : [];
-    } catch {
-      return [];
-    }
+    if (off) return [];
+    const parts = await Promise.all(
+      captures.map(async (part) => {
+        try {
+          const bytes = await fileBytes(part.pitch);
+          return bytes ? readPitchTrack(gunzipSync(bytes)) : [];
+        } catch {
+          return [];
+        }
+      }),
+    );
+    return parts.flat().sort((a, b) => a.tMs - b.tMs);
   };
   const loadTrack = async (): Promise<WordTrack | null> => {
     try {
@@ -197,19 +220,26 @@ export async function processInterview(
           : Promise.resolve(false);
       const [hasMic, hasTimeline, hasPitch, hasLandmarks, ...segments] =
         await Promise.all([
-          check(original.media.micAudio, "recordings"),
-          check(original.media.timeline, "artifacts"),
-          check(original.media.pitch, "artifacts"),
-          check(original.media.landmarks, "artifacts"),
+          ...(["micAudio", "timeline", "pitch", "landmarks"] as const).map(
+            async (key) =>
+              (
+                await Promise.all(
+                  captures.map((part) =>
+                    check(
+                      part[key],
+                      key === "micAudio" ? "recordings" : "artifacts",
+                    ),
+                  ),
+                )
+              ).some(Boolean),
+          ),
           ...(original.media.videoSegments ?? []).map((segment) =>
             check(segment, "recordings"),
           ),
         ]);
       if (
         !hasMic ||
-        !hasTimeline ||
-        !hasPitch ||
-        !hasLandmarks ||
+        (!off && (!hasTimeline || !hasPitch || !hasLandmarks)) ||
         segments.some((ok) => !ok)
       ) {
         console.info("SkillMirror report has incomplete media", {
@@ -223,8 +253,7 @@ export async function processInterview(
     },
     transcribe: async () => {
       if (original.aiMode === "mock" || (await loadTrack())) return;
-      const [mic, timeline, cv] = await Promise.all([
-        fileBytes(original.media.micAudio, "recordings"),
+      const [timeline, cv] = await Promise.all([
         rawTimeline(),
         original.cvId
           ? database
@@ -233,13 +262,21 @@ export async function processInterview(
               .where(eq(candidateCvs.id, original.cvId))
           : [],
       ]);
-      if (!mic) return;
-      let chunks: ReturnType<typeof splitMicrophoneWebm>;
-      try {
-        chunks = splitMicrophoneWebm(mic);
-      } catch {
-        return;
+      const chunks: ReturnType<typeof splitMicrophoneWebm> = [];
+      for (const part of microphones) {
+        const mic = await fileBytes(part, "recordings");
+        if (!mic) continue;
+        try {
+          for (const chunk of splitMicrophoneWebm(mic))
+            chunks.push({
+              ...chunk,
+              offsetMs: part.startOffsetMs + chunk.offsetMs,
+            });
+        } catch {
+          /* Other captures can still be transcribed. */
+        }
       }
+      if (!chunks.length) return;
       const hint = (
         "Umm, let me think like, hmm... Okay, here's what I'm, like, thinking. " +
         (cv[0]?.parsed?.skills ?? [])
@@ -264,7 +301,7 @@ export async function processInterview(
             const aligned = whisperTimestamps(
               response.words ?? [],
               response.segments ?? [],
-              (original.media.micAudio?.startOffsetMs ?? 0) + chunk.offsetMs,
+              chunk.offsetMs,
               timeline,
             );
             collected.words.push(...aligned.words);
@@ -328,7 +365,10 @@ export async function processInterview(
           calibrationVoice.hedgePerMin ?? baseline.fields.hedgePerMin;
       }
       await database.transaction(async (tx) => {
-        await tx.update(interviewSessions).set({ baseline }).where(sw);
+        await tx
+          .update(interviewSessions)
+          .set({ baseline: off ? null : baseline })
+          .where(sw);
         await tx.delete(events).where(and(ew, eq(events.category, "vocal")));
         const candidateSegments = and(
           eq(transcriptSegments.sessionId, id),
@@ -478,71 +518,84 @@ export async function processInterview(
     },
     tone: async () => {
       if (off || original.aiMode === "mock") return;
-      const [mic, turnRows] = await Promise.all([
-        fileBytes(original.media.micAudio, "recordings"),
-        loadTurnRows(),
-      ]);
-      if (!mic) return;
-      const offset = original.media.micAudio?.startOffsetMs ?? 0;
-      const windows = turnRows.flatMap((t) => {
-        const w = answerWindow(t);
-        return w && w.endMs - w.startMs >= 5000
-          ? [
-              {
-                turnIdx: t.idx,
-                kind: t.itemKind,
-                start: timed(Math.max(0, w.startMs - offset)),
-                end: timed(Math.max(0, w.endMs - offset)),
-                question: t.questionText,
-              },
-            ]
-          : [];
-      });
-      if (!windows.length) return;
-      try {
-        const { turns: results } = await geminiJSON(
-          p7({ turnWindowsJson: JSON.stringify(windows) }),
-          toneSchema,
-          { inline: attachment("audio", "audio/webm", mic) },
-        );
-        await database.transaction(async (tx) => {
-          await tx
-            .delete(events)
-            .where(and(ew, eq(events.type, "tone_moment")));
-          for (const tone of results) {
-            const turn = turnRows.find((t) => t.idx === tone.turnIdx);
-            const window = turn && answerWindow(turn);
-            if (!window) continue;
-            await tx
-              .update(turns)
-              .set({ tone })
-              .where(and(tw, eq(turns.idx, tone.turnIdx)));
-            const positive = ["confident", "composed", "enthusiastic"].includes(
-              tone.label,
-            );
-            for (const moment of tone.moments) {
-              const at = clamp(
-                fromTime(moment.at) + offset,
-                window.startMs,
-                window.endMs,
-              );
-              await tx.insert(events).values({
-                ...makeEvent(
-                  positive ? "positive" : "vocal",
-                  "tone_moment",
-                  at,
-                  at,
-                  0.4,
-                  tone.turnIdx,
-                  { note: moment.note },
-                ),
-                sessionId: id,
-              });
-            }
-          }
+      const turnRows = await loadTurnRows();
+      for (const part of microphones) {
+        const mic = await fileBytes(part, "recordings");
+        if (!mic) continue;
+        const offset = part.startOffsetMs;
+        const windows = turnRows.flatMap((t) => {
+          const w = answerWindow(t);
+          return w &&
+            w.startMs >= offset &&
+            w.endMs <= part.durationMs &&
+            w.endMs - w.startMs >= 5000
+            ? [
+                {
+                  turnIdx: t.idx,
+                  kind: t.itemKind,
+                  start: timed(Math.max(0, w.startMs - offset)),
+                  end: timed(Math.max(0, w.endMs - offset)),
+                  question: t.questionText,
+                },
+              ]
+            : [];
         });
-      } catch {
-        /* Tone is optional when the provider cannot read the recording. */
+        if (!windows.length) continue;
+        try {
+          const { turns: results } = await geminiJSON(
+            p7({ turnWindowsJson: JSON.stringify(windows) }),
+            toneSchema,
+            { inline: attachment("audio", "audio/webm", mic) },
+          );
+          await database.transaction(async (tx) => {
+            await tx.delete(events).where(
+              and(
+                ew,
+                eq(events.type, "tone_moment"),
+                inArray(
+                  events.turnIdx,
+                  windows.map((w) => w.turnIdx),
+                ),
+              ),
+            );
+            for (const tone of results) {
+              const turn = turnRows.find((t) => t.idx === tone.turnIdx);
+              const window = turn && answerWindow(turn);
+              if (!window || !windows.some((w) => w.turnIdx === tone.turnIdx))
+                continue;
+              await tx
+                .update(turns)
+                .set({ tone })
+                .where(and(tw, eq(turns.idx, tone.turnIdx)));
+              const positive = [
+                "confident",
+                "composed",
+                "enthusiastic",
+              ].includes(tone.label);
+              for (const moment of tone.moments) {
+                const at = clamp(
+                  fromTime(moment.at) + offset,
+                  window.startMs,
+                  window.endMs,
+                );
+                await tx.insert(events).values({
+                  ...makeEvent(
+                    positive ? "positive" : "vocal",
+                    "tone_moment",
+                    at,
+                    at,
+                    0.4,
+                    tone.turnIdx,
+                    { note: moment.note },
+                  ),
+                  sessionId: id,
+                });
+              }
+            }
+          });
+        } catch {
+          /* Tone is optional when the provider cannot read the recording. */
+        }
       }
     },
     score: async () => {
@@ -552,24 +605,28 @@ export async function processInterview(
         loadEvents(),
         rawTimeline(),
       ]);
-      if (!s.baseline) throw new Error("Missing baseline");
-      const b = s.baseline.fields;
+      if (!s.baseline && !off) throw new Error("Missing baseline");
+      const b = (
+        s.baseline ?? computeBaseline([], [], defaultCalibration, null, null)
+      ).fields;
       const types = ["excessive_blinking", "flat_affect", "steady_eye_contact"];
       await database.transaction(async (tx) => {
         await tx.delete(events).where(and(ew, inArray(events.type, types)));
         for (const turn of turnRows) {
           const window = answerWindow(turn);
           if (!window) continue;
-          const vision = nonverbalTurn(
-            timeline,
-            all,
-            {
-              ...window,
-              answerStartMs: window.startMs,
-              answerEndMs: window.endMs,
-            },
-            s.config.evaluation.nonverbalPolicy,
-          );
+          const vision = off
+            ? faceVisibility(turn.liveMetrics?.vision)
+            : nonverbalTurn(
+                timeline,
+                all,
+                {
+                  ...window,
+                  answerStartMs: window.startMs,
+                  answerEndMs: window.endMs,
+                },
+                s.config.evaluation.nonverbalPolicy,
+              );
           const metrics = {
             voice: off ? null : (turn.finalMetrics?.voice ?? null),
             vision,
@@ -687,9 +744,34 @@ export async function processInterview(
             await tx
               .delete(softSkillResults)
               .where(eq(softSkillResults.sessionId, id));
-            if (data.technical.competencies.length)
+            const assessed = data.technical.competencies.filter(
+              (c) => !c.notAssessed,
+            );
+            const [certificate] = await tx
+              .select()
+              .from(certificates)
+              .where(
+                and(
+                  eq(certificates.sessionId, id),
+                  eq(certificates.revoked, false),
+                ),
+              )
+              .for("update");
+            if (certificate) {
+              const correction = await correctedCertificate(
+                certificate,
+                data,
+                assessed,
+              );
+              if (correction)
+                await tx
+                  .update(certificates)
+                  .set(correction)
+                  .where(eq(certificates.slug, certificate.slug));
+            }
+            if (assessed.length)
               await tx.insert(competencyResults).values(
-                data.technical.competencies.map((c) => ({
+                assessed.map((c) => ({
                   sessionId: id,
                   userId: original.userId,
                   competencyKey: c.key,

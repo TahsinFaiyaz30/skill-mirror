@@ -19,7 +19,9 @@ The browser tests use mock AI and the camera and microphone files in `tests/fixt
 4. Set `GEMINI_API_KEY`, `GROQ_API_KEY`, `CERT_SIGNING_SECRET` (32+ random bytes), and `CRON_SECRET`. Verify access to the model IDs in `.env.example`. Set `NEXT_PUBLIC_AI_MODE=pipeline` when Live is unavailable.
 5. For Vercel, configure the same variables and set `NEXT_PUBLIC_APP_URL` to the deployment URL. Configure Resend and a verified sender if you want invitation delivery by email. Recruiters can always copy invitation links.
 
-Run `npm run audio:previews` with a configured Gemini key to generate the Kore and Charon WAV assets. Local mock mode uses installed browser voices for previews.
+Voice selection plays the bundled Google AI Studio samples for [Kore](https://www.gstatic.com/aistudio/voices/samples/Kore.wav) and [Charon](https://www.gstatic.com/aistudio/voices/samples/Charon.wav). To regenerate interviewer-specific samples, run `npm run audio:previews` with a configured Gemini key.
+
+Unpaid AI deployments are for fictional CVs, synthetic audio/video and non-confidential instructions. The app requires confirmation before parsing a CV or starting an unpaid interview. Set `NEXT_PUBLIC_AI_DATA_TIER=paid` for real applicant interviews only after configuring providers that permit this use and hosting that permits commercial use. Billing is configured directly with the providers. [Gemini API terms](https://aistudio.google.com/docs/terms#unpaid-services) · [Vercel terms](https://vercel.com/legal/terms)
 
 ## Checks
 

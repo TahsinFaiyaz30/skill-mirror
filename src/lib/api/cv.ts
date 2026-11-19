@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { candidateCvs } from "@/lib/db/schema";
 import { readObject, uploadURL } from "@/lib/supabase/storage";
-import { publicEnv } from "@/lib/config/env";
+import { publicEnv, unpaidAI } from "@/lib/config/env";
 import { p1 } from "@/lib/ai/prompts/p1_cv";
 import { attachment, geminiJSON } from "@/lib/ai/gemini";
 import { parsedCvSchema } from "@/lib/ai/schemas";
@@ -22,6 +22,7 @@ import {
 } from "@/lib/utils/http";
 
 const maxBytes = 5_242_880;
+const cvPath = (userId: string, cvId: string) => userId + "/" + cvId + ".pdf";
 export const createCvUpload = route(async (request) => {
   const user = await requireUser();
   const { fileName } = await body(
@@ -35,7 +36,7 @@ export const createCvUpload = route(async (request) => {
     }),
   );
   const cvId = randomUUID();
-  const path = user.id + "/" + cvId + ".pdf";
+  const path = cvPath(user.id, cvId);
   await (
     await db()
   )
@@ -58,11 +59,24 @@ async function ownedCv(cvId: string) {
   if (!cv) fail("NOT_FOUND", "CV not found.");
   return { cv, database, user };
 }
-export const parseCv = route(async (_request, context: Params<"cvId">) => {
+export const parseCv = route(async (request, context: Params<"cvId">) => {
   const { cv, database } = await ownedCv((await context.params).cvId);
+  const path = cvPath(cv.userId, cv.id);
+  const sample =
+    cv.storagePath === cv.userId + "/sample.pdf" && cv.parseStatus === "parsed";
+  if (cv.storagePath !== path && !sample) fail("NOT_FOUND", "CV not found.");
+  if (unpaidAI)
+    await body(
+      request,
+      z.object({
+        syntheticMaterial: z.literal(true, {
+          error: "Confirm that this is a fictional CV for the demo.",
+        }),
+      }),
+    );
   if (cv.parseStatus === "parsed" && cv.parsed)
     return json({ cvId: cv.id, parsed: cv.parsed });
-  const pdf = await readObject("cvs", cv.storagePath);
+  const pdf = await readObject("cvs", path);
   if (!pdf) fail("UPLOAD_MISSING", "Upload your CV before reading it.");
   if (pdf.length > maxBytes || pdf.subarray(0, 5).toString() !== "%PDF-")
     fail("BAD_REQUEST", "Upload a PDF smaller than 5 MB.");

@@ -22,7 +22,7 @@ function metricsSummary(input: StrategistInput, baseline: Baseline | null) {
   if (!input.metrics) return "None";
   const { vision, voice } = input.metrics;
   const pieces = [];
-  if (vision)
+  if (vision && "eyeContactPct" in vision)
     pieces.push(
       "eye contact " +
         pct(vision.eyeContactPct) +

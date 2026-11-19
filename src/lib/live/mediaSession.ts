@@ -14,6 +14,7 @@ class MediaSession {
   video: HTMLVideoElement | null = null;
   calibration: Calibration = structuredClone(defaultCalibration);
   mockCalibration = false;
+  private generation = 0;
   async open(force = false) {
     if (
       this.stream &&
@@ -23,8 +24,13 @@ class MediaSession {
     )
       return { stream: this.stream, video: this.video };
     this.close();
+    const generation = this.generation;
     const stream =
       await navigator.mediaDevices.getUserMedia(captureConstraints);
+    if (generation !== this.generation) {
+      stream.getTracks().forEach((track) => track.stop());
+      throw new DOMException("Capture was closed.", "AbortError");
+    }
     const video = document.createElement("video");
     video.muted = true;
     video.playsInline = true;
@@ -41,10 +47,18 @@ class MediaSession {
     document.body.append(video);
     this.stream = stream;
     this.video = video;
-    await video.play();
+    try {
+      await video.play();
+      if (generation !== this.generation)
+        throw new DOMException("Capture was closed.", "AbortError");
+    } catch (error) {
+      if (generation === this.generation) this.close();
+      throw error;
+    }
     return { stream, video };
   }
   close() {
+    this.generation++;
     this.stream?.getTracks().forEach((track) => track.stop());
     this.video?.remove();
     this.stream = null;

@@ -187,6 +187,7 @@ describe("session configuration", () => {
         "presentation",
         "company",
         "feedbackVisibility",
+        "collectDelivery",
         "requireHeadphones",
         "voiceName",
         "interviewerName",

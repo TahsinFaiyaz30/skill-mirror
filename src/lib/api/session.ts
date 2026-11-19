@@ -16,13 +16,14 @@ import { db, type Database } from "@/lib/db";
 import { ROLE_FAMILIES, SENIORITIES } from "@/lib/config/taxonomy";
 import { toPublicConfig, buildSessionConfig } from "@/lib/config/sessionConfig";
 import { INTERRUPTED_AFTER_MS } from "@/lib/config/constants";
-import { publicEnv, serverEnv } from "@/lib/config/env";
+import { publicEnv, serverEnv, unpaidAI } from "@/lib/config/env";
 import { generatePlan, getPlanSummary } from "@/lib/ai/plan";
 import { enrichProjects } from "@/lib/hiring/github";
 import { voiceName } from "@/lib/ai/schemas";
 import { body, fail, json, ok, route, type Params } from "@/lib/utils/http";
 import { removePrefix } from "@/lib/supabase/storage";
 import type { SessionPublic } from "@/types/interview";
+import { defaultCalibration } from "@/lib/vision/features";
 
 export const owner = ["owner"] as const;
 const privateDraft = z.object({ cvId: z.uuid() });
@@ -52,6 +53,7 @@ export const consentSchema = z.object({
   recording: z.literal(true),
   coachingOnly: z.literal(true),
   freeTierData: z.literal(true),
+  syntheticInputs: z.boolean().optional(),
   retention: z.literal(true),
   shareWithCompany: z.boolean().optional(),
   acceptedAt: z.iso.datetime(),
@@ -237,8 +239,23 @@ export const patchSession = route(async (request, context: Params<"id">) => {
     );
     if (!updates.calibration && !updates.consent)
       fail("BAD_REQUEST", "Provide calibration or consent.");
-    if (updates.calibration)
+    if (
+      updates.consent &&
+      unpaidAI &&
+      session.aiMode !== "mock" &&
+      !updates.consent.syntheticInputs
+    )
+      fail(
+        "BAD_REQUEST",
+        "Confirm synthetic interview materials before starting this demo.",
+      );
+    if (updates.calibration) {
       updates.calibration.echoSafe = !updates.calibration.headphones;
+      if (session.config.evaluation.nonverbalPolicy === "off") {
+        updates.calibration.gaze = defaultCalibration.gaze;
+        updates.calibration.posture = defaultCalibration.posture;
+      }
+    }
     await database
       .update(interviewSessions)
       .set(updates)
@@ -316,7 +333,10 @@ export const discardSession = route(async (_request, context: Params<"id">) => {
     fail("CONFLICT", "This interview cannot be discarded now.");
   await database
     .update(interviewSessions)
-    .set({ status: "discarded" })
+    .set({
+      status: "discarded",
+      endedAt: session.endedAt ?? session.lastActiveAt ?? new Date(),
+    })
     .where(and(whereId(session), eq(interviewSessions.status, session.status)));
   return ok();
 });

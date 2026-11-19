@@ -243,7 +243,7 @@ export function technicalResults(session: SessionRow, rows: TurnRow[]) {
         .map((row) => ({
           turnIdx: row.idx,
           level: row.difficulty,
-          total: row.scoreTotal,
+          total: row.scores?.scoringFailed ? null : row.scoreTotal,
           outcome: row.scores?.outcome ?? null,
           isFollowUp: row.isFollowUp,
           source: row.questionSource,
@@ -267,6 +267,7 @@ export function technicalResults(session: SessionRow, rows: TurnRow[]) {
   const extra = rows.filter(
     (row) =>
       row.itemKind === "technical" &&
+      !row.scores?.scoringFailed &&
       (row.questionSource === "company" ||
         row.strategistOutput?.parentSource === "company") &&
       (!row.competencyKey ||
@@ -725,4 +726,8 @@ export function statRows(
 }
 
 export const meanComponent = (turns: TurnRow[], kind: ItemKind) =>
-  totalTo100(turns.filter((t) => t.itemKind === kind).map((t) => t.scoreTotal));
+  totalTo100(
+    turns
+      .filter((t) => t.itemKind === kind && !t.scores?.scoringFailed)
+      .map((t) => t.scoreTotal),
+  );

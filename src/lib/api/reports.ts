@@ -9,6 +9,7 @@ import { processInterview } from "@/lib/report/pipeline";
 import { fail, json, route, type Params } from "@/lib/utils/http";
 import type { Playback } from "@/types/interview";
 import { owner } from "./session";
+import { captureFiles } from "@/lib/recording/captures";
 
 export const processRoute = route(async (_request, context: Params<"id">) => {
   const { session, database } = await requireSessionAccess(
@@ -86,7 +87,7 @@ export async function playbackLinks(
       (!candidate ||
         (e.category !== "integrity" && e.category !== "live_vision")),
   );
-  const [urls, landmarksUrl, snapshots] = await Promise.all([
+  const [urls, landmarkLinks, snapshots] = await Promise.all([
     Promise.all(
       (media.videoSegments ?? [])
         .filter((s) => s.uploaded)
@@ -97,10 +98,14 @@ export async function playbackLinks(
           url: await signedURL("recordings", path),
         })),
     ),
-    media.landmarks && policy !== "off"
-      ? signedURL("artifacts", media.landmarks.path)
-      : null,
-    policy === "off" && candidate
+    policy === "off"
+      ? []
+      : Promise.all(
+          captureFiles(media).flatMap((part) =>
+            part.landmarks ? [signedURL("artifacts", part.landmarks.path)] : [],
+          ),
+        ),
+    policy === "off"
       ? []
       : Promise.all(
           snapshotRows.map(
@@ -112,6 +117,8 @@ export async function playbackLinks(
           ),
         ),
   ]);
+  const [landmarksUrl = null, ...additionalLandmarksUrls] =
+    landmarkLinks.flatMap((url) => (url ? [url] : []));
   return {
     segments: urls
       .filter(
@@ -119,6 +126,7 @@ export async function playbackLinks(
       )
       .sort((a, b) => a.index - b.index),
     landmarksUrl,
+    ...(additionalLandmarksUrls.length && { additionalLandmarksUrls }),
     snapshots: Object.fromEntries(
       snapshots.flatMap(([id, url]) => (url ? [[id, url] as const] : [])),
     ),

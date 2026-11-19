@@ -22,6 +22,7 @@ export type LiveState = {
   orb: number;
   count: number;
   deviceLost: boolean;
+  speechUnavailable: boolean;
 };
 export const createLiveStore = () =>
   createStore<LiveState>(() => ({
@@ -36,4 +37,5 @@ export const createLiveStore = () =>
     orb: 0,
     count: 0,
     deviceLost: false,
+    speechUnavailable: false,
   }));

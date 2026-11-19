@@ -32,7 +32,6 @@ export class PipelineInterviewerClient implements InterviewerClient {
   private speech: Int16Array[] = [];
   private pending: Int16Array[] = [];
   private vad?: import("@ricky0123/vad-web").MicVAD;
-  private timer?: ReturnType<typeof setTimeout>;
   private closed = false;
   private generation = 0;
   private useEnergy = false;
@@ -76,7 +75,6 @@ export class PipelineInterviewerClient implements InterviewerClient {
   }
   private async speaking(text: string) {
     const generation = ++this.generation;
-    if (this.timer) clearTimeout(this.timer);
     try {
       const response = await fetch("/api/pipeline/tts", {
         method: "POST",
@@ -93,19 +91,13 @@ export class PipelineInterviewerClient implements InterviewerClient {
       if (this.closed || generation !== this.generation) return;
       await this.playback.playWav(audio);
     } catch {
-      /* The canonical question still appears. */
+      if (!this.closed && generation === this.generation)
+        this.emit({ type: "speechUnavailable" });
+      return;
     }
     if (this.closed || generation !== this.generation) return;
     this.emit({ type: "speechStarted" });
-    const words = text.match(/\S+\s*/g) ?? [];
-    const reveal = () => {
-      if (this.closed || generation !== this.generation) return;
-      const word = words.shift();
-      if (!word) return;
-      this.emit({ type: "outputTranscript", text: word });
-      this.timer = setTimeout(reveal, 1000 / 2.6);
-    };
-    reveal();
+    this.emit({ type: "outputTranscript", text });
     this.emit({ type: "modelTurnComplete" });
   }
   deliverDirective(directive: Directive) {
@@ -155,7 +147,6 @@ export class PipelineInterviewerClient implements InterviewerClient {
   }
   close() {
     this.closed = true;
-    if (this.timer) clearTimeout(this.timer);
     void this.vad?.destroy();
   }
 }

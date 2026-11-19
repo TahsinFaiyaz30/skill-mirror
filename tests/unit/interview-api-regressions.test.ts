@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import {
   afterAll,
   afterEach,
@@ -17,14 +18,17 @@ import type { Database } from "@/lib/db";
 import { authIdentity } from "@/lib/db/authSchema";
 import { initializeMockDatabase } from "@/lib/db/mockSetup";
 import * as schema from "@/lib/db/schema";
-import { deleteAccount } from "@/lib/api/account";
+import { deleteAccount, retention } from "@/lib/api/account";
 import { startSession, strategist } from "@/lib/api/live";
-import { patchMediaRoute, telemetry } from "@/lib/api/media";
+import { mediaUpload, patchMediaRoute, telemetry } from "@/lib/api/media";
+import { SEGMENTS_PER_CAPTURE } from "@/lib/recording/captures";
 import { addMember } from "@/lib/api/organization";
 import { statusRoute } from "@/lib/api/reports";
+import { certificateBySlug, createCertificate } from "@/lib/api/practice";
 import { REPORT_LEASE_MS } from "@/lib/config/constants";
 import { defaultOpeningConfig } from "@/lib/config/sessionConfig";
 import { processInterview } from "@/lib/report/pipeline";
+import { buildReport } from "@/lib/report/buildReport";
 import { compose } from "@/lib/strategist/compose";
 import { startInterview } from "@/lib/strategist/engine";
 import { basicItem, type InterviewContext } from "@/lib/strategist/state";
@@ -54,6 +58,8 @@ vi.mock("@/lib/auth/mock", () => ({
 vi.mock("@/lib/supabase/storage", async (original) => ({
   ...(await original<typeof import("@/lib/supabase/storage")>()),
   removePrefix: services.removePrefix,
+  removeObjects: vi.fn(async () => {}),
+  listObjects: vi.fn(async () => []),
   readObject: services.readObject,
 }));
 vi.mock("@/lib/ai/evaluate", () => ({
@@ -136,6 +142,100 @@ function freshSession(
 }
 
 describe("account and interview API writes", () => {
+  it("expires abandoned media without deleting a fresh or never-started recording", async () => {
+    services.userId = await user();
+    const old = new Date(Date.now() - 35 * 86400000);
+    const stale = freshSession(services.userId, {
+      status: "discarded",
+      startedAt: old,
+      lastActiveAt: old,
+      endedAt: null,
+    });
+    const fresh = freshSession(services.userId, {
+      status: "in_progress",
+      startedAt: old,
+      lastActiveAt: new Date(),
+      endedAt: null,
+    });
+    const draft = freshSession(services.userId, {
+      status: "ready",
+      startedAt: null,
+      endedAt: null,
+      createdAt: old,
+    });
+    await database
+      .insert(schema.interviewSessions)
+      .values([stale, fresh, draft]);
+    vi.stubEnv("CRON_SECRET", "test-retention");
+    try {
+      const response = await retention(
+        new Request("http://localhost/api/test", {
+          headers: { authorization: "Bearer test-retention" },
+        }),
+      );
+      expect(response.status).toBe(200);
+      for (const [session, expired] of [
+        [stale, true],
+        [fresh, false],
+        [draft, false],
+      ] as const) {
+        const [row] = await database
+          .select()
+          .from(schema.interviewSessions)
+          .where(eq(schema.interviewSessions.id, session.id));
+        expect(Boolean(row.media.deleted)).toBe(expired);
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+  it("enforces the Off policy for signed uploads, metadata and telemetry", async () => {
+    services.userId = await user();
+    const session = freshSession(services.userId, { status: "in_progress" });
+    await database.insert(schema.interviewSessions).values(session);
+    const ctx = params(session.id);
+    for (const kind of ["pitch", "landmarks", "timeline", "snapshot"])
+      expect((await mediaUpload(request({ kind }), ctx)).status).toBe(403);
+    const prefix = session.userId + "/" + session.id;
+    expect(
+      (
+        await patchMediaRoute(
+          request(
+            { pitch: { path: prefix + "/pitch.bin.gz", bytes: 4 } },
+            "PATCH",
+          ),
+          ctx,
+        )
+      ).status,
+    ).toBe(403);
+    const event = {
+      id: randomUUID(),
+      category: "integrity",
+      type: "multiple_faces",
+      startMs: 0,
+      endMs: 500,
+      severity: 0.9,
+      turnIdx: 0,
+      snapshotPath: null,
+      data: { note: "discard" },
+    };
+    await telemetry(
+      request({
+        events: [
+          event,
+          { ...event, id: randomUUID(), category: "nonverbal", type: "slouch" },
+        ],
+      }),
+      ctx,
+    );
+    const saved = await database
+      .select()
+      .from(schema.events)
+      .where(eq(schema.events.sessionId, session.id));
+    expect(saved.map((e) => [e.type, e.data])).toEqual([
+      ["multiple_faces", {}],
+    ]);
+  });
   it("adds confirmed active accounts and rejects unconfirmed or deleted accounts", async () => {
     const { orgId } = await ownedOrganization();
     const pending = "pending-" + orgId + "@example.test";
@@ -360,6 +460,197 @@ describe("account and interview API writes", () => {
 });
 
 describe("report processing", () => {
+  it("preserves recognized CVs and clears unverifiable cached parses in the migration", async () => {
+    const owner = await user();
+    const real = randomUUID(),
+      sample = randomUUID(),
+      unknown = randomUUID();
+    for (const [id, path] of [
+      [real, owner + "/" + real + ".pdf"],
+      [sample, owner + "/sample.pdf"],
+      [unknown, owner + "/old-upload.pdf"],
+    ]) {
+      await pg.query(
+        "INSERT INTO candidate_cvs(id,user_id,storage_path,file_name,parsed,parse_status) VALUES ($1,$2,$3,'fixture.pdf',$4::jsonb,'parsed')",
+        [id, owner, path, JSON.stringify({ headline: "fixture" })],
+      );
+    }
+    await pg.exec(
+      await readFile(
+        "supabase/migrations/0006_protect_interview_evidence.sql",
+        "utf8",
+      ),
+    );
+    const rows = (
+      await pg.query<{
+        id: string;
+        parse_status: string;
+        parsed: unknown;
+        storage_path: string;
+      }>(
+        "SELECT id,parse_status,parsed,storage_path FROM candidate_cvs WHERE user_id=$1",
+        [owner],
+      )
+    ).rows;
+    expect(
+      rows
+        .filter((cv) => cv.parse_status === "parsed")
+        .map((cv) => cv.id)
+        .sort(),
+    ).toEqual([real, sample].sort());
+    expect(rows.find((cv) => cv.id === unknown)).toMatchObject({
+      parsed: null,
+      storage_path: owner + "/" + unknown + ".pdf",
+      parse_status: "failed",
+    });
+  });
+  it("repairs legacy certificate eligibility and removes stored Off measurements during migration", async () => {
+    const userId = await user();
+    const fixture = goldenFixture("scored");
+    const failed = freshSession(userId, {
+      kind: "practice",
+      status: "completed",
+      config: fixture.session.config,
+    });
+    const off = freshSession(userId, {
+      baseline: fixture.baseline,
+      media: { timeline: { path: "old-timeline", bytes: 24 } },
+    });
+    await database.insert(schema.interviewSessions).values([failed, off]);
+    const technical = fixture.turns.find((t) => t.itemKind === "technical")!;
+    await database.insert(schema.turns).values({
+      ...technical,
+      id: randomUUID(),
+      sessionId: failed.id,
+      scores: { ...technical.scores!, scoringFailed: true },
+    });
+    await pg.query(
+      "INSERT INTO reports(session_id,status,data) VALUES ($1,'completed',$2::jsonb),($3,'completed',$4::jsonb)",
+      [
+        failed.id,
+        JSON.stringify({ eligibility: { certificate: true } }),
+        off.id,
+        JSON.stringify({ baseline: fixture.baseline }),
+      ],
+    );
+    const slug = randomUUID().slice(0, 12);
+    await pg.query(
+      "INSERT INTO certificates(slug,session_id,user_id,payload,signature) VALUES ($1,$2,$3,'{}','fixture')",
+      [slug, failed.id, userId],
+    );
+    await pg.exec(
+      await readFile(
+        "supabase/migrations/0006_protect_interview_evidence.sql",
+        "utf8",
+      ),
+    );
+    expect(
+      (await pg.query("SELECT revoked FROM certificates WHERE slug=$1", [slug]))
+        .rows,
+    ).toEqual([{ revoked: true }]);
+    expect(
+      (
+        await pg.query("SELECT status FROM reports WHERE session_id=$1", [
+          failed.id,
+        ])
+      ).rows,
+    ).toEqual([{ status: "queued" }]);
+    expect(
+      (
+        await pg.query(
+          "SELECT baseline,media FROM interview_sessions WHERE id=$1",
+          [off.id],
+        )
+      ).rows,
+    ).toEqual([{ baseline: null, media: { purgeDelivery: true } }]);
+    expect(
+      (await pg.query("SELECT data FROM reports WHERE session_id=$1", [off.id]))
+        .rows,
+    ).toEqual([{ data: { baseline: null } }]);
+  });
+  it("updates a signed certificate at the same URL when a mixed evaluation is recalculated", async () => {
+    vi.stubEnv("CERT_SIGNING_SECRET", "synthetic-certificate-regression-key");
+    try {
+      services.userId = await user();
+      const fixture = goldenFixture("scored");
+      const session = freshSession(services.userId, {
+        kind: "practice",
+        status: "completed",
+        config: { ...fixture.session.config, kind: "practice" },
+        baseline: fixture.baseline,
+      });
+      const rows = fixture.turns.map((turn) => ({
+        ...turn,
+        id: randomUUID(),
+        sessionId: session.id,
+      }));
+      const technical = rows.find((turn) => turn.itemKind === "technical")!;
+      rows.push({
+        ...technical,
+        id: randomUUID(),
+        idx: rows.length,
+        scores: { ...technical.scores!, scoringFailed: true },
+      });
+      const old = buildReport(
+        session,
+        rows,
+        fixture.baseline,
+        [],
+        [],
+        [],
+        null,
+        [],
+      ).report;
+      old.headline.overallScore = 1;
+      await database.insert(schema.interviewSessions).values(session);
+      await database.insert(schema.turns).values(rows);
+      await database
+        .insert(schema.reports)
+        .values({ sessionId: session.id, status: "completed", data: old });
+      const issue = () => createCertificate(request(), params(session.id));
+      const response = await issue();
+      expect(response.status).toBe(200);
+      const { slug } = await response.json();
+      const original = await certificateBySlug(slug);
+      expect(original).toMatchObject({
+        valid: true,
+        revoked: false,
+        payload: { overallScore: 1 },
+      });
+
+      await pg.exec(
+        await readFile(
+          "supabase/migrations/0006_protect_interview_evidence.sql",
+          "utf8",
+        ),
+      );
+      expect((await certificateBySlug(slug))?.revoked).toBe(true);
+      expect((await processInterview(services.database, session)).status).toBe(
+        "completed",
+      );
+      const [report] = await database
+        .select()
+        .from(schema.reports)
+        .where(eq(schema.reports.sessionId, session.id));
+      expect(report.overallScore).toBeGreaterThan(1);
+      expect(await certificateBySlug(slug)).toMatchObject({
+        valid: true,
+        revoked: false,
+        payload: {
+          certId: slug,
+          issuedAt: original!.payload.issuedAt,
+          overallScore: report.overallScore,
+        },
+      });
+      await database
+        .update(schema.certificates)
+        .set({ revoked: true })
+        .where(eq(schema.certificates.slug, slug));
+      expect((await issue()).status).toBe(409);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
   it("preserves live answer text and speaker segments for turns with no aligned Whisper words", async () => {
     const { turns, words } = goldenFixture("off");
     services.userId = await user();
@@ -448,6 +739,70 @@ describe("report processing", () => {
 });
 
 describe("strategist concurrency and recovery", () => {
+  it("reserves a stable media range per page and keeps both microphone archives", async () => {
+    const { session, state } = await started();
+    const originalId = randomUUID(),
+      newId = randomUUID();
+    await database.insert(schema.interviewSessions).values({
+      ...session,
+      strategistState: state,
+      media: { captureIds: [originalId] },
+    });
+    const ctx = params(session.id);
+    for (const [captureId, index] of [
+      [originalId, 0],
+      [newId, 1],
+      [newId, 1],
+    ] as const) {
+      const result = await startSession(
+        request({ t0EpochMs: Date.now(), captureId }),
+        ctx,
+      );
+      expect(await result.json()).toMatchObject({ captureIndex: index });
+    }
+    for (const index of [0, 1]) {
+      const start = index * 120000;
+      const prefix = session.userId + "/" + session.id;
+      const media = {
+        captureIndex: index,
+        micAudio: {
+          path: prefix + (index ? "/captures/1" : "") + "/audio/mic.webm",
+          durationMs: start + 1000,
+          startOffsetMs: start,
+          bytes: 50,
+        },
+        videoSegments: [
+          {
+            index: index * SEGMENTS_PER_CAPTURE,
+            path:
+              prefix +
+              "/video/seg-" +
+              String(index * SEGMENTS_PER_CAPTURE).padStart(3, "0") +
+              ".webm",
+            startMs: start,
+            endMs: start + 1000,
+            bytes: 80,
+            uploaded: true,
+          },
+        ],
+      };
+      expect((await patchMediaRoute(request(media, "PATCH"), ctx)).status).toBe(
+        200,
+      );
+    }
+    const [row] = await database
+      .select()
+      .from(schema.interviewSessions)
+      .where(eq(schema.interviewSessions.id, session.id));
+    expect(row.media.videoSegments?.map((s) => s.index)).toEqual([
+      0,
+      SEGMENTS_PER_CAPTURE,
+    ]);
+    expect(row.media.micAudio?.startOffsetMs).toBe(0);
+    expect(row.media.additionalCaptures?.[1].micAudio?.startOffsetMs).toBe(
+      120000,
+    );
+  });
   async function started() {
     services.userId = await user();
     const session = freshSession(services.userId, { status: "in_progress" });

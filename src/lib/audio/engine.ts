@@ -28,6 +28,7 @@ export class AudioEngine {
     private options: {
       now: () => number;
       noiseFloor: number;
+      measureDelivery?: boolean;
       echo: () => boolean;
       onFrame: (frame: Int16Array, raw: Float32Array) => void;
       onMetric: (metric: AudioSecondPart) => void;
@@ -78,11 +79,14 @@ export class AudioEngine {
       const db = rmsDb(frame.subarray(j * half, (j + 1) * half));
       const speech = this.vad.update(db, tMs, echo);
       const item = { tMs, rmsDb: db, speech };
-      this.rms.push(item);
-      this.options.onMetric(item);
+      if (this.options.measureDelivery !== false) {
+        this.rms.push(item);
+        this.options.onMetric(item);
+      }
     }
-    for (const item of this.pitch.add(frame, end, this.vad.speaking))
-      this.options.onMetric({ ...item, speech: this.vad.speaking });
+    if (this.options.measureDelivery !== false)
+      for (const item of this.pitch.add(frame, end, this.vad.speaking))
+        this.options.onMetric({ ...item, speech: this.vad.speaking });
     this.options.onFrame(echo ? new Int16Array(length) : pcm16(frame), frame);
   }
   summary(
