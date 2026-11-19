@@ -276,8 +276,11 @@ export function SetupWizard({
     const start = performance.now();
     let peak = -180;
     let noiseFloorDb: number | undefined;
-    let loudSince: number | null = null;
+    let voicedMs = 0;
+    let silentSince: number | null = null;
+    const tickMs = 80;
     const timer = setInterval(() => {
+      if (context.state === "suspended") void context.resume();
       const elapsed = performance.now() - start;
       analyser.getFloatTimeDomainData(samples);
       const db =
@@ -295,14 +298,22 @@ export function SetupWizard({
         noiseFloorDb = median(floor) ?? -60;
         setNoise(noiseFloorDb);
       }
-      if (db <= MIC_PASS_PEAK_DB) {
-        loudSince = null;
-        peak = -180;
-        return;
+      const passDb = Math.min(
+        MIC_PASS_PEAK_DB,
+        Math.max(-52, noiseFloorDb + 10),
+      );
+      if (db > passDb) {
+        voicedMs += tickMs;
+        silentSince = null;
+        peak = Math.max(peak, db);
+      } else {
+        silentSince ??= elapsed;
+        if (elapsed - silentSince >= 1500) {
+          voicedMs = 0;
+          peak = -180;
+        }
       }
-      loudSince ??= elapsed;
-      peak = Math.max(peak, db);
-      if (elapsed - loudSince < MIC_CONFIRM_MS) return;
+      if (voicedMs < MIC_CONFIRM_MS) return;
       clearInterval(timer);
       const next = {
         ...calibrationRef.current,
@@ -312,7 +323,7 @@ export function SetupWizard({
       mediaSession.calibration = next;
       setCalibration(next);
       setStep(6);
-    }, 80);
+    }, tickMs);
     return () => {
       clearInterval(timer);
       source.disconnect();
@@ -547,6 +558,14 @@ export function SetupWizard({
               value={Math.max(-80, Math.min(0, progress))}
               aria-label="Microphone level"
             />
+            {noise !== null && (
+              <p className="muted">
+                Level: {Math.round(Math.max(-80, Math.min(0, progress)))} dB
+                {stream?.getAudioTracks()[0]?.label
+                  ? ` · ${stream.getAudioTracks()[0].label}`
+                  : ""}
+              </p>
+            )}
           </>
         )}
         {step === 6 && (
