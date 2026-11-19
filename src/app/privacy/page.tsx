@@ -1,5 +1,4 @@
 import { Brand } from "@/components/shell/brand";
-import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { unpaidAI } from "@/lib/config/env";
 export default function Page() {
   return (
@@ -7,7 +6,6 @@ export default function Page() {
       <header className="nav">
         <div className="container nav-inner">
           <Brand />
-          <ThemeToggle />
         </div>
       </header>
       <main className="container page">

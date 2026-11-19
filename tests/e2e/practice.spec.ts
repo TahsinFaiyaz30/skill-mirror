@@ -7,21 +7,6 @@ import {
   uploadCv,
 } from "./flow";
 
-async function selectTheme(
-  page: import("@playwright/test").Page,
-  name: "Light" | "Dark",
-) {
-  const expected = new RegExp(name.toLowerCase());
-  if (expected.test((await page.locator("html").getAttribute("class")) ?? "")) {
-    return;
-  }
-  await page.getByRole("button", { name: "Theme", exact: true }).click();
-  await page
-    .getByRole("menuitemradio", { name, exact: true })
-    .click({ timeout: 10000 });
-  await expect(page.locator("html")).toHaveClass(expected);
-}
-
 const contrast = (button: Locator) =>
   button.evaluate((element) => {
     const style = getComputedStyle(element);
@@ -60,11 +45,7 @@ test("practice interview records answers and produces a private report in mock m
   await expect(
     page.getByRole("heading", { name: "No interviews yet" }),
   ).toBeVisible();
-  await selectTheme(page, "Light");
-  await expect(page.locator("main")).toHaveScreenshot("dashboard-light.png", {
-    maxDiffPixelRatio: 0.01,
-  });
-  await selectTheme(page, "Dark");
+  await expect(page.locator("html")).toHaveClass(/dark/);
   await expect(page.locator("main")).toHaveScreenshot("dashboard-dark.png", {
     maxDiffPixelRatio: 0.01,
   });
@@ -87,12 +68,6 @@ test("practice interview records answers and produces a private report in mock m
   await expect(
     page.getByRole("heading", { name: /Tell me about yourself/ }),
   ).toBeVisible();
-  await selectTheme(page, "Light");
-  await expect(page.locator(".room-question")).toHaveScreenshot(
-    "room-light.png",
-    { maxDiffPixelRatio: 0.01 },
-  );
-  await selectTheme(page, "Dark");
   await expect(page.locator(".room-question")).toHaveScreenshot(
     "room-dark.png",
     { maxDiffPixelRatio: 0.01 },
@@ -104,11 +79,6 @@ test("practice interview records answers and produces a private report in mock m
   const overview = page.locator("#overview"),
     dynamic = [overview.locator(".score-header p.muted")];
   await expect(overview).toHaveScreenshot("report-dark.png", {
-    mask: dynamic,
-    maxDiffPixelRatio: 0.01,
-  });
-  await selectTheme(page, "Light");
-  await expect(overview).toHaveScreenshot("report-light.png", {
     mask: dynamic,
     maxDiffPixelRatio: 0.01,
   });
@@ -128,8 +98,7 @@ test("practice interview records answers and produces a private report in mock m
     page.getByRole("dialog", { name: "Interview clip" }),
   ).toHaveCount(0);
 
-  for (const theme of ["Light", "Dark"] as const) {
-    await selectTheme(page, theme);
+  {
     await page.getByRole("button", { name: "More report actions" }).click();
     await page.getByRole("menuitem", { name: "Delete session" }).click();
     const dialog = page.getByRole("dialog", { name: "Delete this session?" });
@@ -156,8 +125,7 @@ test("practice interview records answers and produces a private report in mock m
     .toBeGreaterThan(0.05);
   await page.getByRole("button", { name: "Close clip" }).click();
   await page.goto("/settings");
-  for (const theme of ["Light", "Dark"] as const) {
-    await selectTheme(page, theme);
+  {
     await page.getByRole("button", { name: "Delete all my data" }).click();
     const dialog = page.getByRole("dialog", {
       name: "Delete your account and data?",

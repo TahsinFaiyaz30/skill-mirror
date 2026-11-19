@@ -1,5 +1,5 @@
 "use client";
-import { BriefcaseBusiness, Target } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, Target } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { send, showError } from "@/lib/utils/client";
 import { authPath } from "@/lib/auth/navigation";
@@ -41,10 +41,22 @@ export function Onboarding({
     }
   }
   return (
-    <section className="stack narrow">
-      <h1>
-        {details ? "Set up your organization" : "How will you use SkillMirror?"}
-      </h1>
+    <section className="stack-lg narrow">
+      <div className="stack-sm">
+        <span className="eyebrow">
+          {details ? "Hiring workspace" : "Welcome to SkillMirror"}
+        </span>
+        <h1>
+          {details
+            ? "Set up your organization"
+            : "How will you use SkillMirror?"}
+        </h1>
+        <p className="muted">
+          {details
+            ? "Name your organization to create your hiring workspace. You can add a logo and members later."
+            : "Choose where to start. The same interview engine powers both."}
+        </p>
+      </div>
       {details ? (
         <form className="card stack" onSubmit={save}>
           <label className="field">
@@ -87,9 +99,11 @@ export function Onboarding({
             ].map(([Icon, key, title, text]) => {
               const ChoiceIcon = Icon as typeof Target;
               return (
-                <label key={String(key)} className="card stack">
-                  <ChoiceIcon aria-hidden="true" />
-                  <span className="cluster">
+                <label key={String(key)} className="card stack choice-card">
+                  <span className="cluster between">
+                    <span className="choice-icon">
+                      <ChoiceIcon size={22} aria-hidden="true" />
+                    </span>
                     <input
                       type="radio"
                       name="intent"
@@ -97,8 +111,8 @@ export function Onboarding({
                       checked={intent === key}
                       onChange={() => setIntent(String(key))}
                     />
-                    <strong>{String(title)}</strong>
                   </span>
+                  <strong style={{ fontSize: 17 }}>{String(title)}</strong>
                   <span className="muted">{String(text)}</span>
                 </label>
               );
@@ -106,13 +120,14 @@ export function Onboarding({
           </div>
           <div>
             <button
-              className="button"
+              className="button lg"
               disabled={busy}
               onClick={() =>
                 intent === "hiring" ? setDetails(true) : void save()
               }
             >
               Continue
+              <ArrowRight size={18} aria-hidden="true" />
             </button>
           </div>
         </>

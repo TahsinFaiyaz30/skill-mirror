@@ -1,6 +1,5 @@
 "use client";
 import { useState, type FormEvent } from "react";
-import { useTheme } from "next-themes";
 import { Dialog } from "radix-ui";
 import { toast } from "sonner";
 import { localMock } from "@/lib/config/env";
@@ -24,7 +23,6 @@ export function Settings({
   provider: string;
   blocked: boolean;
 }) {
-  const { theme, setTheme } = useTheme();
   const [confirm, setConfirm] = useState("");
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -86,8 +84,12 @@ export function Settings({
     }
   }
   return (
-    <div className="stack narrow">
-      <h1>Settings</h1>
+    <div className="stack-lg narrow">
+      <div className="stack-sm">
+        <span className="eyebrow">Account</span>
+        <h1>Settings</h1>
+        <p className="muted">Manage your profile, password and data.</p>
+      </div>
       <form className="card stack" onSubmit={profile}>
         <h2>Profile</h2>
         <label className="field">
@@ -102,23 +104,6 @@ export function Settings({
           <button className="button">Save profile</button>
         </div>
       </form>
-      <section className="card stack">
-        <h2>Appearance</h2>
-        <fieldset className="cluster">
-          <legend className="sr-only">Theme</legend>
-          {["light", "dark", "system"].map((option) => (
-            <label className="check" key={option}>
-              <input
-                type="radio"
-                name="theme-choice"
-                checked={(theme ?? "system") === option}
-                onChange={() => setTheme(option)}
-              />
-              {option[0].toUpperCase() + option.slice(1)}
-            </label>
-          ))}
-        </fieldset>
-      </section>
       {provider === "email" ? (
         <form className="card stack" onSubmit={password}>
           <h2>Security</h2>

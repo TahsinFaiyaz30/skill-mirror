@@ -57,6 +57,13 @@ export function AuthForm({
     "forgot-password": "Forgot password?",
     "reset-password": "Reset password",
   };
+  const subtitles = {
+    signup:
+      "Practice with an adaptive AI interviewer, or run AI interviews for your team.",
+    login: "Welcome back. Pick up where you left off.",
+    "forgot-password": "Enter your email and we'll send you a reset link.",
+    "reset-password": "Choose a new password for your account.",
+  };
   const validPassword = meetsPasswordRequirements(password);
   const strength = !validPassword
     ? "weak"
@@ -197,8 +204,11 @@ export function AuthForm({
           <Link href={authPath("/login", next, intent)}>Back to log in</Link>
         </div>
       ) : (
-        <div className="stack">
-          <h1>{titles[screen]}</h1>
+        <div className="stack" style={{ gap: 22 }}>
+          <div className="stack-sm">
+            <h1>{titles[screen]}</h1>
+            <p className="muted">{subtitles[screen]}</p>
+          </div>
           <form onSubmit={submit} className="stack">
             {signup && (
               <label className="field">
@@ -282,7 +292,7 @@ export function AuthForm({
                 Resend email
               </button>
             )}
-            <button className="button" disabled={busy}>
+            <button className="button lg" disabled={busy}>
               {busy
                 ? "Please wait…"
                 : signup
@@ -296,7 +306,7 @@ export function AuthForm({
           </form>
           {(signup || login) && !localMock && (
             <>
-              <p className="center muted">or</p>
+              <p className="auth-divider">or</p>
               <button className="button secondary" onClick={google}>
                 Continue with Google
               </button>
