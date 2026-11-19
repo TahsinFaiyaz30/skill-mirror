@@ -59,9 +59,8 @@ export function AuthForm({
     "reset-password": "Reset password",
   };
   const subtitles = {
-    signup:
-      "Practice with an adaptive AI interviewer, or run AI interviews for your team.",
-    login: "Log in to keep practicing with your AI interviewer.",
+    signup: "Practice for interviews, or run interviews for your team.",
+    login: "Log in to your SkillMirror account.",
     "forgot-password": "Enter your email and we'll send you a reset link.",
     "reset-password": "Choose a new password for your account.",
   };
@@ -314,7 +313,7 @@ export function AuthForm({
           </form>
           {(signup || login) && !localMock && (
             <>
-              <p className="auth-divider">or continue with</p>
+              <p className="auth-divider">or</p>
               <button className="button secondary" onClick={google}>
                 Continue with Google
               </button>

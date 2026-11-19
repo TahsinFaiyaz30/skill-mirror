@@ -27,18 +27,18 @@ import { PHASE_LABELS } from "@/lib/config/taxonomy";
 const does = [
   [
     MessagesSquare,
-    "It asks you real questions",
-    "An AI interviewer asks questions based on your CV, the role and the company, and follows up like a real panel.",
+    "Realistic questions",
+    "Questions are based on your CV, the role and the company. Vague answers get follow-up questions, as in a real interview.",
   ],
   [
     Video,
-    "It listens and watches",
-    "You answer out loud on camera. It notes what you say and how you say it: pace, pauses, eye contact and posture.",
+    "Feedback on how you speak",
+    "Besides what you say, SkillMirror looks at your pace, pauses, filler words, eye contact and posture.",
   ],
   [
     ClipboardCheck,
-    "It tells you what to fix",
-    "You get a score, your strengths, what to improve and short video clips of the moments that mattered.",
+    "A report you can use",
+    "You get a score, your strengths, the areas to improve and short video clips of the key moments.",
   ],
 ] as const;
 
@@ -46,31 +46,31 @@ const does = [
 const steps = [
   [
     BriefcaseBusiness,
-    "Name your interview",
-    "Pick the role, company and level, then choose 10 or 20 minutes.",
+    "Set up the interview",
+    "Enter the role and company, choose the level and pick 10 or 20 minutes.",
   ],
   [
     FileText,
     "Upload your CV",
-    "Your skills, experience and projects shape the questions.",
+    "Your skills, experience and projects are used to plan the questions.",
   ],
   [
     Mic,
-    "Answer out loud",
-    "Talk to the AI interviewer in Chrome or Edge with your camera on.",
+    "Take the interview",
+    "Answer out loud with your camera on, in Chrome or Edge on a computer.",
   ],
   [
     ClipboardCheck,
-    "Read your report",
-    "See your score, replay key moments and practice the drills.",
+    "Review your report",
+    "See your score, watch key moments again and practice with the suggested exercises.",
   ],
 ] as const;
 
 const reportItems = [
   "An overall score out of 100",
-  "Your technical level for each skill, from 1 to 5",
-  "Notes on your voice and body language",
-  "Video clips of key moments, each with one thing to practice",
+  "Your level for each technical skill, from 1 to 5",
+  "Feedback on your voice and body language",
+  "Video clips of key moments, each with a practice tip",
 ];
 
 const audiences = [
@@ -78,9 +78,9 @@ const audiences = [
     icon: UserRound,
     title: "For job seekers",
     points: [
-      "Practice for the exact role and company",
-      "Reports are private to you",
-      "Track your scores over time",
+      "Practice for a specific role and company",
+      "Your reports are private",
+      "See your progress over time",
     ],
     cta: "Start practicing",
     href: "/signup",
@@ -89,9 +89,9 @@ const audiences = [
     icon: Building2,
     title: "For hiring teams",
     points: [
-      "Publish an opening with your own questions",
+      "Create an opening with your own questions",
       "Invite candidates with a link",
-      "Compare structured reports side by side",
+      "Compare candidates side by side",
     ],
     cta: "Hire with AI interviews",
     href: "/signup?intent=hiring",
@@ -102,28 +102,28 @@ const privacy = [
   [
     Eye,
     "Camera preview only during setup",
-    "You see yourself only while you check your framing.",
+    "You only see yourself while you check your framing.",
   ],
   [
     ShieldCheck,
-    "Explained before you start",
-    "Every interview explains what is recorded and who sees it.",
+    "Clear consent before you start",
+    "Before each interview, we explain what is recorded and who can see it.",
   ],
   [
     Clock,
-    "Recordings expire",
-    "Recordings are deleted after 30 days by default. Delete your data any time.",
+    "Recordings are deleted",
+    "Recordings are deleted after 30 days by default, and you can delete your data at any time.",
   ],
 ] as const;
 
 const faqs = [
   [
     "What does SkillMirror do?",
-    "It runs a practice job interview with an AI interviewer. You answer questions out loud on camera, and afterwards you get a report that shows what went well and what to improve, with video clips as proof.",
+    "It runs a practice job interview with an AI interviewer. You answer the questions out loud on camera. Afterwards you get a report that shows what went well and what to improve, with video clips of the key moments.",
   ],
   [
     "What do I need?",
-    "Desktop Chrome or Edge with a camera and microphone. Before you start, a short setup checks your framing, posture, gaze, microphone and audio.",
+    "A computer with Chrome or Edge, a camera and a microphone. Before you start, a short setup checks your camera, microphone and sound.",
   ],
   [
     "How long does an interview take?",
@@ -131,11 +131,11 @@ const faqs = [
   ],
   [
     "Who can see my practice report?",
-    "Only you. Company interviews are different: the company that invited you receives your recording, transcript, evaluation and a summary of your CV, and this is explained before you start.",
+    "Only you. Company interviews work differently: the company that invited you receives your recording, transcript, evaluation and a summary of your CV. This is explained before you start.",
   ],
   [
     "Can my company use it for hiring?",
-    "Yes. Hiring teams create openings with their own questions, invite candidates with a link, and compare candidates side by side. AI follow-up questions are labelled separately from your questions.",
+    "Yes. Hiring teams create openings with their own questions, invite candidates with a link and compare candidates side by side. Follow-up questions from the AI are marked separately from your own questions.",
   ],
 ] as const;
 
@@ -195,15 +195,14 @@ export default function Landing() {
         <section className="lp-hero">
           <div className="container lp-hero-grid">
             <div className="lp-hero-copy">
-              <span className="lp-kicker">AI interview practice</span>
               <h1 className="lp-title">
                 Practice job interviews with an{" "}
-                <span className="grad-text">AI interviewer.</span>
+                <span className="grad-text">AI interviewer</span>
               </h1>
               <p className="lp-lead">
-                SkillMirror asks you real interview questions for the job you
-                want, listens to your answers on camera, and gives you a clear
-                report on what to improve.
+                Answer real interview questions out loud, on camera, for the job
+                you want. Then get a detailed report showing what went well and
+                what to improve.
               </p>
               <div className="lp-cta">
                 <Link className="button lg" href="/signup">
@@ -216,16 +215,16 @@ export default function Landing() {
               </div>
               <ul className="lp-chips">
                 <li>
-                  <Clock size={15} aria-hidden="true" />
-                  10 or 20 minutes
+                  <Clock size={16} aria-hidden="true" />
+                  Takes 10 or 20 minutes
                 </li>
                 <li>
-                  <Play size={15} aria-hidden="true" />
-                  Report with video clips
+                  <Play size={16} aria-hidden="true" />
+                  Video clips in every report
                 </li>
                 <li>
-                  <Lock size={15} aria-hidden="true" />
-                  Private by default
+                  <Lock size={16} aria-hidden="true" />
+                  Your reports stay private
                 </li>
               </ul>
             </div>
@@ -257,7 +256,7 @@ export default function Landing() {
                     <div className="orb" />
                   </div>
                   <p className="lp-speaker">
-                    <b>AI interviewer</b> · <em>Listening</em>
+                    <b>Interviewer</b> · <em>Listening</em>
                   </p>
                   <div className="lp-question">
                     <span className="eyebrow" style={{ justifySelf: "center" }}>
@@ -318,13 +317,11 @@ export default function Landing() {
         <section id="what-it-does" className="lp-section lp-alt">
           <div className="container">
             <div className="lp-section-head center" data-reveal>
-              <span className="eyebrow">What it does</span>
-              <h2 className="lp-h2">
-                A practice interview that tells you what to fix.
-              </h2>
+              <h2 className="lp-h2">What SkillMirror does</h2>
               <p className="lp-sub">
-                SkillMirror plays the interviewer, so you can rehearse before
-                the real thing and walk in prepared.
+                SkillMirror takes the role of the interviewer. You practice in a
+                realistic setting and see where to improve before the real
+                interview.
               </p>
             </div>
             <div className="lp-trust">
@@ -344,10 +341,9 @@ export default function Landing() {
         <section id="how-it-works" className="lp-section">
           <div className="container">
             <div className="lp-section-head" data-reveal>
-              <span className="eyebrow">How it works</span>
-              <h2 className="lp-h2">Four simple steps.</h2>
+              <h2 className="lp-h2">How it works</h2>
               <p className="lp-sub">
-                From sign up to your first report in about half an hour.
+                Four steps, all in your browser. No software to install.
               </p>
             </div>
             <ol className="lp-steps">
@@ -372,11 +368,10 @@ export default function Landing() {
         <section id="report" className="lp-section lp-deep">
           <div className="container lp-report">
             <div className="stack" style={{ gap: 22 }} data-reveal>
-              <span className="eyebrow">Your report</span>
-              <h2 className="lp-h2">Clear feedback you can act on.</h2>
+              <h2 className="lp-h2">What&apos;s in your report</h2>
               <p className="lp-sub">
-                Every note in your report links back to the moment it happened,
-                so you can see it for yourself.
+                Each comment in the report is linked to the moment in the
+                interview where it happened, so you can watch it yourself.
               </p>
               <ul className="lp-checklist">
                 {reportItems.map((item) => (
@@ -451,8 +446,7 @@ export default function Landing() {
         <section id="who-its-for" className="lp-section">
           <div className="container">
             <div className="lp-section-head center" data-reveal>
-              <span className="eyebrow">Who it&apos;s for</span>
-              <h2 className="lp-h2">One tool, two ways to use it.</h2>
+              <h2 className="lp-h2">Who it&apos;s for</h2>
             </div>
             <div className="lp-audience">
               {audiences.map(({ icon: Icon, title, points, cta, href }) => (
@@ -486,8 +480,7 @@ export default function Landing() {
         <section className="lp-section lp-alt">
           <div className="container">
             <div className="lp-section-head center" data-reveal>
-              <span className="eyebrow">Privacy</span>
-              <h2 className="lp-h2">You stay in control of your data.</h2>
+              <h2 className="lp-h2">Your data and privacy</h2>
             </div>
             <div className="lp-trust">
               {privacy.map(([Icon, title, text]) => (
@@ -506,8 +499,7 @@ export default function Landing() {
         <section id="faq" className="lp-section">
           <div className="container">
             <div className="lp-section-head center" data-reveal>
-              <span className="eyebrow">FAQ</span>
-              <h2 className="lp-h2">Common questions.</h2>
+              <h2 className="lp-h2">Frequently asked questions</h2>
             </div>
             <div className="lp-faq" data-reveal>
               {faqs.map(([question, answer]) => (
@@ -526,9 +518,9 @@ export default function Landing() {
         <section className="lp-section" style={{ paddingTop: 0 }}>
           <div className="container">
             <div className="lp-cta-band" data-reveal>
-              <h2 className="lp-h2">Ready for your next interview?</h2>
+              <h2 className="lp-h2">Prepare for your next interview</h2>
               <p className="lp-sub">
-                Name the role, upload your CV and start practicing in minutes.
+                Set up a practice interview in a few minutes.
               </p>
               <div className="lp-cta" style={{ justifyContent: "center" }}>
                 <Link className="button lg" href="/signup">
@@ -553,8 +545,8 @@ export default function Landing() {
             <div className="stack" style={{ alignContent: "start" }}>
               <Brand />
               <p className="muted" style={{ maxWidth: 300 }}>
-                Practice job interviews with an AI interviewer and learn exactly
-                what to fix.
+                Practice job interviews and get detailed feedback on every
+                answer.
               </p>
             </div>
             <div>

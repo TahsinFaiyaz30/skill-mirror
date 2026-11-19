@@ -96,9 +96,9 @@ const date = (value: string) =>
     year: "numeric",
   });
 const firstSteps = [
-  [BriefcaseBusiness, "Name your interview", "Role, company and length"],
+  [BriefcaseBusiness, "Set up the interview", "Role, company and length"],
   [FileUp, "Upload your CV", "A PDF up to 5 MB"],
-  [MessagesSquare, "Talk, then read your report", "Score, clips and drills"],
+  [MessagesSquare, "Take the interview", "Then review your report"],
 ] as const;
 export function Dashboard({ firstName }: { firstName: string }) {
   const router = useRouter();
