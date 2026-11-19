@@ -311,7 +311,11 @@ export const planSession = route(async (_request, context: Params<"id">) => {
       .where(and(whereId(session), eq(interviewSessions.status, "planning")))
       .returning();
     return json({ planSummary: getPlanSummary(saved ?? { ...session, plan }) });
-  } catch {
+  } catch (error) {
+    console.error(
+      "SkillMirror planSession failed:",
+      error instanceof Error ? error.message : String(error),
+    );
     await database
       .update(interviewSessions)
       .set({ status: "draft" })

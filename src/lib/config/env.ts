@@ -42,6 +42,7 @@ const serverSchema = z.object({
   GROQ_API_KEY: optional,
   MODEL_LIVE: defaultString("gemini-3.8-live"),
   MODEL_FLASH: defaultString("gemini-3.8-flash"),
+  MODEL_FLASH_FALLBACKS: optional,
   MODEL_TTS: defaultString("gemini-3.8-flash-lite-tts"),
   GROQ_STRATEGIST_MODEL: defaultString("openai/gpt-oss-120b"),
   GROQ_WHISPER_MODEL: defaultString("whisper-large-v3-turbo"),

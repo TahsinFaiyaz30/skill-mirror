@@ -111,7 +111,7 @@ export function OpeningsList() {
                   <td className="mono">{item.counts.advance}</td>
                   <td>{new Date(item.updatedAt).toLocaleDateString()}</td>
                   <td>
-                    <div className="cluster">
+                    <div className="cluster nowrap">
                       <Link
                         className="button ghost"
                         href={"/hiring/openings/" + item.id}

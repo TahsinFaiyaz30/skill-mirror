@@ -114,6 +114,26 @@ function isAbortError(error: unknown) {
   );
 }
 
+export const DEFAULT_FLASH_FALLBACKS = [
+  "gemini-4-hydrogen",
+  "gemini-3.8-flash",
+  "gemini-3-flash-preview",
+  "gemini-3.5-flash-lite",
+] as const;
+
+export function flashModelChain(
+  primary = serverEnv().MODEL_FLASH,
+  configured = serverEnv().MODEL_FLASH_FALLBACKS,
+): string[] {
+  const extras = configured
+    ? configured
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [...DEFAULT_FLASH_FALLBACKS];
+  return [...new Set([primary, ...extras])];
+}
+
 export async function geminiJSON<T>(
   prompt: Prompt,
   schema: z.ZodType<T>,
@@ -129,73 +149,115 @@ export async function geminiJSON<T>(
   const environment = serverEnv();
   const structure = geminiJsonSchema(schema);
   const deadline = Date.now() + (options.timeout ?? 120_000);
-  let retry = "";
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) throw new Error("Gemini timeout");
-    const text = prompt.user + retry;
-    const input = options.inline
-      ? [{ type: "text" as const, text }, options.inline]
-      : text;
-    let validationPhase = false;
-    try {
-      const generationConfig: {
-        thinking_level?: "low" | "medium" | "high";
-        max_output_tokens?: number;
-      } = {};
-      if (options.thinking !== undefined)
-        generationConfig.thinking_level = options.thinking;
-      if (options.maxTokens !== undefined)
-        generationConfig.max_output_tokens = options.maxTokens;
-      const params = {
-        stream: false as const,
-        model: environment.MODEL_FLASH,
-        input,
-        system_instruction: prompt.system,
-        store: false,
-        ...(Object.keys(generationConfig).length > 0 && {
-          generation_config: generationConfig,
-        }),
-        response_format: {
-          type: "text" as const,
-          mime_type: "application/json" as const,
-          schema: structure,
-        },
-      };
-      const interaction = await client.interactions.create(params, {
-        timeout_ms: remaining,
-        signal: AbortSignal.timeout(remaining),
-      });
-      if (interaction.status === "failed")
-        throw new Error("Gemini interaction failed.");
-      const rawText = extractInteractionText(interaction as InteractionLike);
-      if (!rawText) throw new Error("Gemini returned no JSON text.");
-      validationPhase = true;
-      const result = schema.parse(JSON.parse(rawText));
-      options.validate?.(result);
-      return result;
-    } catch (error) {
-      const status = httpStatus(error);
-      if (
-        attempt > 0 ||
-        isAbortError(error) ||
-        (status !== undefined && [400, 401, 403, 404].includes(status))
-      ) {
-        throw error;
-      }
-      if (
-        validationPhase ||
-        error instanceof SyntaxError ||
-        error instanceof z.ZodError
-      ) {
-        retry =
-          "\n\nThe previous output failed validation. Return the complete response using the required fields and limits." +
-          (error instanceof z.ZodError
-            ? " Invalid fields: " +
-              error.issues.map((item) => item.path.join(".")).join(", ")
-            : "");
-      } else {
-        retry = "";
+  const models = flashModelChain(
+    environment.MODEL_FLASH,
+    environment.MODEL_FLASH_FALLBACKS,
+  );
+  for (let modelIndex = 0; modelIndex < models.length; modelIndex++) {
+    const model = models[modelIndex];
+    const hasNext = modelIndex < models.length - 1;
+    let retry = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) throw new Error("Gemini timeout");
+      const modelTimeout = hasNext
+        ? Math.min(remaining, Math.max(2_000, Math.floor(remaining * 0.65)))
+        : remaining;
+      const text = prompt.user + retry;
+      const input = options.inline
+        ? [{ type: "text" as const, text }, options.inline]
+        : text;
+      let validationPhase = false;
+      try {
+        const generationConfig: {
+          thinking_level?: "low" | "medium" | "high";
+          max_output_tokens?: number;
+        } = {};
+        if (options.thinking !== undefined) {
+          generationConfig.thinking_level =
+            model.includes("flash-lite") && options.thinking === "high"
+              ? "low"
+              : options.thinking;
+        }
+        if (options.maxTokens !== undefined)
+          generationConfig.max_output_tokens = options.maxTokens;
+        const params = {
+          stream: false as const,
+          model,
+          input,
+          system_instruction: prompt.system,
+          store: false,
+          ...(Object.keys(generationConfig).length > 0 && {
+            generation_config: generationConfig,
+          }),
+          response_format: {
+            type: "text" as const,
+            mime_type: "application/json" as const,
+            schema: structure,
+          },
+        };
+        const interaction = await client.interactions.create(params, {
+          timeout_ms: modelTimeout,
+          signal: AbortSignal.timeout(modelTimeout),
+          retries: { strategy: "none" as const },
+        });
+        if (interaction.status === "failed")
+          throw new Error("Gemini interaction failed.");
+        const rawText = extractInteractionText(interaction as InteractionLike);
+        if (!rawText) throw new Error("Gemini returned no JSON text.");
+        validationPhase = true;
+        const result = schema.parse(JSON.parse(rawText));
+        options.validate?.(result);
+        return result;
+      } catch (error) {
+        const status = httpStatus(error);
+        if (status !== undefined && [400, 401, 403].includes(status)) {
+          throw error;
+        }
+        if (
+          (status !== undefined &&
+            [404, 429, 500, 502, 503, 504].includes(status)) ||
+          (isAbortError(error) && hasNext && deadline - Date.now() > 1_000)
+        ) {
+          if (hasNext) {
+            console.warn("SkillMirror Gemini fallback:", {
+              from: model,
+              to: models[modelIndex + 1],
+              status: status ?? "timeout",
+            });
+            break;
+          }
+          throw error;
+        }
+        if (isAbortError(error)) {
+          throw error;
+        }
+        if (
+          validationPhase ||
+          error instanceof SyntaxError ||
+          error instanceof z.ZodError
+        ) {
+          if (attempt > 0) {
+            throw error;
+          }
+          retry =
+            "\n\nThe previous output failed validation. Return the complete response using the required fields and limits." +
+            (error instanceof z.ZodError
+              ? " Invalid fields: " +
+                error.issues.map((item) => item.path.join(".")).join(", ")
+              : "");
+        } else if (attempt === 0) {
+          retry = "";
+        } else if (hasNext) {
+          console.warn("SkillMirror Gemini fallback:", {
+            from: model,
+            to: models[modelIndex + 1],
+            status: status ?? "error",
+          });
+          break;
+        } else {
+          throw error;
+        }
       }
     }
   }

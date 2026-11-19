@@ -85,7 +85,7 @@ export function Organization() {
   return (
     <div className="stack">
       <h1>Organization</h1>
-      <form className="card stack narrow" onSubmit={save}>
+      <form className="card stack" onSubmit={save}>
         <div className="cluster">
           {org.logoUrl && (
             <Image

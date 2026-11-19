@@ -361,7 +361,12 @@ header.nav {
   align-items: center;
   white-space: nowrap;
 }
+.brand-line {
+  flex-shrink: 0;
+  min-width: 0;
+}
 .brand {
+  flex-shrink: 0;
   font-size: 18px;
   font-weight: 750;
   letter-spacing: -0.04em;
@@ -371,6 +376,26 @@ header.nav {
   border-left: 1px solid var(--border);
   padding-left: 10px;
   color: var(--muted);
+}
+.nav-inner > nav.desktop-only {
+  min-width: 0;
+  gap: 8px 12px;
+}
+.nav-inner > .cluster:last-child {
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+}
+.nowrap {
+  flex-wrap: nowrap;
+}
+@media (max-width: 1120px) {
+  .nav-inner > nav.desktop-only {
+    font-size: 14px;
+    gap: 6px 10px;
+  }
+  .company-brand {
+    padding-left: 8px;
+  }
 }
 .dark .light-only,
 .dark-only {

@@ -79,6 +79,7 @@ vi.mock("@google/genai", async (importOriginal) => {
 import {
   attachment,
   buildTtsInteraction,
+  flashModelChain,
   gemini,
   geminiJSON,
   geminiJsonSchema,
@@ -117,9 +118,13 @@ function fakeWavBuffer() {
 
 describe("Gemini Interactions API, TTS, and Live API", () => {
   const originalGeminiKey = process.env.GEMINI_API_KEY;
+  const originalModelFlash = process.env.MODEL_FLASH;
+  const originalModelFallbacks = process.env.MODEL_FLASH_FALLBACKS;
 
   beforeEach(() => {
     process.env.GEMINI_API_KEY = "test-gemini-key";
+    delete process.env.MODEL_FLASH;
+    delete process.env.MODEL_FLASH_FALLBACKS;
     liveWebSocketState.createdOpts = [];
     liveWebSocketState.urls = [];
     liveWebSocketState.sentFrames = [];
@@ -134,6 +139,11 @@ describe("Gemini Interactions API, TTS, and Live API", () => {
     vi.useRealTimers();
     if (originalGeminiKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = originalGeminiKey;
+    if (originalModelFlash === undefined) delete process.env.MODEL_FLASH;
+    else process.env.MODEL_FLASH = originalModelFlash;
+    if (originalModelFallbacks === undefined)
+      delete process.env.MODEL_FLASH_FALLBACKS;
+    else process.env.MODEL_FLASH_FALLBACKS = originalModelFallbacks;
   });
 
   it("uses v1beta for Interactions/TTS and v1alpha only for Live auth tokens", () => {
@@ -725,5 +735,73 @@ describe("Gemini Interactions API, TTS, and Live API", () => {
     expect(script).toContain('"speech_metadata"');
     expect(script).toContain('"audio/wav"');
     expect(script).toContain("speech_config");
+  });
+
+  it("tries primary MODEL_FLASH first and fails fast on 429/503 onto the fallback chain", async () => {
+    expect(flashModelChain("gemini-4-hydrogen", undefined)).toEqual([
+      "gemini-4-hydrogen",
+      "gemini-3.8-flash",
+      "gemini-3-flash-preview",
+      "gemini-3.5-flash-lite",
+    ]);
+    expect(
+      flashModelChain(
+        "gemini-4-hydrogen",
+        "gemini-3-flash-preview, gemini-4-hydrogen, gemini-3.5-flash-lite",
+      ),
+    ).toEqual([
+      "gemini-4-hydrogen",
+      "gemini-3-flash-preview",
+      "gemini-3.5-flash-lite",
+    ]);
+
+    process.env.MODEL_FLASH = "gemini-4-hydrogen";
+    const modelsTried: string[] = [];
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const req = input instanceof Request ? input : new Request(input, init);
+        const body = JSON.parse(await req.clone().text()) as { model: string };
+        modelsTried.push(body.model);
+        if (body.model === "gemini-4-hydrogen") {
+          return new Response(
+            JSON.stringify({ error: { message: "Rate limit exceeded", code: 429 } }),
+            { status: 429, headers: { "content-type": "application/json" } },
+          );
+        }
+        if (body.model === "gemini-3.8-flash") {
+          return new Response(
+            JSON.stringify({ error: { message: "High demand", code: 503 } }),
+            { status: 503, headers: { "content-type": "application/json" } },
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            id: "int-fallback",
+            status: "completed",
+            steps: [
+              {
+                type: "model_output",
+                content: [{ type: "text", text: '{"answer":"fallback-ok"}' }],
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const parsed = await geminiJSON(
+      { system: "sys", user: "usr" },
+      z.object({ answer: z.string() }),
+      { thinking: "high" },
+    );
+    expect(parsed).toEqual({ answer: "fallback-ok" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(modelsTried).toEqual([
+      "gemini-4-hydrogen",
+      "gemini-3.8-flash",
+      "gemini-3-flash-preview",
+    ]);
   });
 });

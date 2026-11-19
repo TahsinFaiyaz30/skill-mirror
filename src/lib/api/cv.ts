@@ -111,7 +111,11 @@ export const parseCv = route(async (request, context: Params<"cvId">) => {
       .set({ parseStatus: "parsed", parsed, pageCount })
       .where(where);
     return json({ cvId: cv.id, parsed });
-  } catch {
+  } catch (error) {
+    console.error(
+      "SkillMirror parseCv failed:",
+      error instanceof Error ? error.message : String(error),
+    );
     await database
       .update(candidateCvs)
       .set({
