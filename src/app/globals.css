@@ -1874,6 +1874,15 @@ details summary {
   background: var(--danger);
   box-shadow: 0 0 10px var(--danger);
 }
+.lp-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.lp-timer .tracking-dot {
+  width: 7px;
+  height: 7px;
+}
 .lp-stage {
   position: relative;
   display: grid;
@@ -1930,6 +1939,16 @@ details summary {
   font-size: 18.5px;
   line-height: 1.35;
 }
+.lp-answer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.lp-answer svg {
+  color: var(--primary-text);
+}
 .lp-wave {
   display: flex;
   align-items: center;
@@ -1943,25 +1962,77 @@ details summary {
   background: linear-gradient(var(--accent), var(--primary-strong));
   opacity: 0.9;
 }
-.lp-phases {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-  padding: 12px 16px 16px;
+.lp-progress {
+  display: grid;
+  gap: 10px;
+  padding: 14px 18px 18px;
   border-top: 1px solid var(--border);
 }
-.lp-phases .badge {
-  padding-inline: 8px;
-  font-size: 11.5px;
+.lp-progress-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.lp-progress-head b {
+  color: var(--foreground);
+  font-weight: 600;
+}
+.lp-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-text);
+}
+.lp-track {
+  position: relative;
+  display: flex;
+  gap: 3px;
+  height: 6px;
+}
+.lp-track span {
+  flex-basis: 0;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.07);
+  overflow: hidden;
+}
+.lp-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+.lp-track .done i {
+  background: color-mix(in srgb, var(--primary) 50%, transparent);
+}
+.lp-track .now i {
+  background: linear-gradient(
+    90deg,
+    var(--primary-strong),
+    var(--primary-hover),
+    var(--primary-strong)
+  );
+  background-size: 200% 100%;
+}
+.lp-track b {
+  position: absolute;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  margin-left: -5.5px;
+  border: 2px solid #0a100d;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent);
+  transform: translateY(-50%) rotate(45deg);
 }
 .lp-float {
   position: absolute;
   z-index: 2;
   display: grid;
   gap: 6px;
-  min-width: 180px;
-  max-width: 220px;
+  min-width: 200px;
+  max-width: 224px;
   padding: 12px 14px;
   border-radius: 14px;
   background: rgb(9 15 12 / 0.88);
@@ -1971,14 +2042,18 @@ details summary {
   box-shadow: 0 24px 60px -24px rgb(0 0 0 / 0.95);
   font-size: 13px;
 }
+.lp-float > small {
+  font-size: 12px;
+  line-height: 1.4;
+}
 /* Keep both cards beside the orb and above the question card, so they never cover the question text. */
 .lp-float.one {
   left: -56px;
-  top: 72px;
+  top: 56px;
 }
 .lp-float.two {
   right: -48px;
-  top: 150px;
+  top: 120px;
 }
 .lp-float-label {
   color: var(--muted);
@@ -1986,27 +2061,137 @@ details summary {
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
+.lp-float-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 2px;
+}
+.lp-float-head small {
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1;
+}
+.lp-level {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
 .lp-float-value {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 6px;
   font: 600 20px/1.1 var(--font-numbers);
+  white-space: nowrap;
+}
+.lp-float-value small {
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 500;
 }
 .lp-up {
   color: var(--primary-text);
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 12px;
+}
+.lp-level-bars {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-end;
+  gap: 3px;
+}
+.lp-level-bars i {
+  width: 9px;
+  border-radius: 3px;
+  border: 1px dashed var(--border-strong);
+}
+.lp-level-bars .done {
+  border: 0;
+  background: color-mix(in srgb, var(--primary) 45%, transparent);
+}
+.lp-level-bars .now {
+  border: 0;
+  background: var(--primary);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--primary) 70%, transparent);
 }
 .lp-signal {
-  display: flex;
+  display: grid;
+  grid-template-columns: 50px 48px minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
+  gap: 10px;
   color: var(--soft);
+  font-size: 12.5px;
 }
 .lp-signal b {
+  justify-self: end;
   color: var(--primary-text);
   font: 600 12px var(--font-numbers);
+  white-space: nowrap;
+}
+.lp-signal.warn b {
+  color: var(--warning);
+}
+.lp-spark {
+  width: 48px;
+  height: 12px;
+  overflow: visible;
+}
+.lp-spark line {
+  stroke: var(--border-strong);
+  stroke-dasharray: 2 2;
+}
+.lp-spark polyline {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.lp-range {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    rgb(255 255 255 / 0.07) 27%,
+    color-mix(in srgb, var(--primary) 30%, transparent) 27% 73%,
+    rgb(255 255 255 / 0.07) 73%
+  );
+}
+.lp-range i {
+  position: absolute;
+  left: 47%;
+  top: -3px;
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  background: var(--foreground);
+  box-shadow: 0 0 6px var(--primary);
+}
+.lp-ticks {
+  position: relative;
+  height: 12px;
+}
+.lp-ticks::before {
+  content: "";
+  position: absolute;
+  inset: 50% 0 auto;
+  border-top: 1px dashed var(--border-strong);
+}
+.lp-ticks i {
+  position: absolute;
+  top: 1px;
+  width: 2px;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--warning);
+}
+.lp-ticks i:first-child {
+  left: 30%;
+}
+.lp-ticks i:last-child {
+  left: 72%;
 }
 .lp-marquee {
   position: relative;
@@ -2643,6 +2828,9 @@ details summary {
     animation-delay: var(--d);
     transform-origin: center;
   }
+  .lp-track .now i {
+    animation: lp-shimmer 2.4s linear infinite;
+  }
   .lp-float {
     animation: lp-float 7s ease-in-out infinite;
   }
@@ -2675,6 +2863,11 @@ details summary {
       transform: scaleY(0.4);
     }
   }
+  @keyframes lp-shimmer {
+    to {
+      background-position: -200% 0;
+    }
+  }
   @keyframes lp-float {
     50% {
       transform: translateY(-10px);
@@ -2684,6 +2877,15 @@ details summary {
     to {
       transform: translateX(-50%);
     }
+  }
+}
+/* Below 1280px the container caps at 1024px, so the window narrows and the cards move further out. */
+@media (max-width: 1279px) {
+  .lp-float.one {
+    left: -80px;
+  }
+  .lp-float.two {
+    right: -72px;
   }
 }
 @media (max-width: 1199px) {
