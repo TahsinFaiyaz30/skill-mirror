@@ -2549,8 +2549,7 @@ details summary {
 .lp header.nav {
   background: color-mix(in srgb, var(--background) 86%, transparent);
 }
-.lp-alt,
-.lp-statement {
+.lp-alt {
   background: var(--background-alt);
 }
 .lp-deep {
@@ -2560,11 +2559,6 @@ details summary {
   color: var(--primary-text);
   font-size: 15px;
   font-weight: 700;
-}
-.lp-tagline {
-  color: var(--foreground);
-  font-size: 20px;
-  font-weight: 650;
 }
 .lp-chips {
   display: flex;
@@ -2593,51 +2587,6 @@ details summary {
 }
 .lp-chips li.hot svg {
   color: var(--primary-text);
-}
-.lp-statement {
-  padding-block: 72px;
-  border-top: 1px solid var(--border);
-}
-.lp-statement p {
-  max-width: 980px;
-  color: var(--soft);
-  font-family: var(--font-display), var(--font-ui), sans-serif;
-  font-size: clamp(24px, 2.6vw, 34px);
-  font-weight: 500;
-  line-height: 1.35;
-  letter-spacing: -0.02em;
-}
-.lp-statement p span {
-  color: var(--primary-text);
-}
-.lp-stat-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 40px;
-}
-.lp-stat-row li {
-  display: grid;
-  gap: 4px;
-  padding: 20px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-}
-.lp-stat-row svg {
-  color: var(--primary-text);
-  margin-bottom: 6px;
-}
-.lp-stat-row b {
-  font-size: 18px;
-}
-.lp-stat-row span {
-  color: var(--muted);
-}
-@media (max-width: 767px) {
-  .lp-stat-row {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 .lp section[id] {
   scroll-margin-top: calc(var(--nav-height) + 12px);
@@ -2716,27 +2665,6 @@ details summary {
   gap: 26px;
   align-content: center;
 }
-.lp-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  width: fit-content;
-  padding: 6px 14px 6px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--primary-line);
-  background: color-mix(in srgb, var(--primary) 7%, transparent);
-  color: var(--primary-text);
-  font: 500 13.5px/1.2 var(--font-numbers);
-  letter-spacing: 0.03em;
-}
-.lp-pill-dot {
-  width: 8px;
-  height: 8px;
-  margin-left: 4px;
-  border-radius: 50%;
-  background: var(--primary);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 22%, transparent);
-}
 .lp-title {
   font-size: clamp(40px, 4.4vw, 60px);
   line-height: 1.06;
@@ -2744,10 +2672,7 @@ details summary {
   font-weight: 600;
 }
 .grad-text {
-  background: linear-gradient(96deg, #ffb6a3 0%, #fd7c68 48%, #fdc458 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--primary-text);
 }
 .lp-lead {
   max-width: 560px;
@@ -2760,28 +2685,6 @@ details summary {
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-}
-.lp-points {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 22px;
-  color: var(--muted);
-  font-size: 15px;
-}
-.lp-points li {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-}
-.lp-points svg {
-  color: var(--primary-text);
-}
-.lp-sample-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  width: fit-content;
-  font-weight: 550;
 }
 .lp-visual {
   position: relative;
@@ -2863,12 +2766,6 @@ details summary {
 .lp-orb-wrap .orb {
   width: 108px;
   height: 108px;
-}
-.lp-ripple {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
 }
 .lp-speaker {
   font-size: 13px;
@@ -2984,200 +2881,6 @@ details summary {
   box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent);
   transform: translateY(-50%) rotate(45deg);
 }
-.lp-float {
-  position: absolute;
-  z-index: 2;
-  display: grid;
-  gap: 6px;
-  min-width: 200px;
-  max-width: 224px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: rgb(21 25 35 / 0.88);
-  border: 1px solid var(--border-strong);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 24px 60px -24px rgb(0 0 0 / 0.95);
-  font-size: 13px;
-}
-.lp-float > small {
-  font-size: 12px;
-  line-height: 1.4;
-}
-/* Keep both cards beside the orb and above the question card, so they never cover the question text. */
-.lp-float.one {
-  left: -56px;
-  top: 56px;
-}
-.lp-float.two {
-  right: -48px;
-  top: 120px;
-}
-.lp-float-label {
-  color: var(--muted);
-  font: 500 11px/1 var(--font-numbers);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.lp-float-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 2px;
-}
-.lp-float-head small {
-  color: var(--faint);
-  font-size: 11px;
-  line-height: 1;
-}
-.lp-level {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-}
-.lp-float-value {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font: 600 20px/1.1 var(--font-numbers);
-  white-space: nowrap;
-}
-.lp-float-value small {
-  color: var(--faint);
-  font-size: 12px;
-  font-weight: 500;
-}
-.lp-up {
-  color: var(--primary-text);
-  font-size: 12px;
-}
-.lp-level-bars {
-  display: flex;
-  flex-shrink: 0;
-  align-items: flex-end;
-  gap: 3px;
-}
-.lp-level-bars i {
-  width: 9px;
-  border-radius: 3px;
-  border: 1px dashed var(--border-strong);
-}
-.lp-level-bars .done {
-  border: 0;
-  background: color-mix(in srgb, var(--primary) 45%, transparent);
-}
-.lp-level-bars .now {
-  border: 0;
-  background: var(--primary);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--primary) 70%, transparent);
-}
-.lp-signal {
-  display: grid;
-  grid-template-columns: 50px 48px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  color: var(--soft);
-  font-size: 12.5px;
-}
-.lp-signal b {
-  justify-self: end;
-  color: var(--primary-text);
-  font: 600 12px var(--font-numbers);
-  white-space: nowrap;
-}
-.lp-signal.warn b {
-  color: var(--warning);
-}
-.lp-spark {
-  width: 48px;
-  height: 12px;
-  overflow: visible;
-}
-.lp-spark line {
-  stroke: var(--border-strong);
-  stroke-dasharray: 2 2;
-}
-.lp-spark polyline {
-  fill: none;
-  stroke: var(--primary);
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.lp-range {
-  position: relative;
-  height: 6px;
-  border-radius: 3px;
-  background: linear-gradient(
-    90deg,
-    rgb(255 255 255 / 0.07) 27%,
-    color-mix(in srgb, var(--primary) 30%, transparent) 27% 73%,
-    rgb(255 255 255 / 0.07) 73%
-  );
-}
-.lp-range i {
-  position: absolute;
-  left: 47%;
-  top: -3px;
-  width: 2px;
-  height: 12px;
-  border-radius: 1px;
-  background: var(--foreground);
-  box-shadow: 0 0 6px var(--primary);
-}
-.lp-ticks {
-  position: relative;
-  height: 12px;
-}
-.lp-ticks::before {
-  content: "";
-  position: absolute;
-  inset: 50% 0 auto;
-  border-top: 1px dashed var(--border-strong);
-}
-.lp-ticks i {
-  position: absolute;
-  top: 1px;
-  width: 2px;
-  height: 10px;
-  border-radius: 1px;
-  background: var(--warning);
-}
-.lp-ticks i:first-child {
-  left: 30%;
-}
-.lp-ticks i:last-child {
-  left: 72%;
-}
-.lp-roles {
-  padding-block: 28px 32px;
-  border-block: 1px solid var(--border);
-  background: var(--background-alt);
-}
-.lp-roles p {
-  margin-bottom: 14px;
-  text-align: center;
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 600;
-}
-.lp-roles ul {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-}
-.lp-roles li {
-  padding: 7px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
-  color: var(--soft);
-  font-size: 15px;
-  font-weight: 600;
-}
 .lp-section {
   position: relative;
   padding-block: 88px;
@@ -3254,117 +2957,13 @@ details summary {
   background: var(--primary-tint);
   border: 1px solid var(--primary-line);
 }
-.lp-step h3,
-.lp-measure h3 {
+.lp-step h3 {
   font-size: 19.5px;
 }
-.lp-step p,
-.lp-measure p {
+.lp-step p {
   color: var(--muted);
   font-size: 15.5px;
   line-height: 1.6;
-}
-.lp-measures {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-.lp-measure {
-  display: grid;
-  align-content: start;
-  gap: 12px;
-  padding: 22px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  overflow: hidden;
-}
-.lp-viz {
-  position: relative;
-  height: 168px;
-  margin-bottom: 8px;
-  border-radius: 14px;
-  border: 1px solid var(--border);
-  background:
-    radial-gradient(
-      300px 160px at 50% 100%,
-      color-mix(in srgb, var(--primary) 10%, transparent),
-      transparent 70%
-    ),
-    #0f121a;
-  overflow: hidden;
-}
-.lp-ladder {
-  position: absolute;
-  inset: 18px 22px;
-  display: grid;
-  grid-template-rows: repeat(5, 1fr);
-  gap: 6px;
-}
-.lp-ladder div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-inline: 10px;
-  border-radius: 7px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--faint);
-  font: 500 12.5px var(--font-numbers);
-}
-.lp-ladder .pass {
-  color: var(--soft);
-  border-color: color-mix(in srgb, var(--primary) 32%, transparent);
-  background: color-mix(in srgb, var(--primary) 14%, var(--surface-2));
-}
-.lp-ladder .now {
-  color: var(--button-fg);
-  border-color: transparent;
-  background: var(--primary);
-  box-shadow: 0 0 24px -6px var(--primary);
-  font-weight: 600;
-}
-.lp-pose {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-.lp-voice {
-  position: absolute;
-  inset: 22px 20px 18px;
-  display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 10px;
-}
-.lp-voice-head {
-  display: flex;
-  justify-content: space-between;
-  color: var(--muted);
-  font: 500 12.5px var(--font-numbers);
-}
-.lp-voice-head b {
-  color: var(--primary-text);
-}
-.lp-voice-bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-}
-.lp-voice-bars span {
-  flex: 1;
-  height: var(--h);
-  border-radius: 3px 3px 1px 1px;
-  background: linear-gradient(
-    var(--primary),
-    color-mix(in srgb, var(--primary) 20%, transparent)
-  );
-}
-.lp-voice-bars span.pause {
-  background: var(--surface-3);
-}
-.lp-voice-bars span.filler {
-  background: var(--warning);
 }
 .lp-report {
   display: grid;
@@ -3528,80 +3127,30 @@ details summary {
   font-size: 14.5px;
   line-height: 1.55;
 }
-.lp-hiring {
-  position: relative;
+.lp-audience {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 56px;
-  align-items: center;
-  padding: 60px;
-  border-radius: 30px;
-  border: 1px solid var(--border);
-  background:
-    radial-gradient(
-      640px 320px at 90% 0%,
-      color-mix(in srgb, var(--primary) 11%, transparent),
-      transparent 70%
-    ),
-    linear-gradient(180deg, #131824, #0f121a);
-  overflow: hidden;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
 }
-.lp-compare {
+.lp-audience-card {
   display: grid;
-  gap: 12px;
-  padding: 20px;
+  gap: 18px;
+  align-content: start;
+  padding: 32px;
   border-radius: 20px;
-  border: 1px solid var(--border-strong);
-  background: #10141d;
-  box-shadow: 0 40px 100px -50px rgb(0 0 0 / 0.95);
-}
-.lp-compare-row {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  padding: 12px;
-  border-radius: 14px;
   border: 1px solid var(--border);
   background: var(--surface);
 }
-.lp-compare-row.top {
-  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
-  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+.lp-audience-card h3 {
+  font-size: 22px;
 }
-.lp-compare-row .avatar {
-  width: 34px;
-  height: 34px;
-}
-.lp-mini-bars {
-  display: grid;
-  gap: 5px;
-  margin-top: 6px;
-}
-.lp-mini-bars span {
-  display: block;
-  height: 5px;
-  width: var(--v);
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--primary-strong), var(--accent));
-}
-.lp-mini-bars span:nth-child(2) {
-  opacity: 0.6;
-}
-.lp-score-chip {
-  font: 600 19px/1 var(--font-numbers);
-}
-.lp-qa {
-  display: grid;
-  gap: 8px;
-  padding: 14px;
-  border-radius: 14px;
-  border: 1px dashed var(--border-strong);
-  font-size: 14.5px;
-  color: var(--soft);
-}
-.lp-qa .badge {
-  width: fit-content;
+@media (max-width: 767px) {
+  .lp-audience {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lp-audience-card {
+    padding: 24px;
+  }
 }
 .lp-trust {
   display: grid;
@@ -3701,11 +3250,6 @@ details summary {
   text-decoration-thickness: 3px;
   text-underline-offset: 6px;
 }
-.lp-cta-band .lp-pill {
-  border-color: rgb(29 34 48 / 0.25);
-  background: rgb(255 255 255 / 0.35);
-  color: #1d2230;
-}
 .lp-cta-band .button {
   background-color: #1d2230;
   background-image: none;
@@ -3771,20 +3315,6 @@ details summary {
   color: var(--faint);
   font-size: 14px;
 }
-/* Below 1280px the container caps at 1024px, so the window narrows and the cards move further out. */
-@media (max-width: 1279px) {
-  .lp-float.one {
-    left: -80px;
-  }
-  .lp-float.two {
-    right: -72px;
-  }
-}
-@media (max-width: 1199px) {
-  .lp-float {
-    display: none;
-  }
-}
 @media (max-width: 1023px) {
   .lp-nav-links {
     display: none;
@@ -3793,20 +3323,15 @@ details summary {
     padding-block: 56px 72px;
   }
   .lp-hero-grid,
-  .lp-report,
-  .lp-hiring {
+  .lp-report {
     grid-template-columns: minmax(0, 1fr);
     gap: 48px;
   }
   .lp-steps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .lp-measures,
   .lp-trust {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .lp-hiring {
-    padding: 40px 28px;
   }
   .lp-footer-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3821,10 +3346,6 @@ details summary {
   }
   .lp-section {
     padding-block: 64px;
-  }
-  .lp-hiring {
-    padding: 28px 18px;
-    border-radius: 22px;
   }
   .lp-cta-band {
     padding: 56px 20px;
