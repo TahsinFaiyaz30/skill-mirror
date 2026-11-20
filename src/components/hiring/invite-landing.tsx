@@ -139,7 +139,7 @@ export function InviteLanding({
           <p>You&apos;ve already {data.status} this interview.</p>
           <div>
             <Link className="button" href="/dashboard">
-              Go to dashboard
+              Go to Interview Studio
             </Link>
           </div>
         </>

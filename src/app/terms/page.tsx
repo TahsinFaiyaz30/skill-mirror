@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { Brand } from "@/components/shell/brand";
+import { ThemeToggle } from "@/components/common/theme-toggle";
 export default function Page() {
   return (
     <>
       <header className="nav">
         <div className="container nav-inner">
           <Brand />
+          <ThemeToggle />
         </div>
       </header>
       <main className="container page">

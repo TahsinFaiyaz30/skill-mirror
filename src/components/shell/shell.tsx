@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { isAdminEmail } from "@/lib/auth/admin";
 import { getOrg, getProfile, getUser } from "@/lib/auth/guards";
 import { AppNav } from "./app-nav";
+import Footer01 from "@/components/ui/footer-01";
 import { publicLogoURL } from "@/lib/supabase/storage";
 import type { CompanyBrand } from "@/types/interview";
 export async function Shell({
@@ -17,7 +17,6 @@ export async function Shell({
     getProfile(user.id),
     getOrg(user.id),
   ]);
-  const isAdmin = isAdminEmail(user.email);
   return (
     <div className="app-shell">
       <AppNav
@@ -30,11 +29,11 @@ export async function Shell({
           }
         }
         company={company}
-        isAdmin={isAdmin}
       />
       <main className="app-main">
         <div className="container page">{children}</div>
       </main>
+      <Footer01 />
     </div>
   );
 }

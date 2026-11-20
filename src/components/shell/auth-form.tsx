@@ -299,9 +299,13 @@ export function AuthForm({
                 Resend email
               </button>
             )}
-            <button className="button lg" disabled={busy}>
+            <button className="button lg" disabled={busy} aria-busy={busy}>
               {busy
-                ? "Please wait…"
+                ? signup
+                  ? "Creating your account"
+                  : login
+                    ? "Signing you in"
+                    : "Please wait"
                 : signup
                   ? "Create account"
                   : login

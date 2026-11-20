@@ -18,16 +18,16 @@ export function LogoMark({ size = 30 }: { size?: number }) {
     >
       <defs>
         <linearGradient id={id + "t"} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#262d40" />
-          <stop offset="1" stopColor="#12161f" />
+          <stop offset="0" stopColor="#2e2f34" />
+          <stop offset="1" stopColor="#1c1d20" />
         </linearGradient>
         <linearGradient id={id + "b"} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffd27a" />
-          <stop offset="1" stopColor="#fd7c68" />
+          <stop offset="0" stopColor="#ffe08a" />
+          <stop offset="1" stopColor="#ffc928" />
         </linearGradient>
         <linearGradient id={id + "r"} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#fd7c68" stopOpacity="0.55" />
-          <stop offset="1" stopColor="#fd7c68" stopOpacity="0" />
+          <stop offset="0" stopColor="#ffc928" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#ffc928" stopOpacity="0" />
         </linearGradient>
       </defs>
       <rect width="40" height="40" rx="11" fill={"url(#" + id + "t)"} />
@@ -38,7 +38,7 @@ export function LogoMark({ size = 30 }: { size?: number }) {
         height="38.5"
         rx="10.25"
         fill="none"
-        stroke="#fd7c68"
+        stroke="#ffc928"
         strokeOpacity="0.45"
         strokeWidth="1.5"
       />
@@ -65,7 +65,7 @@ export function LogoMark({ size = 30 }: { size?: number }) {
       ))}
       <path
         d="M7 26h26"
-        stroke="#ffd2bf"
+        stroke="#fff1c2"
         strokeWidth="1.4"
         strokeLinecap="round"
       />

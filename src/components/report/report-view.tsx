@@ -9,6 +9,7 @@ import {
   Award,
   BarChart3,
   Brain,
+  Check,
   CirclePlay,
   Gauge,
   HeartPulse,
@@ -19,7 +20,7 @@ import {
   Target,
   type LucideIcon,
 } from "lucide-react";
-import { Dialog, DropdownMenu } from "radix-ui";
+import { Dialog, DropdownMenu, Tabs } from "radix-ui";
 import {
   errorMessage,
   requestJSON,
@@ -302,6 +303,141 @@ export function KeyMomentCard({
     </article>
   );
 }
+// Key moments as a grid of video tiles: just the picture and the title.
+// Tapping a tile opens its details; the clip plays from there.
+export function KeyMomentTiles({
+  moments,
+  thumbs,
+  questions,
+  play,
+}: {
+  moments: KeyMoment[];
+  thumbs: Record<string, string | undefined>;
+  questions: Record<number, string | undefined>;
+  play: (moment: KeyMoment) => void;
+}) {
+  const [open, setOpen] = useState<KeyMoment | null>(null);
+  const picture = (moment: KeyMoment) => {
+    const thumb = moment.eventId ? thumbs[moment.eventId] : undefined;
+    return thumb ? (
+      <Image
+        src={thumb}
+        alt=""
+        unoptimized
+        width={640}
+        height={360}
+        className="tile-picture"
+      />
+    ) : (
+      <span className="tile-picture tile-blank">
+        {questions[moment.turnIdx ?? -1] || "Interview moment"}
+      </span>
+    );
+  };
+  const good = (moment: KeyMoment) => moment.sentiment === "positive";
+  return (
+    <>
+      <ul className="moment-tiles">
+        {moments.map((moment) => (
+          <li key={moment.id}>
+            <button
+              type="button"
+              className="moment-tile"
+              onClick={() => setOpen(moment)}
+            >
+              <span className="tile-media">
+                {picture(moment)}
+                <span className="tile-play" aria-hidden="true">
+                  <Play size={18} />
+                </span>
+                <span className="tile-time">
+                  {shortTime(moment.clipStartMs)}
+                </span>
+                <span
+                  className={"tile-tag " + (good(moment) ? "good" : "improve")}
+                >
+                  {good(moment) ? "Went well" : "Improve"}
+                </span>
+              </span>
+              <span className="tile-title">{moment.title}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <Dialog.Root
+        open={open !== null}
+        onOpenChange={(value) => {
+          if (!value) setOpen(null);
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="dialog-overlay" />
+          {open && (
+            <Dialog.Content className="card dialog-content moment-detail">
+              <button
+                type="button"
+                className="tile-media detail-media"
+                onClick={() => {
+                  setOpen(null);
+                  play(open);
+                }}
+                aria-label={"Play clip: " + open.title}
+              >
+                {picture(open)}
+                <span className="tile-play big" aria-hidden="true">
+                  <Play size={24} />
+                </span>
+              </button>
+              <div className="detail-meta">
+                <span className={"tile-tag " + (good(open) ? "good" : "improve")}>
+                  {good(open) ? "Went well" : "Improve"}
+                </span>
+                <small className="mono">
+                  {shortTime(open.clipStartMs)}–{shortTime(open.clipEndMs)}
+                </small>
+              </div>
+              <Dialog.Title>{open.title}</Dialog.Title>
+              <Dialog.Description className="sr-only">
+                Details of this key moment
+              </Dialog.Description>
+              {open.transcriptExcerpt && (
+                <blockquote>“{open.transcriptExcerpt}”</blockquote>
+              )}
+              <dl>
+                <dt>What happened</dt>
+                <dd>{open.whatHappened}</dd>
+                <dt>Why it matters</dt>
+                <dd>{open.whyItMatters}</dd>
+                <dt>{good(open) ? "Keep doing" : "How to fix"}</dt>
+                <dd>{open.howToFix}</dd>
+                {open.betterAnswer && (
+                  <>
+                    <dt>A better answer</dt>
+                    <dd>{open.betterAnswer}</dd>
+                  </>
+                )}
+              </dl>
+              <div className="detail-actions">
+                <button
+                  type="button"
+                  className="button accent"
+                  onClick={() => {
+                    setOpen(null);
+                    play(open);
+                  }}
+                >
+                  <Play size={16} aria-hidden="true" />
+                  Play clip
+                </button>
+                <Dialog.Close className="button secondary">Close</Dialog.Close>
+              </div>
+            </Dialog.Content>
+          )}
+        </Dialog.Portal>
+      </Dialog.Root>
+    </>
+  );
+}
 const value = (n: number | null, unit = "") =>
   n === null
     ? "—"
@@ -545,6 +681,180 @@ const sectionIcon: Record<string, LucideIcon> = {
   Stats: BarChart3,
   "Practice plan": Target,
 };
+// The score as a ring that fills up to the score.
+function ScoreRing({ score, label }: { score: number; label: string }) {
+  const r = 44,
+    length = 2 * Math.PI * r;
+  return (
+    <svg
+      className="score-ring"
+      width="112"
+      height="112"
+      viewBox="0 0 104 104"
+      role="img"
+      aria-label={label}
+    >
+      <circle className="score-ring-track" cx="52" cy="52" r={r} />
+      <circle
+        className="score-ring-fill"
+        cx="52"
+        cy="52"
+        r={r}
+        strokeDasharray={(length * score) / 100 + " " + length}
+        transform="rotate(-90 52 52)"
+      />
+      <text x="52" y="61" textAnchor="middle">
+        {score}
+      </text>
+    </svg>
+  );
+}
+// Body language and posture, in plain words: what to work on (with the
+// moments to replay) and what already looked good.
+const lowerIsBetter = new Set(["Fidgeting", "Self-touch", "Blink rate vs baseline"]);
+const bodyName: Record<string, string> = {
+  Gesturing: "Hand gestures",
+  "Blink rate vs baseline": "Blink rate",
+  "Self-touch": "Face touching",
+};
+const bodyTips: Record<string, string> = {
+  "Eye contact": "Look into the camera when you make your main point.",
+  "Upright posture": "Sit tall, with your back against the chair.",
+  Fidgeting: "Rest your hands on the desk between answers.",
+  "Self-touch": "Keep your hands away from your face and hair.",
+  Gesturing: "Use your hands a little more to show steps or size.",
+  "Blink rate vs baseline": "Take a slow breath before you answer to stay relaxed.",
+};
+const eventMetric: Record<string, string> = {
+  gaze_aversion: "Eye contact",
+  lean_back: "Upright posture",
+  slouch: "Upright posture",
+  excessive_blinking: "Blink rate vs baseline",
+  fidgeting: "Fidgeting",
+  self_touch: "Self-touch",
+};
+const eventLabel: Record<string, string> = {
+  gaze_aversion: "looked away",
+  lean_back: "leaned back",
+  slouch: "slouched",
+  excessive_blinking: "blinked a lot",
+  fidgeting: "fidgeted",
+  self_touch: "touched face",
+};
+const bodyValue = (n: number, unit: string) =>
+  unit === "%"
+    ? Math.round(n) + "%"
+    : unit === "×"
+      ? n.toFixed(1) + "×"
+      : (Number.isInteger(n) ? n : n.toFixed(1)) + " " + unit;
+function bodyAim(row: StatRow) {
+  if (row.baseline === null) return "";
+  const target = bodyValue(row.baseline, row.unit);
+  if (row.unit === "×") return "aim about " + target;
+  return lowerIsBetter.has(row.metric)
+    ? "aim under " + target
+    : "aim " + target + "+";
+}
+function bodyGood(row: StatRow) {
+  if (row.metric === "Self-touch" && row.value === 0) return "No face touching";
+  if (row.metric === "Blink rate vs baseline") return "Normal blink rate";
+  return (bodyName[row.metric] ?? row.metric) + " " + bodyValue(row.value!, row.unit);
+}
+function BodyLanguage({
+  report,
+  play,
+}: {
+  report: ReportData;
+  play: (at: number) => void;
+}) {
+  const rows = report.stats.vision.filter(
+    (row) => row.value !== null && row.verdict !== null,
+  );
+  if (!rows.length) return null;
+  const events = report.timeline.events.filter(
+    (event) => event.category === "nonverbal",
+  );
+  const work = rows.filter((row) => row.verdict !== "good");
+  const good = rows.filter((row) => row.verdict === "good");
+  const moment = (event: (typeof events)[number]) => (
+    <button
+      type="button"
+      key={event.id}
+      onClick={() => play(Math.max(0, event.startMs - 2000))}
+    >
+      <Play size={12} aria-hidden="true" />
+      {shortTime(event.startMs)}{" "}
+      {eventLabel[event.type] ?? readable(event.type).toLowerCase()}
+    </button>
+  );
+  const loose = events.filter(
+    (event) => !work.some((row) => eventMetric[event.type] === row.metric),
+  );
+  return (
+    <section className="body-lang" aria-labelledby="body-lang">
+      <div className="body-head">
+        <h2 id="body-lang">Body language and posture</h2>
+        <small>
+          {work.length} to work on · {good.length} good
+        </small>
+      </div>
+      {work.length > 0 && (
+        <>
+          <span className="calm-label">To work on</span>
+          <ul className="body-list">
+            {work.map((row) => {
+              const times = events
+                .filter((event) => eventMetric[event.type] === row.metric)
+                .slice(0, 3);
+              return (
+                <li key={row.metric}>
+                  <div className="body-row">
+                    <strong>{bodyName[row.metric] ?? row.metric}</strong>
+                    <span>
+                      {bodyValue(row.value!, row.unit)}
+                      {bodyAim(row) && <small> · {bodyAim(row)}</small>}
+                    </span>
+                  </div>
+                  {row.unit === "%" && (
+                    <span className="body-bar" aria-hidden="true">
+                      <i style={{ width: Math.min(100, row.value!) + "%" }} />
+                      {row.baseline !== null && (
+                        <b style={{ left: Math.min(100, row.baseline) + "%" }} />
+                      )}
+                    </span>
+                  )}
+                  {bodyTips[row.metric] && <p>{bodyTips[row.metric]}</p>}
+                  {times.length > 0 && (
+                    <div className="body-times">{times.map(moment)}</div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+      {loose.length > 0 && (
+        <>
+          <span className="calm-label">Moments to replay</span>
+          <div className="body-times">{loose.slice(0, 4).map(moment)}</div>
+        </>
+      )}
+      {good.length > 0 && (
+        <>
+          <span className="calm-label">Looked good</span>
+          <div className="body-good">
+            {good.map((row) => (
+              <span key={row.metric}>
+                <Check size={14} aria-hidden="true" />
+                {bodyGood(row)}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
 export function ReportView({
   id,
   report,
@@ -561,6 +871,7 @@ export function ReportView({
   const [clip, setClip] = useState<Clip | null>(null);
   const [head, setHead] = useState(0);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [tab, setTab] = useState("summary");
   const off = report.softSkills.policy === "off";
   const playback = useQuery({
     queryKey: ["playback", base],
@@ -606,7 +917,7 @@ export function ReportView({
                 Get certificate
               </button>
             </span>
-            <Link className="button secondary" href="/interview/new">
+            <Link className="button secondary" href="/dashboard">
               Practice again
             </Link>
           </>
@@ -631,6 +942,350 @@ export function ReportView({
         </DropdownMenu.Root>
       </div>
     );
+  const overlays = (
+    <>
+      {clip && playback.data && (
+        <ClipPlayer
+          key={clip.clipStartMs + "-" + clip.clipEndMs}
+          clip={clip}
+          playback={playback.data}
+          close={() => setClip(null)}
+          onTime={setHead}
+          onTimeline={(at) => {
+            setHead(at);
+            setTab("replay");
+            requestAnimationFrame(() =>
+              document.getElementById("timeline")?.scrollIntoView(),
+            );
+          }}
+        />
+      )}
+      {clip && !playback.data && (
+        <Dialog.Root
+          open
+          onOpenChange={(open) => {
+            if (!open) setClip(null);
+          }}
+        >
+          <Dialog.Portal>
+            <Dialog.Overlay className="dialog-overlay" />
+            <Dialog.Content className="card dialog-content stack">
+              <Dialog.Title>Interview clip</Dialog.Title>
+              <Dialog.Description>
+                {playback.isError
+                  ? errorMessage(playback.error)
+                  : "Loading recording…"}
+              </Dialog.Description>
+              <Dialog.Close className="button">Close</Dialog.Close>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      )}
+      <Dialog.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="dialog-overlay" />
+          <Dialog.Content className="card dialog-content stack">
+            <Dialog.Title>Delete this session?</Dialog.Title>
+            <Dialog.Description>
+              This removes the recording and report from your account.
+            </Dialog.Description>
+            <div className="cluster">
+              <Dialog.Close className="button secondary">Cancel</Dialog.Close>
+              <button
+                className="button danger"
+                onClick={() => {
+                  void send(base, "DELETE").then(
+                    () => router.push("/dashboard"),
+                    showError,
+                  );
+                }}
+              >
+                Delete session
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </>
+  );
+
+  // Candidates get a calm report: the score, one next step, one action, and
+  // everything else folded underneath. Recruiters keep the full layout.
+  if (!recruiter) {
+    const { headline, session } = report;
+    const improve = report.keyMoments.find(
+      (moment) => moment.sentiment !== "positive",
+    );
+    const drill = report.practicePlan[0];
+    const lists = report.summaryLists;
+    const practice = session.kind === "practice";
+    const body = <BodyLanguage report={report} play={jump} />;
+    const summaryLists = (
+      <div className="grid-2">
+        <div className="stack-sm">
+          <strong>What went well</strong>
+          {lists.strengths.length ? (
+            <ul className="calm-list">
+              {lists.strengths.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted small">Nothing listed for this interview.</p>
+          )}
+        </div>
+        <div className="stack-sm">
+          <strong>What to work on</strong>
+          {lists.growthAreas.length ? (
+            <ul className="calm-list">
+              {lists.growthAreas.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted small">Nothing listed for this interview.</p>
+          )}
+        </div>
+      </div>
+    );
+    return (
+      <div className="report-board-wrap">
+        <div className={"report-board" + (body ? "" : " single")}>
+          <div className="board-main rise" id="overview">
+            <div className="board-score">
+              <ScoreRing
+                score={headline.overallScore}
+                label={"Score " + headline.overallScore + " out of 100"}
+              />
+              <div className="stack-sm">
+                <h1>{headline.verdict ?? "Your interview report"}</h1>
+                <p className="calm-meta">
+                  {session.roleTitle} · {session.company} ·{" "}
+                  {shortTime(session.durationMs)}
+                  {session.startedAt &&
+                    " · " + new Date(session.startedAt).toLocaleDateString()}
+                </p>
+                {headline.integrityBadge !== "clean" && (
+                  <span
+                    className={
+                      "badge " +
+                      (headline.integrityBadge === "review"
+                        ? "danger"
+                        : "warning")
+                    }
+                    style={{ justifySelf: "start" }}
+                  >
+                    {integrity[headline.integrityBadge]}
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className="calm-summary">{headline.summary}</p>
+            {(improve || drill) && (
+              <div className="calm-step">
+                <span className="calm-label">Your one next step</span>
+                <h2>{improve ? improve.title : drill.title}</h2>
+                <p>{improve ? improve.howToFix : drill.drill}</p>
+                {improve && (
+                  <button
+                    type="button"
+                    className="calm-play"
+                    onClick={() => setClip(improve)}
+                  >
+                    <span aria-hidden="true">
+                      <Play size={15} />
+                    </span>
+                    Watch the moment
+                    <small>
+                      {shortTime(improve.clipEndMs - improve.clipStartMs)}
+                    </small>
+                  </button>
+                )}
+              </div>
+            )}
+            {!candidate && (
+              <div className="calm-actions no-print">
+                {practice && (
+                  <Link className="button accent lg" href="/dashboard">
+                    Practice again
+                  </Link>
+                )}
+                <div className="calm-links">
+                  {practice && (
+                    <span title={report.eligibility.reasons.join(" ")}>
+                      <button
+                        type="button"
+                        className="link-button"
+                        disabled={!report.eligibility.certificate}
+                        onClick={() => void certificate()}
+                      >
+                        <Award size={15} aria-hidden="true" />
+                        Get your certificate
+                      </button>
+                    </span>
+                  )}
+                  <DropdownMenu.Root>
+                    <DropdownMenu.Trigger
+                      className="link-button"
+                      aria-label="More report actions"
+                    >
+                      ···
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Portal>
+                      <DropdownMenu.Content className="menu">
+                        <DropdownMenu.Item
+                          className="menu-item danger"
+                          onSelect={() => setDeleteOpen(true)}
+                        >
+                          Delete session
+                        </DropdownMenu.Item>
+                      </DropdownMenu.Content>
+                    </DropdownMenu.Portal>
+                  </DropdownMenu.Root>
+                </div>
+              </div>
+            )}
+          </div>
+          {body && <div className="board-side rise rise-2">{body}</div>}
+        </div>
+        <Tabs.Root
+          value={tab}
+          onValueChange={setTab}
+          className="report-tabs-area rise rise-3"
+        >
+          <Tabs.List className="pill-tabs" aria-label="Report details">
+            <Tabs.Trigger value="summary">Summary</Tabs.Trigger>
+            <Tabs.Trigger value="skills">Skills</Tabs.Trigger>
+            <Tabs.Trigger value="moments">
+              Key moments <small>{report.keyMoments.length}</small>
+            </Tabs.Trigger>
+            <Tabs.Trigger value="questions">
+              Questions <small>{report.turns.length}</small>
+            </Tabs.Trigger>
+            <Tabs.Trigger value="plan">
+              Plan <small>{report.practicePlan.length}</small>
+            </Tabs.Trigger>
+            <Tabs.Trigger value="replay">Replay</Tabs.Trigger>
+          </Tabs.List>
+          <Tabs.Content value="summary" className="tab-panel">
+            {summaryLists}
+          </Tabs.Content>
+          <Tabs.Content value="skills" className="tab-panel" id="technical">
+            <div className="grid-2">
+              <div className="stack-sm">
+                <strong>Technical level</strong>
+                {!report.technical.competencies.length &&
+                  report.technical.companyQuestionsScore === null && (
+                    <p className="muted small">
+                      No technical competencies were assessed.
+                    </p>
+                  )}
+                <div className="skill-list">
+                  {report.technical.competencies.map((c) => (
+                    <CeilingLadder
+                      key={c.key}
+                      competency={c}
+                      expected={report.technical.expectedLevel}
+                    />
+                  ))}
+                </div>
+                {report.technical.companyQuestionsScore !== null && (
+                  <p>
+                    Company questions ·{" "}
+                    <strong>
+                      {report.technical.companyQuestionsScore} / 100
+                    </strong>
+                  </p>
+                )}
+              </div>
+              {!off && (
+                <div className="stack-sm" id="soft-skills">
+                  <div className="cluster between">
+                    <strong>
+                      {report.softSkills.policy === "coaching_only"
+                        ? "Delivery insights (not scored)"
+                        : "How you came across"}
+                    </strong>
+                    {report.softSkills.maturityLevel && (
+                      <small>
+                        Level {report.softSkills.maturityLevel} ·{" "}
+                        {report.softSkills.maturityLabel}
+                      </small>
+                    )}
+                  </div>
+                  <ul className="score-bars">
+                    {report.softSkills.dimensions.map((d) => (
+                      <li key={d.key}>
+                        <div className="cluster between">
+                          <span>{d.label}</span>
+                          <span className="mono">{d.score ?? "–"}</span>
+                        </div>
+                        <span className="bar">
+                          <i style={{ width: (d.score ?? 0) + "%" }} />
+                        </span>
+                        {d.commentary ? (
+                          <small>{d.commentary}</small>
+                        ) : (
+                          d.levelLabel && <small>{d.levelLabel}</small>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </Tabs.Content>
+          <Tabs.Content value="moments" className="tab-panel" id="key-moments">
+            {report.keyMoments.length ? (
+              <KeyMomentTiles
+                moments={report.keyMoments}
+                thumbs={playback.data?.snapshots ?? {}}
+                questions={Object.fromEntries(
+                  report.turns.map((turn) => [turn.turnIdx, turn.question]),
+                )}
+                play={setClip}
+              />
+            ) : (
+              <p className="muted">
+                No key moments were identified in this interview.
+              </p>
+            )}
+          </Tabs.Content>
+          <Tabs.Content value="questions" className="tab-panel" id="questions">
+            {report.turns.map((turn) => (
+              <TurnAccordion
+                key={turn.turnIdx}
+                turn={turn}
+                sources={session.kind === "preview"}
+                onPlay={
+                  report.timeline.turns.some((w) => w.turnIdx === turn.turnIdx)
+                    ? () => playTurn(turn.turnIdx)
+                    : undefined
+                }
+              />
+            ))}
+          </Tabs.Content>
+          <Tabs.Content value="plan" className="tab-panel" id="practice-plan">
+            <PracticePlan items={report.practicePlan} />
+          </Tabs.Content>
+          <Tabs.Content value="replay" className="tab-panel" id="timeline">
+            <p className="muted small" style={{ marginTop: 0 }}>
+              Your interview minute by minute. Select any mark to replay that
+              moment.
+            </p>
+            <TimelineTracks
+              timeline={report.timeline}
+              playhead={head}
+              seek={setHead}
+              jump={jump}
+            />
+          </Tabs.Content>
+        </Tabs.Root>
+        <small className="calm-note">{headline.disclaimer}</small>
+        {overlays}
+      </div>
+    );
+  }
   return (
     <div className={"report-layout " + (recruiter ? "recruiter-report" : "")}>
       <div className="stack">
@@ -927,65 +1582,7 @@ export function ReportView({
           <PracticePlan items={report.practicePlan} />
         </section>
       </div>
-      {clip && playback.data && (
-        <ClipPlayer
-          key={clip.clipStartMs + "-" + clip.clipEndMs}
-          clip={clip}
-          playback={playback.data}
-          close={() => setClip(null)}
-          onTime={setHead}
-          onTimeline={(at) => {
-            setHead(at);
-            document.getElementById("timeline")?.scrollIntoView();
-          }}
-        />
-      )}
-      {clip && !playback.data && (
-        <Dialog.Root
-          open
-          onOpenChange={(open) => {
-            if (!open) setClip(null);
-          }}
-        >
-          <Dialog.Portal>
-            <Dialog.Overlay className="dialog-overlay" />
-            <Dialog.Content className="card dialog-content stack">
-              <Dialog.Title>Interview clip</Dialog.Title>
-              <Dialog.Description>
-                {playback.isError
-                  ? errorMessage(playback.error)
-                  : "Loading recording…"}
-              </Dialog.Description>
-              <Dialog.Close className="button">Close</Dialog.Close>
-            </Dialog.Content>
-          </Dialog.Portal>
-        </Dialog.Root>
-      )}
-      <Dialog.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="dialog-overlay" />
-          <Dialog.Content className="card dialog-content stack">
-            <Dialog.Title>Delete this session?</Dialog.Title>
-            <Dialog.Description>
-              This removes the recording and report from your account.
-            </Dialog.Description>
-            <div className="cluster">
-              <Dialog.Close className="button secondary">Cancel</Dialog.Close>
-              <button
-                className="button danger"
-                onClick={() => {
-                  void send(base, "DELETE").then(
-                    () => router.push("/dashboard"),
-                    showError,
-                  );
-                }}
-              >
-                Delete session
-              </button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      {overlays}
     </div>
   );
 }
@@ -1029,7 +1626,7 @@ export function InterviewReport({
           <p>{company} will review your interview and get back to you.</p>
           <div>
             <Link href="/dashboard" className="button secondary">
-              Back to dashboard
+              Back to Interview Studio
             </Link>
           </div>
         </div>

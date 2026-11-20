@@ -31,6 +31,7 @@ import {
   showError,
 } from "@/lib/utils/client";
 import { roleOptions, VoiceSelect } from "@/components/interview/new-interview";
+import { SuggestInput } from "@/components/ui/suggest-input";
 import type { Opening, OpeningDetail } from "@/types/hiring";
 import type {
   OpeningConfig,
@@ -637,18 +638,14 @@ export function OpeningWizard({
               </label>
               <label className="field">
                 Role title
-                <input
-                  list="opening-roles"
+                <SuggestInput
+                  name="roleTitle"
                   value={basics.roleTitle}
                   maxLength={80}
-                  onChange={(e) => basic("roleTitle", e.target.value)}
+                  options={roleOptions}
+                  onChange={(value) => basic("roleTitle", value)}
                   required
                 />
-                <datalist id="opening-roles">
-                  {roleOptions.map((role) => (
-                    <option key={role} value={role} />
-                  ))}
-                </datalist>
               </label>
               <div className="grid-2">
                 <label className="field">

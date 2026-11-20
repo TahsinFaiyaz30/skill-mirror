@@ -1,7 +1,8 @@
+import Footer01 from "@/components/ui/footer-01";
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
-  Bookmark,
   BriefcaseBusiness,
   Building2,
   Check,
@@ -19,9 +20,8 @@ import {
   Video,
 } from "lucide-react";
 import { Reveal } from "@/components/common/reveal";
+import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Brand } from "@/components/shell/brand";
-import { PRACTICE_TEMPLATES } from "@/lib/config/constants";
-import { PHASE_LABELS } from "@/lib/config/taxonomy";
 
 // What the product does, in three plain sentences.
 const does = [
@@ -139,250 +139,24 @@ const faqs = [
   ],
 ] as const;
 
-// The hero mock follows the real 20-minute practice plan, 9:40 in.
-const elapsed = 580;
-let phaseStart = 0;
-const timeline = Object.entries(PRACTICE_TEMPLATES[20].budgets).map(
-  ([phase, ms]) => {
-    const start = phaseStart;
-    phaseStart += ms / 1000;
-    return {
-      label: PHASE_LABELS[phase as keyof typeof PHASE_LABELS],
-      seconds: ms / 1000,
-      progress: Math.min(1, Math.max(0, (elapsed - start) / (ms / 1000))),
-    };
-  },
-);
-const total = phaseStart;
-const current = timeline.findIndex((phase) => phase.progress < 1);
-const moments = [262, 485];
-const clock = (seconds: number) =>
-  String(Math.floor(seconds / 60)).padStart(2, "0") +
-  ":" +
-  String(seconds % 60).padStart(2, "0");
-
-// A candidate in a blazer on a video call, headset on, in a room lit by an
-// evening window. Drawn by hand in SVG so it stays sharp and light.
-function InterviewScene() {
-  return (
-    <svg
-      className="lp-person"
-      viewBox="0 0 480 300"
-      preserveAspectRatio="xMidYMid slice"
-    >
-      <defs>
-        <linearGradient id="lpc-wall" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#343d55" />
-          <stop offset="0.55" stopColor="#272e42" />
-          <stop offset="1" stopColor="#1b2030" />
-        </linearGradient>
-        <linearGradient id="lpc-window" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffd6b3" stopOpacity="0.62" />
-          <stop offset="1" stopColor="#f39a83" stopOpacity="0.3" />
-        </linearGradient>
-        <linearGradient id="lpc-beam" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#ffd6b3" stopOpacity="0.16" />
-          <stop offset="1" stopColor="#ffd6b3" stopOpacity="0" />
-        </linearGradient>
-        <linearGradient id="lpc-blazer" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#3a4964" />
-          <stop offset="1" stopColor="#263046" />
-        </linearGradient>
-        <linearGradient id="lpc-skin" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#ecb390" />
-          <stop offset="1" stopColor="#cd8e6c" />
-        </linearGradient>
-        <linearGradient id="lpc-hair" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#3d2a24" />
-          <stop offset="1" stopColor="#1e1412" />
-        </linearGradient>
-        <linearGradient id="lpc-leaf" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#6fae8a" />
-          <stop offset="1" stopColor="#3f7559" />
-        </linearGradient>
-        <radialGradient id="lpc-vignette" cx="0.5" cy="0.42" r="0.78">
-          <stop offset="0.62" stopColor="#0f121a" stopOpacity="0" />
-          <stop offset="1" stopColor="#0f121a" stopOpacity="0.55" />
-        </radialGradient>
-        <linearGradient id="lpc-shade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0.6" stopColor="#0f121a" stopOpacity="0" />
-          <stop offset="1" stopColor="#0f121a" stopOpacity="0.6" />
-        </linearGradient>
-      </defs>
-      <rect width="480" height="300" fill="url(#lpc-wall)" />
-      <path d="M134 30 300 214 238 300H134z" fill="url(#lpc-beam)" />
-      <rect
-        x="30"
-        y="24"
-        width="104"
-        height="130"
-        rx="8"
-        fill="url(#lpc-window)"
-      />
-      <path d="M82 24v130M30 89h104" stroke="#2b3347" strokeWidth="5" />
-      <rect
-        x="30"
-        y="24"
-        width="104"
-        height="130"
-        rx="8"
-        fill="none"
-        stroke="#3d4762"
-        strokeWidth="3"
-      />
-      <rect x="22" y="152" width="120" height="6" rx="3" fill="#3d4762" />
-      <path d="M44 300l6-56h40l6 56z" fill="#c9725a" />
-      <path d="M50 244h40" stroke="#b05f4a" strokeWidth="3" />
-      <path
-        d="M70 244c-18-14-30-40-22-62 14 10 22 34 22 62zm0 0c4-26 18-46 36-52 2 22-14 44-36 52zm0 0c-4-20-2-44 8-58 8 14 4 40-8 58z"
-        fill="url(#lpc-leaf)"
-      />
-      <rect x="356" y="150" width="104" height="6" rx="3" fill="#4b3d36" />
-      <rect
-        x="364"
-        y="116"
-        width="10"
-        height="34"
-        rx="2"
-        fill="#fd7c68"
-        opacity="0.75"
-      />
-      <rect
-        x="376"
-        y="122"
-        width="9"
-        height="28"
-        rx="2"
-        fill="#fdc458"
-        opacity="0.7"
-      />
-      <rect
-        x="387"
-        y="112"
-        width="11"
-        height="38"
-        rx="2"
-        fill="#7aa2d6"
-        opacity="0.7"
-      />
-      <rect
-        x="402"
-        y="124"
-        width="8"
-        height="26"
-        rx="2"
-        fill="#b999fb"
-        opacity="0.6"
-        transform="rotate(-14 406 150)"
-      />
-      <path d="M430 150h22l-3-15h-16z" fill="#d7d2c8" opacity="0.85" />
-      <path
-        d="M441 135c-9-6-13-17-8-24 7 4 10 13 8 24zm0 0c6-8 15-11 20-9-3 7-12 10-20 9z"
-        fill="url(#lpc-leaf)"
-      />
-      <g transform="translate(240 300) scale(1.12) translate(-240 -300)">
-        <path
-          d="M112 300c6-46 38-74 86-84l20-4h44l20 4c48 10 80 38 86 84z"
-          fill="url(#lpc-blazer)"
-        />
-        <path d="M214 212l26 52 26-52z" fill="#eef1f6" />
-        <path d="M214 212l-17 10 34 56 9-14z" fill="#2c3750" />
-        <path d="M266 212l17 10-34 56-9-14z" fill="#2c3750" />
-        <path d="M219 210l15 17 6-13zM261 210l-15 17-6-13z" fill="#ffffff" />
-        <path
-          d="M324 232c24 12 40 34 44 66"
-          stroke="#fd7c68"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          opacity="0.5"
-          fill="none"
-        />
-        <path d="M223 168h34v42c0 9-34 9-34 0z" fill="#c98a69" />
-        <path
-          d="M223 176c10 9 24 9 34 0v10c-10 7-24 7-34 0z"
-          fill="#b47859"
-          opacity="0.55"
-        />
-        <ellipse cx="201" cy="134" rx="7" ry="11" fill="#d49473" />
-        <ellipse cx="279" cy="134" rx="7" ry="11" fill="#d49473" />
-        <ellipse cx="240" cy="130" rx="39" ry="47" fill="url(#lpc-skin)" />
-        <path
-          d="M206 146c6 26 20 40 34 40s28-14 34-40c-8 18-20 28-34 28s-26-10-34-28z"
-          fill="#b97a5c"
-          opacity="0.28"
-        />
-        <path
-          d="M199 126c-5-32 11-58 41-62 31-4 51 18 50 48 0 8-2 14-4 18-3-18-13-30-27-34-12 10-34 14-53 12-3 6-6 11-7 18z"
-          fill="url(#lpc-hair)"
-        />
-        <path
-          d="M226 74c14-6 34-3 46 9"
-          stroke="#5c4037"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          opacity="0.7"
-          fill="none"
-        />
-        <path
-          d="M216 119q9-6 18-1M246 118q9-5 18 1"
-          stroke="#2a1d1a"
-          strokeWidth="3.2"
-          strokeLinecap="round"
-          fill="none"
-        />
-        <ellipse cx="225" cy="134" rx="3.4" ry="4.2" fill="#2a1d1a" />
-        <ellipse cx="255" cy="134" rx="3.4" ry="4.2" fill="#2a1d1a" />
-        <circle cx="226.3" cy="132.4" r="1.1" fill="#ffffff" />
-        <circle cx="256.3" cy="132.4" r="1.1" fill="#ffffff" />
-        <path
-          d="M240 137q-5 12 0 15q3 1 5-1"
-          stroke="#b47859"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          fill="none"
-        />
-        <circle cx="216" cy="149" r="6" fill="#ef8a74" opacity="0.2" />
-        <circle cx="264" cy="149" r="6" fill="#ef8a74" opacity="0.2" />
-        <path d="M228 159q12 11 24 0q-12 4-24 0z" fill="#8f3f36" />
-        <path
-          d="M231 160.4q9 2.6 18 0"
-          stroke="#ffffff"
-          strokeWidth="1.6"
-          opacity="0.8"
-        />
-        <path
-          d="M276 102c8 14 9 34 4 52"
-          stroke="#fd7c68"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          opacity="0.55"
-          fill="none"
-        />
-        <path
-          d="M195 132c-2-46 20-74 45-74s47 28 45 74"
-          stroke="#12161f"
-          strokeWidth="6"
-          strokeLinecap="round"
-          fill="none"
-        />
-        <rect x="186" y="120" width="15" height="28" rx="6" fill="#12161f" />
-        <rect x="279" y="120" width="15" height="28" rx="6" fill="#12161f" />
-        <rect x="188.5" y="127" width="3" height="14" rx="1.5" fill="#fd7c68" />
-        <rect x="288.5" y="127" width="3" height="14" rx="1.5" fill="#fd7c68" />
-        <path
-          d="M194 147c4 18 14 24 28 21"
-          stroke="#12161f"
-          strokeWidth="4"
-          strokeLinecap="round"
-          fill="none"
-        />
-        <circle cx="224" cy="168" r="4.5" fill="#fd7c68" />
-      </g>
-      <rect width="480" height="300" fill="url(#lpc-vignette)" />
-      <rect width="480" height="300" fill="url(#lpc-shade)" />
-    </svg>
-  );
-}
+// The three people in the hero scene, read left to right.
+const roles = [
+  [
+    "01 · You",
+    "Answer out loud, on camera",
+    "Questions come from your CV, the role and the company.",
+  ],
+  [
+    "02 · AI interviewer",
+    "Asks, listens, follows up",
+    "Vague answers get a follow-up, like in a real interview.",
+  ],
+  [
+    "03 · The report",
+    "Scored, with video clips",
+    "For your own practice, or shared with the team that invited you.",
+  ],
+] as const;
 
 export default function Landing() {
   return (
@@ -400,6 +174,7 @@ export default function Landing() {
             </nav>
           </div>
           <div className="cluster" style={{ gap: 8 }}>
+            <ThemeToggle variant="icon" />
             <Link className="lp-login" href="/login">
               Log in
             </Link>
@@ -415,9 +190,13 @@ export default function Landing() {
         <section className="lp-hero">
           <div className="container lp-hero-grid">
             <div className="lp-hero-copy">
+              <span className="lp-eyebrow">
+                <i aria-hidden="true" />
+                For job seekers and hiring teams
+              </span>
               <h1 className="lp-title">
                 Practice job interviews with an{" "}
-                <span className="grad-text">AI interviewer</span>
+                <span className="lp-title-accent">AI&nbsp;interviewer</span>
               </h1>
               <p className="lp-lead">
                 Answer real interview questions out loud, on camera, for the job
@@ -425,104 +204,56 @@ export default function Landing() {
                 what to improve.
               </p>
               <div className="lp-cta">
-                <Link className="button lg" href="/signup">
+                <Link className="button lg accent" href="/signup">
                   Start practicing
                   <ArrowRight size={18} aria-hidden="true" />
                 </Link>
-                <a className="button secondary lg" href="#how-it-works">
-                  See how it works
-                </a>
+                <Link
+                  className="button secondary lg"
+                  href="/signup?intent=hiring"
+                >
+                  Hire with AI interviews
+                </Link>
               </div>
               <ul className="lp-chips">
                 <li>
-                  <Clock size={16} aria-hidden="true" />
-                  Takes 10 or 20 minutes
+                  <Clock size={15} aria-hidden="true" />
+                  10 or 20 minutes
                 </li>
                 <li>
-                  <Play size={16} aria-hidden="true" />
+                  <Play size={15} aria-hidden="true" />
                   Video clips in every report
                 </li>
                 <li>
-                  <Lock size={16} aria-hidden="true" />
-                  Your reports stay private
+                  <Lock size={15} aria-hidden="true" />
+                  Private by default
                 </li>
               </ul>
             </div>
 
-            <div className="lp-visual" aria-hidden="true">
-              <div className="lp-window">
-                <div className="lp-window-bar">
-                  <span className="cluster" style={{ gap: 14 }}>
-                    <span className="lp-dots">
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                    <span className="lp-live">
-                      <i />
-                      LIVE
-                    </span>
-                  </span>
-                  <span>Backend Engineer</span>
-                  <span className="lp-timer">
-                    <span className="tracking-dot green" />
-                    <span className="mono">
-                      {clock(elapsed)} / {clock(total)}
-                    </span>
-                  </span>
-                </div>
-                <div className="lp-call">
-                  <InterviewScene />
-                  <span className="lp-you">
-                    <Mic size={13} />
-                    You
-                    <span className="lp-you-bars">
-                      {[8, 14, 10, 16, 7].map((height, index) => (
-                        <i key={index} style={{ height }} />
-                      ))}
-                    </span>
-                  </span>
-                  <div className="lp-pip">
-                    <div className="orb" />
-                    <span>AI interviewer</span>
-                    <small>Listening</small>
-                  </div>
-                  <p className="lp-caption">
-                    <b>AI interviewer</b>
-                    How would your design handle a sudden spike in traffic?
-                  </p>
-                </div>
-                <div className="lp-progress">
-                  <div className="lp-progress-head">
-                    <span>
-                      Part {current + 1} of {timeline.length} ·{" "}
-                      <b>{timeline[current].label}</b>
-                    </span>
-                    <span className="lp-saved">
-                      <Bookmark size={13} />
-                      {moments.length} key moments
-                    </span>
-                  </div>
-                  <div className="lp-track">
-                    {timeline.map(({ label, seconds, progress }) => (
-                      <span
-                        key={label}
-                        className={
-                          progress === 1 ? "done" : progress > 0 ? "now" : ""
-                        }
-                        style={{ flexGrow: seconds }}
-                      >
-                        <i style={{ width: progress * 100 + "%" }} />
-                      </span>
-                    ))}
-                    {moments.map((at) => (
-                      <b key={at} style={{ left: (at / total) * 100 + "%" }} />
-                    ))}
-                  </div>
-                </div>
-              </div>
+            {/* A candidate, the AI interviewer and a hiring manager. */}
+            <div className="lp-stage" aria-hidden="true">
+              <Image
+                className="lp-stage-photo"
+                src="/landing/interview-scene.webp"
+                alt=""
+                width={1672}
+                height={941}
+                sizes="(max-width: 1199px) 100vw, 65vw"
+                priority
+              />
             </div>
           </div>
+
+          <ol className="container lp-roles">
+            {roles.map(([who, title, text]) => (
+              <li key={who}>
+                <span>{who}</span>
+                <h3>{title}</h3>
+                <p>{text}</p>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <section id="what-it-does" className="lp-section lp-alt">
@@ -734,7 +465,7 @@ export default function Landing() {
                 Set up a practice interview in a few minutes.
               </p>
               <div className="lp-cta" style={{ justifyContent: "center" }}>
-                <Link className="button lg" href="/signup">
+                <Link className="button lg accent" href="/signup">
                   Start practicing
                   <ArrowRight size={18} aria-hidden="true" />
                 </Link>
@@ -750,71 +481,7 @@ export default function Landing() {
         </section>
       </main>
 
-      <footer className="lp-footer">
-        <div className="container">
-          <div className="lp-footer-grid">
-            <div className="stack" style={{ alignContent: "start" }}>
-              <Brand />
-              <p className="muted" style={{ maxWidth: 300 }}>
-                Practice job interviews and get detailed feedback on every
-                answer.
-              </p>
-            </div>
-            <div>
-              <h4>Product</h4>
-              <ul>
-                <li>
-                  <a href="#what-it-does">What it does</a>
-                </li>
-                <li>
-                  <a href="#how-it-works">How it works</a>
-                </li>
-                <li>
-                  <a href="#report">Your report</a>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4>Teams</h4>
-              <ul>
-                <li>
-                  <a href="#who-its-for">For hiring teams</a>
-                </li>
-                <li>
-                  <Link href="/signup?intent=hiring">Create an opening</Link>
-                </li>
-                <li>
-                  <a href="#faq">FAQ</a>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4>Account</h4>
-              <ul>
-                <li>
-                  <Link href="/login">Log in</Link>
-                </li>
-                <li>
-                  <Link href="/signup">Sign up</Link>
-                </li>
-                <li>
-                  <Link href="/terms">Terms</Link>
-                </li>
-                <li>
-                  <Link href="/privacy">Privacy</Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div className="lp-footer-bottom">
-            <span>
-              International AI Builders Congress 2026 · LearnSphere / Workforce
-              Ready
-            </span>
-            <span>Runs in desktop Chrome or Edge</span>
-          </div>
-        </div>
-      </footer>
+      <Footer01 />
       <Reveal />
     </div>
   );

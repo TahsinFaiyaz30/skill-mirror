@@ -1,16 +1,29 @@
 "use client";
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
 import { Dialog, DropdownMenu } from "radix-ui";
-import { Building2, LogOut, Menu, Plus, Settings, ShieldCheck, X } from "lucide-react";
+import {
+  Building2,
+  ChevronDown,
+  LogOut,
+  Menu,
+  Monitor,
+  Moon,
+
+  Sun,
+  UserRound,
+  X,
+} from "lucide-react";
 import { Brand } from "./brand";
-import { ThemeToggle } from "@/components/common/theme-toggle";
 import { localMock } from "@/lib/config/env";
 import { browserSupabase } from "@/lib/supabase/client";
 import { send, showError } from "@/lib/utils/client";
 import type { CompanyBrand } from "@/types/interview";
-export async function signOut(next = "/login") {
+// Signing out lands on the public home page.
+export async function signOut(next = "/") {
   try {
     if (localMock) await send("/api/mock/auth", "POST", { action: "signout" });
     else {
@@ -32,22 +45,22 @@ export function initials(name: string, email: string) {
 }
 type Item = { href: string; label: string; match: boolean };
 
-// One list of destinations, shown in the top bar and in the mobile drawer.
+// The pages in the centre of the bar and in the mobile drawer. Interviews
+// start from the dashboard only, so there is no interview link here.
 function useItems(org: CompanyBrand | null): Item[] {
   const pathname = usePathname() ?? "";
   const items: Item[] = [
     {
       href: "/dashboard",
-      label: "Dashboard",
-      match:
-        pathname === "/dashboard" ||
-        (pathname.startsWith("/interview") && pathname !== "/interview/new"),
+      label: "Interview Studio",
+      match: pathname === "/dashboard" || pathname.startsWith("/interview"),
     },
     {
       href: "/progress",
       label: "Progress",
       match: pathname.startsWith("/progress"),
     },
+    { href: "/about", label: "About", match: pathname.startsWith("/about") },
   ];
   if (org)
     items.push(
@@ -64,30 +77,130 @@ function useItems(org: CompanyBrand | null): Item[] {
         match: pathname.startsWith("/hiring/organization"),
       },
     );
-  items.push({
-    href: "/settings",
-    label: "Settings",
-    match: pathname.startsWith("/settings"),
-  });
   return items;
 }
+
+const modes = [
+  ["light", Sun, "Light"],
+  ["dark", Moon, "Dark"],
+  ["system", Monitor, "System"],
+] as const;
+const noop = () => () => {};
+
+// The account menu: who is signed in, the light/dark mode switch, profile
+// settings and sign out.
+function ProfileMenu({
+  name,
+  email,
+  org,
+}: {
+  name: string;
+  email: string;
+  org: CompanyBrand | null;
+}) {
+  const { theme, setTheme } = useTheme();
+  const hydrated = useSyncExternalStore(
+    noop,
+    () => true,
+    () => false,
+  );
+  const mode = hydrated ? (theme ?? "system") : "system";
+  const firstName = name.trim().split(/\s+/)[0] || "Account";
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger className="profile-trigger" aria-label="Profile">
+        <span className="avatar" aria-hidden="true">
+          {initials(name, email)}
+        </span>
+        <span className="profile-name">{firstName}</span>
+        <ChevronDown size={16} aria-hidden="true" />
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          className="menu profile-menu"
+          align="end"
+          sideOffset={10}
+        >
+          <div className="menu-head">
+            <span className="avatar" aria-hidden="true">
+              {initials(name, email)}
+            </span>
+            <div className="min-w-0">
+              <strong>{name || "Your account"}</strong>
+              <p className="muted small">{email}</p>
+            </div>
+          </div>
+          <div className="menu-separator" />
+          <DropdownMenu.Label className="menu-label">Mode</DropdownMenu.Label>
+          <DropdownMenu.RadioGroup
+            className="mode-switch"
+            value={mode}
+            onValueChange={setTheme}
+          >
+            {modes.map(([value, Icon, label]) => (
+              <DropdownMenu.RadioItem
+                key={value}
+                value={value}
+                className="mode-option"
+                disabled={!hydrated}
+                onSelect={(event) => event.preventDefault()}
+              >
+                <Icon size={17} aria-hidden="true" />
+                {label}
+              </DropdownMenu.RadioItem>
+            ))}
+          </DropdownMenu.RadioGroup>
+          <div className="menu-separator" />
+          <DropdownMenu.Item className="menu-item" asChild>
+            <Link href="/settings">
+              <UserRound size={16} aria-hidden="true" />
+              Profile settings
+            </Link>
+          </DropdownMenu.Item>
+          {org && (
+            <DropdownMenu.Item className="menu-item" asChild>
+              <Link href="/hiring/organization">
+                {org.logoUrl ? (
+                  <Image
+                    src={org.logoUrl}
+                    alt=""
+                    width={16}
+                    height={16}
+                    unoptimized
+                  />
+                ) : (
+                  <Building2 size={16} aria-hidden="true" />
+                )}
+                {org.name}
+              </Link>
+            </DropdownMenu.Item>
+          )}
+          <div className="menu-separator" />
+          <DropdownMenu.Item
+            className="menu-item"
+            onSelect={() => void signOut()}
+          >
+            <LogOut size={16} aria-hidden="true" />
+            Sign out
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
 export function AppNav({
   name,
   email,
   org,
   company,
-  isAdmin = false,
 }: {
   name: string;
   email: string;
   org: CompanyBrand | null;
   company?: CompanyBrand | null;
-  isAdmin?: boolean;
 }) {
   const items = useItems(org);
-  const pathname = usePathname() ?? "";
-  // Hidden only on the new interview page, where it would point to itself.
-  const showCta = pathname !== "/interview/new";
   const links = items.map(({ href, label, match }) => (
     <Link key={href} href={href} aria-current={match ? "page" : undefined}>
       {label}
@@ -95,137 +208,46 @@ export function AppNav({
   ));
   return (
     <header className="topnav">
-      <div className="container topnav-inner">
-        <Brand company={company} />
-        <div className="navpill">
-          <nav className="navpill-links" aria-label="Main">
+      <div className="container">
+        <div className="topnav-bar">
+          <div className="topnav-start">
+            <Brand company={company} />
+          </div>
+          <nav className="topnav-links" aria-label="Main">
             {links}
           </nav>
-          {showCta && (
-            <Link href="/interview/new" className="navpill-cta">
-              <Plus size={15} aria-hidden="true" />
-              <span className="topnav-cta-text">New interview</span>
-            </Link>
-          )}
-          <ThemeToggle variant="navpill" />
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger
-              className="navpill-avatar"
-              aria-label="Account"
-            >
-              <span className="avatar" aria-hidden="true">
-                {initials(name, email)}
-              </span>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Portal>
-              <DropdownMenu.Content className="menu" align="end" sideOffset={8}>
-                <div className="menu-head">
-                  <span className="avatar" aria-hidden="true">
-                    {initials(name, email)}
-                  </span>
-                  <div className="min-w-0">
-                    <strong>{name || "Your account"}</strong>
-                    <p className="muted small">{email}</p>
-                  </div>
-                </div>
-                <div className="menu-separator" />
-                <DropdownMenu.Item className="menu-item" asChild>
-                  <Link href="/settings">
-                    <Settings size={16} aria-hidden="true" />
-                    Account settings
-                  </Link>
-                </DropdownMenu.Item>
-                {org && (
-                  <DropdownMenu.Item className="menu-item" asChild>
-                    <Link href="/hiring/organization">
-                      {org.logoUrl ? (
-                        <Image
-                          src={org.logoUrl}
-                          alt=""
-                          width={16}
-                          height={16}
-                          unoptimized
-                        />
-                      ) : (
-                        <Building2 size={16} aria-hidden="true" />
-                      )}
-                      {org.name}
-                    </Link>
-                  </DropdownMenu.Item>
-                )}
-                {isAdmin && (
-                  <DropdownMenu.Item className="menu-item" asChild>
-                    <Link href="/admin">
-                      <ShieldCheck size={16} aria-hidden="true" />
-                      AI Admin
-                    </Link>
-                  </DropdownMenu.Item>
-                )}
-                <div className="menu-separator" />
-                <DropdownMenu.Item
-                  className="menu-item"
-                  onSelect={() => void signOut()}
-                >
-                  <LogOut size={16} aria-hidden="true" />
-                  Sign out
-                </DropdownMenu.Item>
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
-          </DropdownMenu.Root>
-          <Dialog.Root>
-            <Dialog.Trigger
-              className="navpill-menu"
-              aria-label="Open navigation"
-            >
-              <Menu size={20} />
-            </Dialog.Trigger>
-            <Dialog.Portal>
-              <Dialog.Overlay className="dialog-overlay" />
-              <Dialog.Content className="drawer">
-                <div className="cluster between">
-                  <Dialog.Title className="sr-only">Navigation</Dialog.Title>
-                  <Brand />
-                  <Dialog.Close
-                    className="button ghost icon"
-                    aria-label="Close navigation"
-                  >
-                    <X size={20} />
-                  </Dialog.Close>
-                </div>
-                <Dialog.Description className="sr-only">
-                  SkillMirror pages
-                </Dialog.Description>
-                <Link href="/interview/new" className="button">
-                  <Plus size={18} aria-hidden="true" />
-                  New interview
-                </Link>
-                <nav className="drawer-links" aria-label="Mobile navigation">
-                  {links}
-                  {isAdmin && (
-                    <Link
-                      href="/admin"
-                      aria-current={
-                        pathname.startsWith("/admin") ? "page" : undefined
-                      }
+          <div className="topnav-end">
+            <ProfileMenu name={name} email={email} org={org} />
+            <Dialog.Root>
+              <Dialog.Trigger
+                className="topnav-burger"
+                aria-label="Open navigation"
+              >
+                <Menu size={20} />
+              </Dialog.Trigger>
+              <Dialog.Portal>
+                <Dialog.Overlay className="dialog-overlay" />
+                <Dialog.Content className="drawer">
+                  <div className="cluster between">
+                    <Dialog.Title className="sr-only">Navigation</Dialog.Title>
+                    <Brand />
+                    <Dialog.Close
+                      className="button ghost icon"
+                      aria-label="Close navigation"
                     >
-                      AI Admin
-                    </Link>
-                  )}
-                </nav>
-                <div className="stack-sm" style={{ marginTop: "auto" }}>
-                  <ThemeToggle variant="row" />
-                  <button
-                    type="button"
-                    className="button secondary"
-                    onClick={() => void signOut()}
-                  >
-                    <LogOut size={17} aria-hidden="true" />
-                    Sign out
-                  </button>
-                </div>
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
+                      <X size={20} />
+                    </Dialog.Close>
+                  </div>
+                  <Dialog.Description className="sr-only">
+                    SkillMirror pages
+                  </Dialog.Description>
+                  <nav className="drawer-links" aria-label="Mobile navigation">
+                    {links}
+                  </nav>
+                </Dialog.Content>
+              </Dialog.Portal>
+            </Dialog.Root>
+          </div>
         </div>
       </div>
     </header>

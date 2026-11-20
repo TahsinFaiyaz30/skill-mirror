@@ -12,12 +12,9 @@ export default async function Page({
   searchParams: Promise<{ session?: string }>;
 }) {
   const { session: id } = await searchParams;
-  if (!id)
-    return (
-      <Shell>
-        <NewInterview />
-      </Shell>
-    );
+  // Practice interviews start on the dashboard; this page only finishes
+  // company invitations.
+  if (!id) redirect("/dashboard");
   const user = await getUser();
   if (!user) redirect("/login");
   if (!/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id)) notFound();

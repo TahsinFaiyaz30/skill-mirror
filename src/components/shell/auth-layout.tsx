@@ -1,12 +1,20 @@
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { Brand } from "./brand";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 
-// A single centered card on a plain background, after Huru's sign-in page.
+// A single form on a plain background, with a way back to the home page.
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <main className="auth">
       <header className="auth-top">
-        <Brand />
+        <div className="cluster" style={{ gap: 20 }}>
+          <Link href="/" className="auth-back">
+            <ArrowLeft size={18} aria-hidden="true" />
+            Back
+          </Link>
+          <Brand />
+        </div>
         <ThemeToggle variant="icon" />
       </header>
       <section className="auth-form">

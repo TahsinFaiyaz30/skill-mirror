@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { Brand } from "@/components/shell/brand";
+import { ThemeToggle } from "@/components/common/theme-toggle";
 import { certificateBySlug } from "@/lib/api/practice";
 import { readable } from "@/lib/config/taxonomy";
 export default async function Page({
@@ -15,6 +16,7 @@ export default async function Page({
       <header className="nav">
         <div className="container nav-inner">
           <Brand />
+          <ThemeToggle />
         </div>
       </header>
       <main className="container page">

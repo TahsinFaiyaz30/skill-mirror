@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { getInvite } from "@/lib/api/invitation";
 import { getUser } from "@/lib/auth/guards";
 import { Brand } from "@/components/shell/brand";
+import { ThemeToggle } from "@/components/common/theme-toggle";
 import { InviteLanding } from "@/components/hiring/invite-landing";
 import type { PublicInvite } from "@/types/hiring";
 export default async function Page({
@@ -26,6 +27,7 @@ export default async function Page({
       <header className="nav">
         <div className="container nav-inner">
           <Brand company={data.company} />
+          <ThemeToggle />
         </div>
       </header>
       <main className="container page">
