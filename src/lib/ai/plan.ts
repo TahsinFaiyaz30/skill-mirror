@@ -119,7 +119,7 @@ async function planOutput<T>(
   prompt: Prompt,
   schema: z.ZodType<T>,
   options: {
-    thinking: "medium" | "high";
+    thinking: "low" | "medium" | "high";
     timeout: number;
     preferred?: ProviderModel;
     validate: (value: T) => void;
@@ -245,7 +245,7 @@ export async function generatePlan(
         }),
         blueprintResponseSchema,
         {
-          thinking: "high",
+          thinking: config.judgeMode ? "low" : "high",
           timeout: Math.min(BLUEPRINT_TIMEOUT_MS, deadline - Date.now()),
           validate: (plan) => {
             if (
@@ -333,7 +333,7 @@ export async function generatePlan(
       if (generated && Date.now() < deadline) {
         try {
           const { value } = await planOutput(prompt, ladderSchema, {
-            thinking: "medium",
+            thinking: config.judgeMode ? "low" : "medium",
             timeout: deadline - Date.now(),
             preferred: generated.source,
             validate: (response) => {

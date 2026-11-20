@@ -173,7 +173,7 @@ export function LiveRoom({
             ))}
           </ol>
           <time className={remaining <= 120000 ? "badge warning" : "badge"}>
-            {shortTime(state.elapsed)} / {data.config.lengthMinutes}:00
+            {shortTime(state.elapsed)} / {shortTime(data.config.hardCapMs)}
           </time>
           <div className="cluster">
             <span

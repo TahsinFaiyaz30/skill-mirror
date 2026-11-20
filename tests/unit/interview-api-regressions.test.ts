@@ -21,12 +21,14 @@ import * as schema from "@/lib/db/schema";
 import { deleteAccount, retention } from "@/lib/api/account";
 import { startSession, strategist } from "@/lib/api/live";
 import { mediaUpload, patchMediaRoute, telemetry } from "@/lib/api/media";
+import { previewOpening } from "@/lib/api/opening";
 import { SEGMENTS_PER_CAPTURE } from "@/lib/recording/captures";
 import { addMember } from "@/lib/api/organization";
-import { planSession } from "@/lib/api/session";
+import { createSession, getSession, planSession } from "@/lib/api/session";
 import { statusRoute } from "@/lib/api/reports";
 import { certificateBySlug, createCertificate } from "@/lib/api/practice";
 import { REPORT_LEASE_MS } from "@/lib/config/constants";
+import { publicEnv } from "@/lib/config/env";
 import {
   buildSessionConfig,
   defaultOpeningConfig,
@@ -53,11 +55,14 @@ vi.mock("@/lib/config/env", async (original) => ({
   localMock: true,
 }));
 vi.mock("@/lib/auth/mock", () => ({
-  mockUser: async () => ({
-    id: services.userId,
-    email: "member@example.test",
-    provider: "email",
-  }),
+  mockUser: async () =>
+    services.userId
+      ? {
+          id: services.userId,
+          email: "member@example.test",
+          provider: "email",
+        }
+      : null,
 }));
 vi.mock("@/lib/supabase/storage", async (original) => ({
   ...(await original<typeof import("@/lib/supabase/storage")>()),
@@ -146,6 +151,168 @@ function freshSession(
 }
 
 describe("account and interview API writes", () => {
+  it("prepares a 3:30 judge practice session using the configured AI engine and an owned sample CV", async () => {
+    const input = {
+      company: "Example Company",
+      roleTitle: "Backend Engineer",
+      roleFamily: "software_engineering",
+      seniority: "mid",
+      lengthMinutes: 3.5,
+      voiceName: "Kore",
+    };
+    services.userId = "";
+    expect(
+      (await createSession(request({ ...input, judgeMode: true }))).status,
+    ).toBe(401);
+
+    services.userId = await user();
+    expect((await createSession(request(input))).status).toBe(400);
+    const response = await createSession(
+      request({ ...input, judgeMode: true }),
+    );
+    expect(response.status).toBe(201);
+    const { sessionId } = await response.json();
+    const [session] = await database
+      .select()
+      .from(schema.interviewSessions)
+      .where(eq(schema.interviewSessions.id, sessionId));
+    expect(session).toMatchObject({
+      kind: "practice",
+      userId: services.userId,
+      lengthMinutes: 2,
+      aiMode: publicEnv.aiMode,
+      config: { judgeMode: true, lengthMinutes: 3.5, hardCapMs: 210_000 },
+    });
+    expect(session.cvId).toBeTruthy();
+    const [cv] = await database
+      .select()
+      .from(schema.candidateCvs)
+      .where(eq(schema.candidateCvs.id, session.cvId!));
+    expect(cv).toMatchObject({
+      userId: services.userId,
+      parseStatus: "parsed",
+      parsed: { headline: "Software engineer building reliable services" },
+    });
+
+    services.userId = await user();
+    expect((await planSession(request(), params(sessionId))).status).toBe(404);
+    services.userId = session.userId;
+    expect((await planSession(request(), params(sessionId))).status).toBe(200);
+
+    const standard = await createSession(
+      request({ ...input, lengthMinutes: 10, cvId: cv.id }),
+    );
+    expect(standard.status).toBe(201);
+    const standardId = (await standard.json()).sessionId;
+    const [regular] = await database
+      .select()
+      .from(schema.interviewSessions)
+      .where(eq(schema.interviewSessions.id, standardId));
+    expect(regular).toMatchObject({
+      aiMode: publicEnv.aiMode,
+      lengthMinutes: 10,
+    });
+    expect(regular.config.judgeMode).not.toBe(true);
+
+    const quick = await createSession(request({ ...input, cvId: cv.id }));
+    expect(quick.status).toBe(201);
+    const quickId = (await quick.json()).sessionId;
+    const quickSession = await getSession(request(undefined, "GET"), params(quickId));
+    expect(await quickSession.json()).toMatchObject({
+      session: { lengthMinutes: 3.5, aiMode: publicEnv.aiMode },
+      config: { hardCapMs: 210_000 },
+    });
+  });
+
+  it("runs a judge preview with the opening's authored questions and keeps hiring data intact", async () => {
+    const { owner, orgId } = await ownedOrganization();
+    const [opening] = await database
+      .insert(schema.openings)
+      .values({
+        orgId,
+        title: "Backend Engineer",
+        roleTitle: "Backend Engineer",
+        seniority: "mid",
+        roleFamily: "software_engineering",
+        config: defaultOpeningConfig,
+        status: "active",
+        locked: true,
+      })
+      .returning();
+    const [question] = await database
+      .insert(schema.openingQuestions)
+      .values({
+        openingId: opening.id,
+        orderIdx: 0,
+        phase: "technical",
+        text: "How would you prevent jobs from running twice?",
+        competencyKey: "backend_apis",
+        difficulty: 2,
+        idealPoints: ["Idempotency keys", "Deduplication", "Safe retries"],
+        redFlags: ["No retry strategy"],
+        expectedMinutes: 1,
+        origin: "manual",
+      })
+      .returning();
+    const [invite] = await database
+      .insert(schema.invitations)
+      .values({
+        openingId: opening.id,
+        orgId,
+        email: "candidate@example.test",
+        token: randomUUID(),
+        expiresAt: new Date(Date.now() + 86_400_000),
+        createdBy: owner,
+      })
+      .returning();
+
+    services.userId = await user();
+    expect(
+      (await previewOpening(request({ judgeMode: true }), params(opening.id)))
+        .status,
+    ).toBe(404);
+    services.userId = owner;
+    const response = await previewOpening(
+      request({ judgeMode: true }),
+      params(opening.id),
+    );
+    expect(response.status).toBe(200);
+    const { sessionId } = await response.json();
+    const [preview] = await database
+      .select()
+      .from(schema.interviewSessions)
+      .where(eq(schema.interviewSessions.id, sessionId));
+    expect(preview).toMatchObject({
+      kind: "preview",
+      userId: owner,
+      orgId,
+      openingId: opening.id,
+      invitationId: null,
+      roleTitle: opening.roleTitle,
+      lengthMinutes: 2,
+      aiMode: publicEnv.aiMode,
+      config: {
+        judgeMode: true,
+        lengthMinutes: 3.5,
+        hardCapMs: 210_000,
+        customQuestions: [{ id: question.id, text: question.text }],
+      },
+    });
+    expect((await planSession(request(), params(sessionId))).status).toBe(200);
+    expect(
+      await database
+        .select()
+        .from(schema.openings)
+        .where(eq(schema.openings.id, opening.id)),
+    ).toEqual([opening]);
+    expect(
+      await database
+        .select()
+        .from(schema.invitations)
+        .where(eq(schema.invitations.openingId, opening.id)),
+    ).toEqual([invite]);
+  });
+
   it("joins an active preparation and recovers a stale one", async () => {
     services.userId = await user();
     const config = buildSessionConfig("practice", {

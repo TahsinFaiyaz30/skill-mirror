@@ -891,6 +891,14 @@ describe("Gemini Interactions API, TTS, and Live API", () => {
     expect(extCfg.thinkingConfig).toEqual({
       thinkingLevel: ThinkingLevel.LOW,
     });
+    vi.stubEnv("MODEL_LIVE_THINKING_LEVEL", "high");
+    const judgeCfg = buildLiveConnectConfig(
+      { ...session, config: { ...config, judgeMode: true } },
+      { config, plan, company: "Acme", roleTitle: "Backend Engineer", firstName: "Jamie" },
+      undefined,
+      "gemini-3.8-live-extended-thinking",
+    );
+    expect(judgeCfg.thinkingConfig?.thinkingLevel).toBe(ThinkingLevel.LOW);
 
     vi.stubGlobal(
       "fetch",

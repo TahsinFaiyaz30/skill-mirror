@@ -4,7 +4,6 @@ import { z } from "zod";
 import { requireOpening, requireOrgMember } from "@/lib/auth/guards";
 import { db, type Transaction } from "@/lib/db";
 import {
-  candidateCvs,
   interviewSessions,
   invitations,
   openingQuestions,
@@ -18,13 +17,13 @@ import {
   validateOpening,
 } from "@/lib/config/sessionConfig";
 import { serverEnv } from "@/lib/config/env";
+import { QUICK_INTERVIEW_MINUTES } from "@/lib/config/constants";
 import {
   mergeOpening,
   openingBasics,
   partialOpening,
   questionInput,
 } from "@/lib/hiring/validation";
-import { sampleParsedCv } from "@/lib/ai/mock/sampleParsedCv";
 import { removePrefix } from "@/lib/supabase/storage";
 import {
   body,
@@ -35,7 +34,7 @@ import {
   route,
   type Params,
 } from "@/lib/utils/http";
-import { getParsedCv } from "./session";
+import { getParsedCv, sampleCandidateCv } from "./session";
 
 const key = (id: string) => eq(openings.id, id);
 async function latest(tx: Transaction, id: string) {
@@ -274,53 +273,45 @@ export const previewOpening = route(async (request, context: Params<"id">) => {
     z.object({
       cvId: z.uuid().optional(),
       useSampleCandidate: z.boolean().optional(),
+      judgeMode: z.boolean().optional(),
     }),
   );
   return database.transaction(async (tx) => {
     const row = await latest(tx, opening.id);
     const questions = await questionsFor(tx, row.id);
-    const validation = validateOpening(row, questions);
+    const settings: typeof row = input.judgeMode
+      ? {
+          ...row,
+          config: { ...row.config, lengthMinutes: QUICK_INTERVIEW_MINUTES },
+        }
+      : row;
+    const validation = validateOpening(settings, questions);
     if (validation.errors.length)
       fail("BAD_REQUEST", validation.errors[0].message);
     let cvId = input.cvId;
     if (cvId) await getParsedCv(tx, cvId, user.id);
     else if (
+      input.judgeMode ||
       input.useSampleCandidate ||
       buildSessionConfig("preview", {
         config: row.config,
         questions,
         company: { name: org.name, logoUrl: null },
       }).cvRequired
-    ) {
-      const [sample] = await tx
-        .select({ id: candidateCvs.id })
-        .from(candidateCvs)
-        .where(
-          and(
-            eq(candidateCvs.userId, user.id),
-            eq(candidateCvs.storagePath, user.id + "/sample.pdf"),
-          ),
-        );
-      if (sample) cvId = sample.id;
-      else {
-        const [created] = await tx
-          .insert(candidateCvs)
-          .values({
-            userId: user.id,
-            storagePath: user.id + "/sample.pdf",
-            fileName: "Sample candidate",
-            parseStatus: "parsed",
-            parsed: sampleParsedCv,
-          })
-          .returning();
-        cvId = created.id;
-      }
-    }
+    )
+      cvId = await sampleCandidateCv(tx, user.id);
+    const values = companySessionInput(
+      "preview",
+      settings,
+      org,
+      questions,
+      user.id,
+      cvId,
+    );
+    if (input.judgeMode) values.config.judgeMode = true;
     const [session] = await tx
       .insert(interviewSessions)
-      .values(
-        companySessionInput("preview", row, org, questions, user.id, cvId),
-      )
+      .values(values)
       .returning();
     return json({ sessionId: session.id });
   });

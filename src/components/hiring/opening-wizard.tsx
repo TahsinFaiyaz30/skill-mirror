@@ -184,8 +184,11 @@ export function OpeningSummary({
             {opening.department && " · " + opening.department}
           </p>
           <p>
-            {modeDetails[c.mode][0]} · {c.lengthMinutes} minutes · {questions}{" "}
-            company questions
+            {modeDetails[c.mode][0]} ·{" "}
+            {c.lengthMinutes === 3.5
+              ? "3 minutes 30 seconds"
+              : `${c.lengthMinutes} minutes`}{" "}
+            · {questions} company questions
           </p>
           <p>
             Competencies ·{" "}
@@ -267,6 +270,8 @@ function ValidationPanel({ validation }: { validation: OpeningValidation }) {
 function PreviewDialog({ id, close }: { id: string; close: () => void }) {
   const router = useRouter();
   const [cv, setCv] = useState("sample");
+  const [judgeMode, setJudgeMode] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
   const cvList = useQuery({
     queryKey: ["cvs"],
@@ -278,15 +283,21 @@ function PreviewDialog({ id, close }: { id: string; close: () => void }) {
   const ready =
     cvList.data?.items.filter((item) => item.parseStatus === "parsed") ?? [];
   async function start() {
+    setStarting(true);
+    setError("");
     try {
       const { sessionId } = await send<{ sessionId: string }>(
         "/api/openings/" + id + "/preview",
         "POST",
-        cv === "sample" ? { useSampleCandidate: true } : { cvId: cv },
+        {
+          ...(cv === "sample" ? { useSampleCandidate: true } : { cvId: cv }),
+          ...(judgeMode && { judgeMode: true }),
+        },
       );
       router.push("/interview/" + sessionId + "/prepare");
     } catch (error) {
       setError(errorMessage(error));
+      setStarting(false);
     }
   }
   return (
@@ -305,7 +316,11 @@ function PreviewDialog({ id, close }: { id: string; close: () => void }) {
           </Dialog.Description>
           <label className="field">
             Candidate CV
-            <select value={cv} onChange={(e) => setCv(e.target.value)}>
+            <select
+              value={cv}
+              disabled={starting}
+              onChange={(e) => setCv(e.target.value)}
+            >
               <option value="sample">Use a sample candidate</option>
               {ready.map((item) => (
                 <option value={item.cvId} key={item.cvId}>
@@ -314,6 +329,15 @@ function PreviewDialog({ id, close }: { id: string; close: () => void }) {
               ))}
             </select>
           </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={judgeMode}
+              disabled={starting}
+              onChange={(event) => setJudgeMode(event.target.checked)}
+            />
+            Judge mode (shorter AI reasoning)
+          </label>
           {error && (
             <p role="alert" className="danger">
               {error}
@@ -321,7 +345,12 @@ function PreviewDialog({ id, close }: { id: string; close: () => void }) {
           )}
           <div className="cluster">
             <Dialog.Close className="button secondary">Cancel</Dialog.Close>
-            <button className="button" onClick={() => void start()}>
+            <button
+              className="button"
+              disabled={starting}
+              aria-busy={starting}
+              onClick={() => void start()}
+            >
               Start preview
             </button>
           </div>
@@ -719,7 +748,7 @@ export function OpeningWizard({
               <fieldset className="stack-sm">
                 <legend>Length</legend>
                 <div className="cluster">
-                  {([2, 15, 20, 30, 45] as const).map((n) => (
+                  {([2, 3.5, 15, 20, 30, 45] as const).map((n) => (
                     <label className="check inset" key={n}>
                       <input
                         name="opening-length"
@@ -727,7 +756,11 @@ export function OpeningWizard({
                         checked={config.lengthMinutes === n}
                         onChange={() => changeConfig("lengthMinutes", n)}
                       />
-                      {n === 2 ? "2 min (test)" : n + " min"}
+                      {n === 2
+                        ? "2 min (test)"
+                        : n === 3.5
+                          ? "3 min 30 s"
+                          : n + " min"}
                     </label>
                   ))}
                 </div>

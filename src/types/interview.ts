@@ -142,7 +142,7 @@ export type InterviewAI = {
 };
 export interface OpeningConfig {
   mode: InterviewMode;
-  lengthMinutes: 2 | 15 | 20 | 30 | 45;
+  lengthMinutes: 2 | 3.5 | 15 | 20 | 30 | 45;
   phases: Record<OptionalPhase, boolean>;
   competencies: CompetencySelection;
   presentation: { custom: PresentationScenario | null };
@@ -187,6 +187,7 @@ export type PresentationTiming = {
 };
 export interface InterviewConfig {
   kind: SessionKind;
+  judgeMode?: true;
   mode: InterviewMode;
   lengthMinutes: number;
   hardCapMs: number;
@@ -216,6 +217,7 @@ export interface InterviewConfig {
 export type InterviewConfigPublic = Pick<
   InterviewConfig,
   | "kind"
+  | "judgeMode"
   | "lengthMinutes"
   | "hardCapMs"
   | "phaseOrder"

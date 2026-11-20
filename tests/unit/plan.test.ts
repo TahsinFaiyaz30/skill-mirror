@@ -16,6 +16,48 @@ describe("interview plan recovery", () => {
     vi.unstubAllGlobals();
   });
 
+  it.each([
+    { judgeMode: true as const, blueprintLevel: "low", ladderLevel: "low" },
+    { judgeMode: undefined, blueprintLevel: "high", ladderLevel: "medium" },
+  ])("uses the configured Gemini model with the expected reasoning for $judgeMode", async ({
+    judgeMode,
+    blueprintLevel,
+    ladderLevel,
+  }) => {
+    vi.stubEnv("GEMINI_API_KEY", "gemini-test-key");
+    vi.stubEnv("MODEL_FLASH", "configured-gemini-model");
+    const config = {
+      ...buildSessionConfig("practice", { lengthMinutes: 3.5, voiceName: "Kore" }),
+      judgeMode,
+    };
+    const session = {
+      ...goldenFixture("off").session,
+      kind: "practice" as const,
+      aiMode: "live" as const,
+      config,
+    };
+    const blueprint = mockBlueprint(config, session.roleFamily);
+    const requests: Array<{ model: string; thinking: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      const { model, generation_config, response_format } = await request.json();
+      requests.push({ model, thinking: generation_config.thinking_level });
+      const result = response_format.schema.properties.persona
+        ? blueprint
+        : { levels: mockLadder(blueprint.technical[0].key) };
+      return Response.json({ status: "completed", output_text: JSON.stringify(result) });
+    }));
+
+    const plan = await generatePlan(session, null, "Test Candidate");
+    expect(plan.technical).toHaveLength(config.techCount);
+    expect(requests).toEqual(
+      [blueprintLevel, ...Array(config.techCount).fill(ladderLevel)].map((thinking) => ({
+        model: "configured-gemini-model",
+        thinking,
+      })),
+    );
+  });
+
   it("tries the preferred Gemini model on each configured key before accepting a Groq plan", async () => {
     vi.stubEnv("GEMINI_API_KEY", "gemini-primary-key,gemini-secondary-key");
     vi.stubEnv("GEMINI_API_KEYS", "");

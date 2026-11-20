@@ -5,6 +5,7 @@ import {
   MINUTE,
   PHASE_GRACE_MS,
   PRACTICE_TEMPLATES,
+  QUICK_INTERVIEW_MINUTES,
   PRESENTATION_TIMING as P,
   SCORING,
   SHORT_FORCE_CLOSE_BEFORE_CAP_MS,
@@ -175,7 +176,16 @@ type CompanyInput = {
   company: CompanyBrand;
   featureGithub?: boolean;
 };
-type PracticeInput = { lengthMinutes: 2 | 10 | 20; voiceName: VoiceName };
+type PracticeInput = {
+  lengthMinutes: keyof typeof PRACTICE_TEMPLATES;
+  voiceName: VoiceName;
+};
+
+export function storedInterviewLength(lengthMinutes: number) {
+  // The database uses integer template lengths. Fractional interviews share
+  // the short template marker and keep their actual timing in the config.
+  return lengthMinutes === QUICK_INTERVIEW_MINUTES ? 2 : lengthMinutes;
+}
 export function buildSessionConfig(
   kind: "practice",
   input: PracticeInput,
@@ -334,6 +344,7 @@ export function toPublicConfig(
   const { prepMs, talkMs, interruptAtMs } = config.presentation;
   return {
     kind,
+    ...(config.judgeMode && { judgeMode: config.judgeMode }),
     lengthMinutes,
     hardCapMs,
     phaseOrder,

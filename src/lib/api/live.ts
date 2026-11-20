@@ -533,7 +533,9 @@ export function buildLiveConnectConfig(
     },
     ...(extendedThinking && {
       thinkingConfig: {
-        thinkingLevel: thinkingLevelValue(serverEnv().MODEL_LIVE_THINKING_LEVEL),
+        thinkingLevel: session.config.judgeMode
+          ? ThinkingLevel.LOW
+          : thinkingLevelValue(serverEnv().MODEL_LIVE_THINKING_LEVEL),
       },
     }),
     systemInstruction: {

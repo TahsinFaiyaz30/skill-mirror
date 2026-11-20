@@ -167,7 +167,7 @@ export function buildReport(
       company: session.company,
       roleTitle: session.roleTitle,
       seniority: session.seniority,
-      lengthMinutes: session.lengthMinutes,
+      lengthMinutes: session.config.lengthMinutes,
       durationMs: session.durationMs ?? 0,
       endReason: session.endReason,
       startedAt: session.startedAt?.toISOString() ?? null,
@@ -180,8 +180,11 @@ export function buildReport(
       recommendation: recommend,
       summary: "",
       integrityBadge: integrity.badge,
-      disclaimer:
-        session.kind === "company" ? hiringDisclaimer : practiceDisclaimer,
+      disclaimer: session.config.judgeMode
+        ? "Judge mode · Demonstration interview with AI feedback."
+        : session.kind === "company"
+          ? hiringDisclaimer
+          : practiceDisclaimer,
     },
     components: { ...components, effectiveWeights },
     technical,

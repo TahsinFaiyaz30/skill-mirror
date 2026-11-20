@@ -892,7 +892,7 @@ async function narrative(
           : "Choose 5–7 of the supplied candidate IDs.",
     }),
     narrativeSchema,
-    { thinking: "medium", timeout: 90000 },
+    { thinking: session.config.judgeMode ? "low" : "medium", timeout: 90000 },
   );
   const byId = new Map(candidates.map((c) => [c.id, c]));
   const chosen = new Set<string>();

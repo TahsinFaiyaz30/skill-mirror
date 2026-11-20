@@ -29,7 +29,7 @@ type Details = {
   roleTitle: string;
   roleFamily: string;
   seniority: string;
-  lengthMinutes: 2 | 10 | 20;
+  lengthMinutes: 2 | 3.5 | 10 | 20;
   jobDescription: string;
 };
 const companies = [
@@ -58,6 +58,7 @@ export const roleOptions = [
 const lengths = [
   [20, "20 min", "Full interview"],
   [10, "10 min", "Shorter round"],
+  [3.5, "3 min 30 s", "Fast interview"],
   [2, "2 min", "Quick test"],
 ] as const;
 export function VoiceSelect({
@@ -119,7 +120,7 @@ export function NewInterview({
 }) {
   const router = useRouter();
   const [state, setState] = useState<
-    "idle" | "uploading" | "parsing" | "saving"
+    "idle" | "uploading" | "parsing" | "saving" | "starting-judge"
   >("idle");
   const [error, setError] = useState("");
   const [cv, setCv] = useState<{ cvId: string; parsed: ParsedCV } | null>(null);
@@ -181,30 +182,38 @@ export function NewInterview({
       setState("idle");
     }
   }
-  async function confirmCv() {
-    if (!cv) return;
-    setState("saving");
+  async function confirmCv(judgeMode = false) {
+    if (judgeMode ? existing : !cv) return;
+    setState(judgeMode ? "starting-judge" : "saving");
     setError("");
     try {
-      await send("/api/cv/" + cv.cvId, "PATCH", {
-        skillsRemoved: cv.parsed.skills_removed,
-      });
-      if (existing) {
-        const id = existing.session.id;
-        await send("/api/sessions/" + id, "PATCH", { cvId: cv.cvId });
-        router.push("/interview/" + id + "/prepare");
-        return;
+      if (!judgeMode && cv) {
+        await send("/api/cv/" + cv.cvId, "PATCH", {
+          skillsRemoved: cv.parsed.skills_removed,
+        });
+        if (existing) {
+          const id = existing.session.id;
+          await send("/api/sessions/" + id, "PATCH", { cvId: cv.cvId });
+          router.push("/interview/" + id + "/prepare");
+          return;
+        }
       }
       const { sessionId } = await send<{ sessionId: string }>(
         "/api/sessions",
         "POST",
         {
-          company: details.company,
-          roleTitle: details.roleTitle,
+          company: judgeMode
+            ? details.company.trim() || "Sample Company"
+            : details.company,
+          roleTitle: judgeMode
+            ? details.roleTitle.trim() || "Software Engineer"
+            : details.roleTitle,
           roleFamily: details.roleFamily,
-          seniority: details.seniority || cv.parsed.seniority_estimate,
+          seniority:
+            details.seniority ||
+            (judgeMode ? "mid" : cv?.parsed.seniority_estimate),
           lengthMinutes: details.lengthMinutes,
-          cvId: cv.cvId,
+          ...(judgeMode ? { judgeMode: true } : { cvId: cv?.cvId }),
           voiceName: voice,
           jobDescription: details.jobDescription,
         },
@@ -221,6 +230,7 @@ export function NewInterview({
   }
   // Picking a file (or an earlier CV) reads it straight away.
   function choose(source: { file: File | null; previous: string }) {
+    if (state === "starting-judge") return;
     setFile(source.file);
     setPrevious(source.previous);
     setError("");
@@ -344,6 +354,25 @@ export function NewInterview({
             ))}
           </ul>
         </details>
+      )}
+      {!existing && (
+        <div className="stack-sm center">
+          <button
+            type="button"
+            className="button secondary"
+            disabled={busy}
+            aria-busy={state === "starting-judge"}
+            onClick={() => void confirmCv(true)}
+          >
+            {state === "starting-judge"
+              ? "Starting Judge mode…"
+              : "Try Judge mode"}
+          </button>
+          <p className="muted small">
+            Practice with a sample CV and shorter AI reasoning. Takes up to
+            3 minutes 30 seconds.
+          </p>
+        </div>
       )}
     </div>
   );
@@ -619,7 +648,9 @@ export function NewInterview({
                 {state === "saving"
                   ? "Creating your interview"
                   : role && company
-                    ? "Start your " + minutes + " minute interview"
+                    ? minutes === 3.5
+                      ? "Start your 3 min 30 s interview"
+                      : "Start your " + minutes + " minute interview"
                     : "Start interview"}
                 {state !== "saving" && (
                   <ArrowRight size={18} aria-hidden="true" />

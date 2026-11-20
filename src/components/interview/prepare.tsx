@@ -89,9 +89,16 @@ export function Prepare({ state }: { state: SessionPublic }) {
               {state.session.roleTitle} · {state.session.company}
             </h1>
             <p className="muted" style={{ margin: 0 }}>
-              With {summary.interviewerName} · {state.config.lengthMinutes}{" "}
-              minutes
+              With {summary.interviewerName} ·{" "}
+              {state.config.hardCapMs % 60_000
+                ? phaseLength(state.config.hardCapMs)
+                : `${state.config.lengthMinutes} minutes`}
             </p>
+            {state.config.judgeMode && (
+              <p className="muted small" style={{ margin: 0 }}>
+                Judge mode · Shorter AI reasoning
+              </p>
+            )}
           </div>
           <div className="skill-chips">
             {summary.competencies.map((item) => (

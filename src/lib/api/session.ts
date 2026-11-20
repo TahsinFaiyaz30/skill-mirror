@@ -14,8 +14,15 @@ import {
 } from "@/lib/db/schema";
 import { db, type Database } from "@/lib/db";
 import { ROLE_FAMILIES, SENIORITIES } from "@/lib/config/taxonomy";
-import { toPublicConfig, buildSessionConfig } from "@/lib/config/sessionConfig";
-import { INTERRUPTED_AFTER_MS } from "@/lib/config/constants";
+import {
+  toPublicConfig,
+  buildSessionConfig,
+  storedInterviewLength,
+} from "@/lib/config/sessionConfig";
+import {
+  INTERRUPTED_AFTER_MS,
+  QUICK_INTERVIEW_MINUTES,
+} from "@/lib/config/constants";
 import { publicEnv, serverEnv, unpaidAI } from "@/lib/config/env";
 import {
   generatePlan,
@@ -23,6 +30,7 @@ import {
   PLAN_PREPARATION_TIMEOUT_MS,
 } from "@/lib/ai/plan";
 import { enrichProjects } from "@/lib/hiring/github";
+import { sampleParsedCv } from "@/lib/ai/mock/sampleParsedCv";
 import { voiceName } from "@/lib/ai/schemas";
 import { body, fail, json, ok, route, type Params } from "@/lib/utils/http";
 import { removePrefix } from "@/lib/supabase/storage";
@@ -63,12 +71,19 @@ export const consentSchema = z.object({
   acceptedAt: z.iso.datetime(),
 });
 export const sessionCreateSchema = privateDraft.extend({
+  cvId: z.uuid().optional(),
+  judgeMode: z.boolean().optional(),
   company: z.string().trim().min(1).max(80),
   roleTitle: z.string().trim().min(1).max(80),
   roleFamily: z.enum(ROLE_FAMILIES),
   seniority: z.enum(SENIORITIES),
   jobDescription: z.string().max(6000).optional(),
-  lengthMinutes: z.union([z.literal(2), z.literal(10), z.literal(20)]),
+  lengthMinutes: z.union([
+    z.literal(2),
+    z.literal(QUICK_INTERVIEW_MINUTES),
+    z.literal(10),
+    z.literal(20),
+  ]),
   voiceName,
 });
 const whereId = (session: SessionRow) => eq(interviewSessions.id, session.id);
@@ -99,7 +114,6 @@ export function makeSessionPublic(s: SessionRow): SessionPublic {
     company,
     roleTitle,
     seniority,
-    lengthMinutes,
     voiceName,
     aiMode,
     cvId,
@@ -116,7 +130,7 @@ export function makeSessionPublic(s: SessionRow): SessionPublic {
       company,
       roleTitle,
       seniority,
-      lengthMinutes,
+      lengthMinutes: s.config.lengthMinutes,
       voiceName,
       aiMode,
       cvId,
@@ -129,6 +143,38 @@ export function makeSessionPublic(s: SessionRow): SessionPublic {
     config: toPublicConfig(s.config, planSummary?.interviewerName),
     planSummary,
   };
+}
+export async function sampleCandidateCv(
+  database: Pick<Database, "select" | "insert">,
+  userId: string,
+): Promise<string> {
+  await database
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .for("update");
+  const storagePath = userId + "/sample.pdf";
+  const [sample] = await database
+    .select({ id: candidateCvs.id })
+    .from(candidateCvs)
+    .where(
+      and(
+        eq(candidateCvs.userId, userId),
+        eq(candidateCvs.storagePath, storagePath),
+      ),
+    );
+  if (sample) return sample.id;
+  const [created] = await database
+    .insert(candidateCvs)
+    .values({
+      userId,
+      storagePath,
+      fileName: "Sample candidate",
+      parseStatus: "parsed",
+      parsed: sampleParsedCv,
+    })
+    .returning({ id: candidateCvs.id });
+  return created.id;
 }
 export function interrupted(session: SessionRow, now = Date.now()) {
   return (
@@ -164,15 +210,31 @@ export async function enforcePracticeLimit(
 }
 export const createSession = route(async (request) => {
   const user = await requireUser();
-  const input = await body(request, sessionCreateSchema);
+  const { cvId, judgeMode, ...input } = await body(
+    request,
+    sessionCreateSchema,
+  );
   const database = await db();
-  await getParsedCv(database, input.cvId, user.id);
-  await enforcePracticeLimit(database, user.id);
-  const config = buildSessionConfig("practice", input);
-  const [inserted] = await database
-    .insert(interviewSessions)
-    .values({ ...input, config, userId: user.id, aiMode: publicEnv.aiMode })
-    .returning({ id: interviewSessions.id });
+  if (!cvId && !judgeMode) fail("BAD_REQUEST", "Select a CV first.");
+  const lengthMinutes = judgeMode ? QUICK_INTERVIEW_MINUTES : input.lengthMinutes;
+  const config = buildSessionConfig("practice", { ...input, lengthMinutes });
+  if (judgeMode) config.judgeMode = true;
+  const inserted = await database.transaction(async (tx) => {
+    if (cvId) await getParsedCv(tx, cvId, user.id);
+    await enforcePracticeLimit(tx, user.id);
+    const [session] = await tx
+      .insert(interviewSessions)
+      .values({
+        ...input,
+        lengthMinutes: storedInterviewLength(lengthMinutes),
+        cvId: cvId ?? (await sampleCandidateCv(tx, user.id)),
+        config,
+        userId: user.id,
+        aiMode: publicEnv.aiMode,
+      })
+      .returning({ id: interviewSessions.id });
+    return session;
+  });
   return json({ sessionId: inserted.id }, 201);
 });
 export const listSessions = route(async () => {
@@ -200,7 +262,7 @@ export const listSessions = route(async () => {
       company: s.company,
       roleTitle: s.roleTitle,
       seniority: s.seniority,
-      lengthMinutes: s.lengthMinutes,
+      lengthMinutes: s.config.lengthMinutes,
       status: s.status,
       displayStatus: interrupted(s) ? "interrupted" : s.status,
       createdAt: s.createdAt,

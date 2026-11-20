@@ -1,4 +1,5 @@
 export const MINUTE = 60_000;
+export const QUICK_INTERVIEW_MINUTES = 3.5;
 export const FORCE_CLOSE_BEFORE_CAP_MS = 30_000;
 export const PHASE_GRACE_MS = 45_000;
 export const SHORT_SESSION_CAP_MS = 5 * MINUTE;
@@ -127,6 +128,19 @@ export const PRACTICE_TEMPLATES = {
     },
     behavioralCount: 1,
     techCount: 1,
+    techMaxItems: 2,
+    talkMs: 0,
+    interruptAtMs: null,
+  },
+  [QUICK_INTERVIEW_MINUTES]: {
+    budgets: {
+      intro_calibration: 25000,
+      behavioral: 50000,
+      technical: 115000,
+      close: 20000,
+    },
+    behavioralCount: 1,
+    techCount: 2,
     techMaxItems: 2,
     talkMs: 0,
     interruptAtMs: null,

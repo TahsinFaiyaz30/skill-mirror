@@ -7,6 +7,7 @@ import {
 } from "@/lib/config/taxonomy";
 import { presentationSchema, voiceName } from "@/lib/ai/schemas";
 import type { OpeningConfig } from "@/types/interview";
+import { QUICK_INTERVIEW_MINUTES } from "@/lib/config/constants";
 
 const words = (n: number) => z.string().trim().min(1).max(n);
 const percent = z.number().int().min(0).max(100);
@@ -70,6 +71,7 @@ const integrity = z.object({ requireHeadphones: z.boolean() });
 const mode = z.enum(["scripted", "hybrid", "auto"]);
 const lengthMinutes = z.union([
   z.literal(2),
+  z.literal(QUICK_INTERVIEW_MINUTES),
   z.literal(15),
   z.literal(20),
   z.literal(30),

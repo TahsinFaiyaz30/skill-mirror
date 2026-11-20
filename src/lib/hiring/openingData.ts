@@ -5,7 +5,10 @@ import {
   type OpeningRow,
   type OrgRow,
 } from "@/lib/db/schema";
-import { buildSessionConfig } from "@/lib/config/sessionConfig";
+import {
+  buildSessionConfig,
+  storedInterviewLength,
+} from "@/lib/config/sessionConfig";
 import { publicEnv, serverEnv } from "@/lib/config/env";
 import { publicLogoURL } from "@/lib/supabase/storage";
 import type { OpeningQuestion } from "@/types/interview";
@@ -45,7 +48,7 @@ export function companySessionInput(
     roleFamily: opening.roleFamily,
     seniority: opening.seniority,
     jobDescription: opening.jobDescription,
-    lengthMinutes: config.lengthMinutes,
+    lengthMinutes: storedInterviewLength(config.lengthMinutes),
     voiceName: config.ai.voiceName,
     aiMode: publicEnv.aiMode,
     config,
