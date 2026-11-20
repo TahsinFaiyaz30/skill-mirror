@@ -147,10 +147,12 @@ export function Dashboard({ firstName }: { firstName: string }) {
             Start a new mock interview or pick up where you left off.
           </p>
         </div>
-        <Link className="button" href="/interview/new">
-          <Plus size={18} aria-hidden="true" />
-          New interview
-        </Link>
+        {items.length > 0 && (
+          <Link className="button" href="/interview/new">
+            <Plus size={18} aria-hidden="true" />
+            New interview
+          </Link>
+        )}
       </div>
       <div className="grid-3 stagger">
         <div className="card stat">

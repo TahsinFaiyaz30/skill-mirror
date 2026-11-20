@@ -82,6 +82,9 @@ export function AppNav({
   company?: CompanyBrand | null;
 }) {
   const items = useItems(org);
+  const pathname = usePathname() ?? "";
+  // The dashboard and the new interview page have their own button.
+  const showCta = pathname !== "/dashboard" && pathname !== "/interview/new";
   const links = items.map(({ href, label, match }) => (
     <Link key={href} href={href} aria-current={match ? "page" : undefined}>
       {label}
@@ -97,10 +100,12 @@ export function AppNav({
           </nav>
         </div>
         <div className="topnav-right">
-          <Link href="/interview/new" className="button sm topnav-cta">
-            <Plus size={16} aria-hidden="true" />
-            New interview
-          </Link>
+          {showCta && (
+            <Link href="/interview/new" className="button sm topnav-cta">
+              <Plus size={16} aria-hidden="true" />
+              New interview
+            </Link>
+          )}
           <DropdownMenu.Root>
             <DropdownMenu.Trigger
               className="button ghost icon"
