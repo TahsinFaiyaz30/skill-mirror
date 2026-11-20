@@ -83,8 +83,8 @@ export function AppNav({
 }) {
   const items = useItems(org);
   const pathname = usePathname() ?? "";
-  // The dashboard and the new interview page have their own button.
-  const showCta = pathname !== "/dashboard" && pathname !== "/interview/new";
+  // Hidden only on the new interview page, where it would point to itself.
+  const showCta = pathname !== "/interview/new";
   const links = items.map(({ href, label, match }) => (
     <Link key={href} href={href} aria-current={match ? "page" : undefined}>
       {label}
@@ -93,22 +93,20 @@ export function AppNav({
   return (
     <header className="topnav">
       <div className="container topnav-inner">
-        <div className="topnav-left">
-          <Brand company={company} />
-          <nav className="topnav-links" aria-label="Main">
+        <Brand company={company} />
+        <div className="navpill">
+          <nav className="navpill-links" aria-label="Main">
             {links}
           </nav>
-        </div>
-        <div className="topnav-right">
           {showCta && (
-            <Link href="/interview/new" className="button sm topnav-cta">
-              <Plus size={16} aria-hidden="true" />
-              New interview
+            <Link href="/interview/new" className="navpill-cta">
+              <Plus size={15} aria-hidden="true" />
+              <span className="topnav-cta-text">New interview</span>
             </Link>
           )}
           <DropdownMenu.Root>
             <DropdownMenu.Trigger
-              className="button ghost icon"
+              className="navpill-avatar"
               aria-label="Account"
             >
               <span className="avatar" aria-hidden="true">
@@ -164,7 +162,7 @@ export function AppNav({
           </DropdownMenu.Root>
           <Dialog.Root>
             <Dialog.Trigger
-              className="button secondary icon topnav-menu"
+              className="navpill-menu"
               aria-label="Open navigation"
             >
               <Menu size={20} />
