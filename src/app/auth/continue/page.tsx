@@ -10,7 +10,8 @@ export default async function Continue({
   const user = await getUser();
   if (!user) redirect(authPath("/login", next, intent));
   const target = safeNext(next);
-  if (target && !target.startsWith("/auth/continue")) redirect(target);
+  if (target && target !== "/" && !target.startsWith("/auth/continue"))
+    redirect(target);
   const profile = await getProfile(user.id);
   if (!profile?.onboardedAt)
     redirect(authPath("/onboarding", null, intent ?? profile?.intent));

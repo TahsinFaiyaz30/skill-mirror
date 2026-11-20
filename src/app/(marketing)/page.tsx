@@ -1,6 +1,7 @@
 import Footer01 from "@/components/ui/footer-01";
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -21,7 +22,11 @@ import {
 } from "lucide-react";
 import { Reveal } from "@/components/common/reveal";
 import { ThemeToggle } from "@/components/common/theme-toggle";
+import { LandingAuthGuard } from "@/components/landing/auth-guard";
 import { Brand } from "@/components/shell/brand";
+import { authenticatedHome, getUser } from "@/lib/auth/guards";
+
+export const dynamic = "force-dynamic";
 
 // What the product does, in three plain sentences.
 const does = [
@@ -158,20 +163,17 @@ const roles = [
   ],
 ] as const;
 
-export default function Landing() {
+export default async function Landing() {
+  const user = await getUser();
+  if (user) redirect(await authenticatedHome(user.id));
+
   return (
     <div className="lp">
+      <LandingAuthGuard />
       <header className="nav">
         <div className="container nav-inner">
           <div className="nav-left">
             <Brand />
-            <nav className="lp-nav-links" aria-label="Sections">
-              <a href="#what-it-does">What it does</a>
-              <a href="#how-it-works">How it works</a>
-              <a href="#report">Your report</a>
-              <a href="#who-its-for">Who it&apos;s for</a>
-              <a href="#faq">FAQ</a>
-            </nav>
           </div>
           <div className="cluster" style={{ gap: 8 }}>
             <ThemeToggle variant="icon" />

@@ -155,7 +155,7 @@ export function LiveRoom({
       </div>
       <main className="live-room room-shell">
         <header className="room-header">
-          <Brand company={data.config.company} />
+          <Brand company={data.config.company} href="/dashboard" />
           <ol className="cluster room-phases" aria-label="Interview phases">
             {data.config.phaseOrder.map((phase, index) => (
               <li

@@ -17,11 +17,14 @@ export async function Shell({
     getProfile(user.id),
     getOrg(user.id),
   ]);
+  const homeHref =
+    profile?.intent === "hiring" && membership ? "/hiring" : "/dashboard";
   return (
     <div className="app-shell">
       <AppNav
         name={profile?.fullName ?? ""}
         email={user.email ?? ""}
+        homeHref={homeHref}
         org={
           membership && {
             name: membership.org.name,
@@ -33,7 +36,7 @@ export async function Shell({
       <main className="app-main">
         <div className="container page">{children}</div>
       </main>
-      <Footer01 />
+      <Footer01 authenticated homeHref={homeHref} hasOrg={Boolean(membership)} />
     </div>
   );
 }

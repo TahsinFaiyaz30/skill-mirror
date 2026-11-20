@@ -190,7 +190,7 @@ export function Processing({
   return (
     <main className="live-room">
       <header className="room-header">
-        <Brand company={data.config.company} />
+        <Brand company={data.config.company} href="/dashboard" />
       </header>
       <div className="processing-center">{card}</div>
     </main>

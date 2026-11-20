@@ -2712,7 +2712,7 @@ details summary {
 }
 .lp header.nav .nav-inner {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 16px;
   width: min(1160px, calc(100% - 32px));
@@ -5999,4 +5999,18 @@ html:not(.dark) .tile-tag.improve {
   justify-items: start;
   padding: 12px 64px 12px 12px;
   text-align: left;
+}
+
+@media print {
+  .docs-no-print {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+    color: #1c1d20 !important;
+  }
+  section,
+  article {
+    break-inside: avoid-page;
+  }
 }

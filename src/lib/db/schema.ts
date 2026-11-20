@@ -49,6 +49,7 @@ import type {
   ReportData,
   FinalTurnMetrics,
 } from "@/types/report";
+import type { DocsDocument, DocsVisibilityMode } from "@/types/docs";
 
 export const sessionKind = pgEnum("session_kind", SESSION_KINDS);
 export const sessionStatus = pgEnum("session_status", SESSION_STATUSES);
@@ -469,9 +470,48 @@ export const certificates = pgTable("certificates", {
   createdAt: createdAt(),
 }).enableRLS();
 
+export const docsConfig = pgTable("docs_config", {
+  id: text().primaryKey().default("primary"),
+  visibilityMode: text("visibility_mode")
+    .$type<DocsVisibilityMode>()
+    .default("on")
+    .notNull(),
+  scheduleStart: timestamp("schedule_start", { withTimezone: true })
+    .default(sql`'2026-06-10T00:00:00Z'::timestamptz`)
+    .notNull(),
+  scheduleEnd: timestamp("schedule_end", { withTimezone: true })
+    .default(sql`'2026-06-14T23:59:59Z'::timestamptz`)
+    .notNull(),
+  durationStartedAt: timestampAt("duration_started_at"),
+  durationHours: integer("duration_hours"),
+  publishedVersion: integer("published_version").default(1).notNull(),
+  draft: jsonb().$type<DocsDocument>().notNull(),
+  published: jsonb().$type<DocsDocument>().notNull(),
+  updatedBy: uuid("updated_by").references(() => profiles.id, {
+    onDelete: "set null",
+  }),
+  updatedAt: updatedAt(),
+  publishedAt: timestamp("published_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+}).enableRLS();
+
+export const docsRevisions = pgTable("docs_revisions", {
+  id: id(),
+  version: integer().notNull().unique(),
+  summary: text().default("").notNull(),
+  snapshot: jsonb().$type<DocsDocument>().notNull(),
+  publishedBy: uuid("published_by").references(() => profiles.id, {
+    onDelete: "set null",
+  }),
+  createdAt: createdAt(),
+}).enableRLS();
+
 export type SessionRow = typeof interviewSessions.$inferSelect;
 export type TurnRow = typeof turns.$inferSelect;
 export type OpeningRow = typeof openings.$inferSelect;
 export type OrgRow = typeof organizations.$inferSelect;
 export type InviteRow = typeof invitations.$inferSelect;
 export type ProfileRow = typeof profiles.$inferSelect;
+export type DocsConfigRow = typeof docsConfig.$inferSelect;
+export type DocsRevisionRow = typeof docsRevisions.$inferSelect;

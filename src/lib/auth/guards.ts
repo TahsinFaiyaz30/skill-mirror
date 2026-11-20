@@ -11,6 +11,7 @@ import {
 import { localMock, publicEnv } from "@/lib/config/env";
 import { serverSupabase } from "@/lib/supabase/server";
 import { mockUser } from "./mock";
+import { authPath } from "./navigation";
 import { fail, uuidParam } from "@/lib/utils/http";
 
 export const getUser = cache(async () => {
@@ -51,6 +52,17 @@ export const getOrg = cache(async (userId: string) => {
     .where(eq(orgMembers.userId, userId));
   return membership ?? null;
 });
+export async function authenticatedHome(
+  userId: string,
+  preferHiring = false,
+): Promise<string> {
+  const profile = await getProfile(userId);
+  if (!profile?.onboardedAt)
+    return authPath("/onboarding", null, profile?.intent);
+  if ((profile.intent === "hiring" || preferHiring) && (await getOrg(userId)))
+    return "/hiring";
+  return "/dashboard";
+}
 export async function requireOrgMember(owner = false) {
   const user = await requireUser();
   const membership = await getOrg(user.id);

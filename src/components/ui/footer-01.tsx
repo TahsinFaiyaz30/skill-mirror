@@ -48,13 +48,14 @@ function StatusDot({
   );
 }
 
-const columns = [
+const publicColumns = [
   {
     title: "Product",
     links: [
       ["What it does", "/#what-it-does"],
       ["How it works", "/#how-it-works"],
       ["Your report", "/#report"],
+      ["Live Docs", "/docs"],
       ["About", "/about"],
     ],
   },
@@ -84,14 +85,62 @@ const columns = [
   },
 ] as const;
 
-export default function Footer01() {
+export default function Footer01({
+  authenticated = false,
+  homeHref = "/",
+  hasOrg = false,
+}: {
+  authenticated?: boolean;
+  homeHref?: string;
+  hasOrg?: boolean;
+}) {
+  const columns = authenticated
+    ? [
+        {
+          title: "Practice",
+          links: [
+            ["Interview Studio", "/dashboard"],
+            ["Progress", "/progress"],
+            ["Live Docs", "/docs"],
+            ["About", "/about"],
+          ],
+        },
+        ...(hasOrg
+          ? [
+              {
+                title: "Hiring",
+                links: [
+                  ["Openings", "/hiring"],
+                  ["Organization", "/hiring/organization"],
+                ],
+              },
+            ]
+          : []),
+        {
+          title: "Account",
+          links: [["Profile settings", "/settings"]],
+        },
+        {
+          title: "Legal",
+          links: [
+            ["Privacy", "/privacy"],
+            ["Terms", "/terms"],
+          ],
+        },
+      ]
+    : publicColumns;
+  const ctaHref = authenticated ? homeHref : "/signup";
+  const ctaLabel =
+    authenticated && homeHref === "/hiring"
+      ? "Go to openings"
+      : "Start practicing";
   return (
     <footer className="site-footer relative overflow-hidden border-t border-[var(--border)]">
       <Container className="pt-16 sm:pt-20">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1.2fr_2fr]">
           <div className="flex max-w-sm flex-col gap-6">
             <Link
-              href="/"
+              href={homeHref}
               className="footer-brand flex items-center gap-2 font-semibold"
             >
               <LogoMark size={26} />
@@ -106,8 +155,8 @@ export default function Footer01() {
                 asChild
                 className="footer-cta h-10 rounded-lg bg-[var(--orange)] px-5 font-semibold hover:bg-[var(--orange-hover)]"
               >
-                <Link href="/dashboard">
-                  Start practicing
+                <Link href={ctaHref}>
+                  {ctaLabel}
                   <ArrowRight className="size-4" />
                 </Link>
               </Button>

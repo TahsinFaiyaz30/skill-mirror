@@ -1,11 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, Cpu, LogOut, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BookOpen, Cpu, LogOut, ShieldCheck } from "lucide-react";
 import { LogoMark } from "./brand";
 import { signOut } from "./app-nav";
 
-const sections = [{ href: "/admin", label: "AI providers", icon: Cpu }];
+const sections = [
+  { href: "/admin", label: "AI providers", icon: Cpu },
+  { href: "/admin/docs", label: "Live /docs", icon: BookOpen },
+];
 
 // The admin panel has its own frame: a sidebar with the admin sections and a
 // way back to the site. It is reached at /admin, not from the profile menu.

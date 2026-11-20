@@ -75,12 +75,14 @@ export function LogoMark({ size = 30 }: { size?: number }) {
 
 export function Brand({
   company,
+  href = "/",
 }: {
   company?: { name: string; logoUrl: string | null } | null;
+  href?: string;
 }) {
   return (
     <div className="brand-line">
-      <Link href="/" className="brand" aria-label="SkillMirror home">
+      <Link href={href} className="brand" aria-label="SkillMirror home">
         <LogoMark />
         <span>
           Skill<span className="brand-accent">Mirror</span>

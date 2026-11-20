@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { Brand } from "@/components/shell/brand";
 import { ThemeToggle } from "@/components/common/theme-toggle";
-export default function Page() {
+import { authenticatedHome, getUser } from "@/lib/auth/guards";
+export default async function Page() {
+  const user = await getUser();
+  const homeHref = user ? await authenticatedHome(user.id) : "/";
   return (
     <>
       <header className="nav">
         <div className="container nav-inner">
-          <Brand />
+          <Brand href={homeHref} />
           <ThemeToggle />
         </div>
       </header>

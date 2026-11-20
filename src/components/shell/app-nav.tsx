@@ -194,12 +194,16 @@ export function AppNav({
   email,
   org,
   company,
+  homeHref = "/dashboard",
 }: {
   name: string;
   email: string;
   org: CompanyBrand | null;
   company?: CompanyBrand | null;
+  homeHref?: string;
 }) {
+  const pathname = usePathname() ?? "";
+  const brandHref = pathname.startsWith("/hiring") && org ? "/hiring" : homeHref;
   const items = useItems(org);
   const links = items.map(({ href, label, match }) => (
     <Link key={href} href={href} aria-current={match ? "page" : undefined}>
@@ -211,7 +215,7 @@ export function AppNav({
       <div className="container">
         <div className="topnav-bar">
           <div className="topnav-start">
-            <Brand company={company} />
+            <Brand company={company} href={brandHref} />
           </div>
           <nav className="topnav-links" aria-label="Main">
             {links}
@@ -230,7 +234,7 @@ export function AppNav({
                 <Dialog.Content className="drawer">
                   <div className="cluster between">
                     <Dialog.Title className="sr-only">Navigation</Dialog.Title>
-                    <Brand />
+                    <Brand href={brandHref} />
                     <Dialog.Close
                       className="button ghost icon"
                       aria-label="Close navigation"
