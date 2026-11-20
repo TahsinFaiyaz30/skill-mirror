@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { CalendarClock, Lock, ArrowLeft, ShieldCheck } from "lucide-react";
-import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Brand } from "@/components/shell/brand";
 import type { DocsAccessDecision } from "@/types/docs";
 
@@ -15,7 +14,6 @@ export function DocsUnavailable({ access }: { access: DocsAccessDecision }) {
       <header className="nav">
         <div className="container nav-inner">
           <Brand />
-          <ThemeToggle />
         </div>
       </header>
       <main className="container flex min-h-[75vh] items-center justify-center py-16">

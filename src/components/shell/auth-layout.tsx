@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Brand } from "./brand";
-import { ThemeToggle } from "@/components/common/theme-toggle";
 
 // A single form on a plain background, with a way back to the home page.
 export function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -15,7 +14,6 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
           </Link>
           <Brand />
         </div>
-        <ThemeToggle variant="icon" />
       </header>
       <section className="auth-form">
         <div className="card auth-card">{children}</div>

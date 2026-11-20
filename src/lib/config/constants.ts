@@ -1,5 +1,16 @@
 export const MINUTE = 60_000;
 export const QUICK_INTERVIEW_MINUTES = 3.5;
+// Judge mode and every 3 min 30 s interview use the fast AI path: shorter model
+// reasoning for the plan, the live interviewer and the report narrative.
+export function usesFastReasoning(config: {
+  judgeMode?: boolean;
+  lengthMinutes: number;
+}) {
+  return (
+    Boolean(config.judgeMode) ||
+    config.lengthMinutes === QUICK_INTERVIEW_MINUTES
+  );
+}
 export const FORCE_CLOSE_BEFORE_CAP_MS = 30_000;
 export const PHASE_GRACE_MS = 45_000;
 export const SHORT_SESSION_CAP_MS = 5 * MINUTE;
@@ -13,6 +24,8 @@ export const MAX_FOLLOWUPS_PER_ITEM = 1;
 export const MAX_CLARIFICATIONS_PER_ITEM = 2;
 export const STRATEGIST_TIMEOUT_MS = 3_500;
 export const GEMINI_STRATEGIST_TIMEOUT_MS = 4_000;
+// Post-interview rescoring runs in batches of 4 with no one waiting on a turn.
+export const RESCORE_TIMEOUT_MS = 20_000;
 export const LIVE_AUDIO_IN_RATE = 16_000;
 export const LIVE_AUDIO_CHUNK_MS = 40;
 export const LIVE_AUDIO_OUT_RATE = 24_000;

@@ -1,6 +1,6 @@
 import { gunzipSync } from "node:zlib";
 import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm";
-import { REPORT_LEASE_MS } from "@/lib/config/constants";
+import { REPORT_LEASE_MS, usesFastReasoning } from "@/lib/config/constants";
 import { correctedCertificate } from "@/lib/cert/issue";
 import type { Database } from "@/lib/db";
 import {
@@ -53,6 +53,12 @@ export const PROCESSING_STEPS = [
   ["narrate", 90],
   ["finalize", 100],
 ] as const;
+// The process route has maxDuration = 300 s. A step is only started while this
+// much time has passed, so the slowest step (narrate, 90 s) still ends inside
+// the limit. Otherwise the run hands back to the browser, which resumes the
+// remaining steps straight away instead of waiting out the 290 s lease.
+export const PROCESSING_STEP_START_BUDGET_MS = 180_000;
+const TONE_TIMEOUT_MS = 45_000;
 const timed = (ms: number) =>
   String(Math.floor(ms / 60000)).padStart(2, "0") +
   ":" +
@@ -78,6 +84,7 @@ export async function processInterview(
   database: Database,
   original: SessionRow,
 ) {
+  const started = Date.now();
   const id = original.id;
   const rw = eq(reports.sessionId, id),
     sw = eq(interviewSessions.id, id),
@@ -519,84 +526,90 @@ export async function processInterview(
     tone: async () => {
       if (off || original.aiMode === "mock") return;
       const turnRows = await loadTurnRows();
-      for (const part of microphones) {
-        const mic = await fileBytes(part, "recordings");
-        if (!mic) continue;
-        const offset = part.startOffsetMs;
-        const windows = turnRows.flatMap((t) => {
-          const w = answerWindow(t);
-          return w &&
-            w.startMs >= offset &&
-            w.endMs <= part.durationMs &&
-            w.endMs - w.startMs >= 5000
-            ? [
-                {
-                  turnIdx: t.idx,
-                  kind: t.itemKind,
-                  start: timed(Math.max(0, w.startMs - offset)),
-                  end: timed(Math.max(0, w.endMs - offset)),
-                  question: t.questionText,
-                },
-              ]
-            : [];
-        });
-        if (!windows.length) continue;
-        try {
-          const { turns: results } = await geminiJSON(
-            p7({ turnWindowsJson: JSON.stringify(windows) }),
-            toneSchema,
-            { inline: attachment("audio", "audio/webm", mic) },
-          );
-          await database.transaction(async (tx) => {
-            await tx.delete(events).where(
-              and(
-                ew,
-                eq(events.type, "tone_moment"),
-                inArray(
-                  events.turnIdx,
-                  windows.map((w) => w.turnIdx),
-                ),
-              ),
-            );
-            for (const tone of results) {
-              const turn = turnRows.find((t) => t.idx === tone.turnIdx);
-              const window = turn && answerWindow(turn);
-              if (!window || !windows.some((w) => w.turnIdx === tone.turnIdx))
-                continue;
-              await tx
-                .update(turns)
-                .set({ tone })
-                .where(and(tw, eq(turns.idx, tone.turnIdx)));
-              const positive = [
-                "confident",
-                "composed",
-                "enthusiastic",
-              ].includes(tone.label);
-              for (const moment of tone.moments) {
-                const at = clamp(
-                  fromTime(moment.at) + offset,
-                  window.startMs,
-                  window.endMs,
-                );
-                await tx.insert(events).values({
-                  ...makeEvent(
-                    positive ? "positive" : "vocal",
-                    "tone_moment",
-                    at,
-                    at,
-                    0.4,
-                    tone.turnIdx,
-                    { note: moment.note },
-                  ),
-                  sessionId: id,
-                });
-              }
-            }
+      // Each capture part is analysed on its own, so the parts run together.
+      await Promise.all(
+        microphones.map(async (part) => {
+          const mic = await fileBytes(part, "recordings");
+          if (!mic) return;
+          const offset = part.startOffsetMs;
+          const windows = turnRows.flatMap((t) => {
+            const w = answerWindow(t);
+            return w &&
+              w.startMs >= offset &&
+              w.endMs <= part.durationMs &&
+              w.endMs - w.startMs >= 5000
+              ? [
+                  {
+                    turnIdx: t.idx,
+                    kind: t.itemKind,
+                    start: timed(Math.max(0, w.startMs - offset)),
+                    end: timed(Math.max(0, w.endMs - offset)),
+                    question: t.questionText,
+                  },
+                ]
+              : [];
           });
-        } catch {
-          /* Tone is optional when the provider cannot read the recording. */
-        }
-      }
+          if (!windows.length) return;
+          try {
+            const { turns: results } = await geminiJSON(
+              p7({ turnWindowsJson: JSON.stringify(windows) }),
+              toneSchema,
+              {
+                inline: attachment("audio", "audio/webm", mic),
+                timeout: TONE_TIMEOUT_MS,
+              },
+            );
+            await database.transaction(async (tx) => {
+              await tx.delete(events).where(
+                and(
+                  ew,
+                  eq(events.type, "tone_moment"),
+                  inArray(
+                    events.turnIdx,
+                    windows.map((w) => w.turnIdx),
+                  ),
+                ),
+              );
+              for (const tone of results) {
+                const turn = turnRows.find((t) => t.idx === tone.turnIdx);
+                const window = turn && answerWindow(turn);
+                if (!window || !windows.some((w) => w.turnIdx === tone.turnIdx))
+                  continue;
+                await tx
+                  .update(turns)
+                  .set({ tone })
+                  .where(and(tw, eq(turns.idx, tone.turnIdx)));
+                const positive = [
+                  "confident",
+                  "composed",
+                  "enthusiastic",
+                ].includes(tone.label);
+                for (const moment of tone.moments) {
+                  const at = clamp(
+                    fromTime(moment.at) + offset,
+                    window.startMs,
+                    window.endMs,
+                  );
+                  await tx.insert(events).values({
+                    ...makeEvent(
+                      positive ? "positive" : "vocal",
+                      "tone_moment",
+                      at,
+                      at,
+                      0.4,
+                      tone.turnIdx,
+                      { note: moment.note },
+                    ),
+                    sessionId: id,
+                  });
+                }
+              }
+            });
+          } catch {
+            /* Tone is optional when the provider cannot read the recording. */
+          }
+        }),
+      );
     },
     score: async () => {
       const [s, turnRows, all, timeline] = await Promise.all([
@@ -706,6 +719,21 @@ export async function processInterview(
   try {
     for (const [key, progress] of PROCESSING_STEPS) {
       if (done.includes(key)) continue;
+      if (Date.now() - started > PROCESSING_STEP_START_BUDGET_MS) {
+        // Release the lease with the finished steps saved, so the next
+        // /process request can claim it at once and continue from here.
+        const [released] = await database
+          .update(reports)
+          .set({ status: "queued", updatedAt: new Date() })
+          .where(and(rw, eq(reports.updatedAt, heartbeat)))
+          .returning({ progress: reports.progress });
+        return {
+          status: released ? "queued" : "running",
+          progress: released?.progress ?? 0,
+          step: key,
+          busy: !released,
+        };
+      }
       const [lease] = await database
         .update(reports)
         .set({ step: key })
@@ -892,7 +920,10 @@ async function narrative(
           : "Choose 5–7 of the supplied candidate IDs.",
     }),
     narrativeSchema,
-    { thinking: session.config.judgeMode ? "low" : "medium", timeout: 90000 },
+    {
+      thinking: usesFastReasoning(session.config) ? "low" : "medium",
+      timeout: 90000,
+    },
   );
   const byId = new Map(candidates.map((c) => [c.id, c]));
   const chosen = new Set<string>();

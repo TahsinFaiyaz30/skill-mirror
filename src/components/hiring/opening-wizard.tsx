@@ -32,6 +32,7 @@ import {
 } from "@/lib/utils/client";
 import { roleOptions, VoiceSelect } from "@/components/interview/new-interview";
 import { SuggestInput } from "@/components/ui/suggest-input";
+import { QUICK_INTERVIEW_MINUTES } from "@/lib/config/constants";
 import type { Opening, OpeningDetail } from "@/types/hiring";
 import type {
   OpeningConfig,
@@ -749,7 +750,15 @@ export function OpeningWizard({
                 <legend>Length</legend>
                 <div className="cluster">
                   {([2, 3.5, 15, 20, 30, 45] as const).map((n) => (
-                    <label className="check inset" key={n}>
+                    <label
+                      className={
+                        "check inset" +
+                        (n === QUICK_INTERVIEW_MINUTES
+                          ? " length-recommended"
+                          : "")
+                      }
+                      key={n}
+                    >
                       <input
                         name="opening-length"
                         type="radio"
@@ -761,6 +770,11 @@ export function OpeningWizard({
                         : n === 3.5
                           ? "3 min 30 s"
                           : n + " min"}
+                      {n === QUICK_INTERVIEW_MINUTES && (
+                        <span className="length-badge">
+                          Recommended for judges
+                        </span>
+                      )}
                     </label>
                   ))}
                 </div>

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Brand } from "@/components/shell/brand";
-import { ThemeToggle } from "@/components/common/theme-toggle";
 import { authenticatedHome, getUser } from "@/lib/auth/guards";
 import { unpaidAI } from "@/lib/config/env";
 export default async function Page() {
@@ -11,7 +10,6 @@ export default async function Page() {
       <header className="nav">
         <div className="container nav-inner">
           <Brand href={homeHref} />
-          <ThemeToggle />
         </div>
       </header>
       <main className="container page">

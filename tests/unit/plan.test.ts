@@ -16,10 +16,14 @@ describe("interview plan recovery", () => {
     vi.unstubAllGlobals();
   });
 
+  // Judge mode and every 3 min 30 s interview use the fast path; longer
+  // interviews keep full reasoning.
   it.each([
-    { judgeMode: true as const, blueprintLevel: "low", ladderLevel: "low" },
-    { judgeMode: undefined, blueprintLevel: "high", ladderLevel: "medium" },
-  ])("uses the configured Gemini model with the expected reasoning for $judgeMode", async ({
+    { lengthMinutes: 3.5 as const, judgeMode: true as const, blueprintLevel: "low", ladderLevel: "low" },
+    { lengthMinutes: 3.5 as const, judgeMode: undefined, blueprintLevel: "low", ladderLevel: "low" },
+    { lengthMinutes: 20 as const, judgeMode: undefined, blueprintLevel: "high", ladderLevel: "medium" },
+  ])("uses the configured Gemini model with the expected reasoning for $lengthMinutes min, judge $judgeMode", async ({
+    lengthMinutes,
     judgeMode,
     blueprintLevel,
     ladderLevel,
@@ -27,7 +31,7 @@ describe("interview plan recovery", () => {
     vi.stubEnv("GEMINI_API_KEY", "gemini-test-key");
     vi.stubEnv("MODEL_FLASH", "configured-gemini-model");
     const config = {
-      ...buildSessionConfig("practice", { lengthMinutes: 3.5, voiceName: "Kore" }),
+      ...buildSessionConfig("practice", { lengthMinutes, voiceName: "Kore" }),
       judgeMode,
     };
     const session = {

@@ -137,8 +137,32 @@ export async function readObject(
       (error: NodeJS.ErrnoException) =>
         error.code === "ENOENT" ? null : Promise.reject(error),
     );
-  const { data } = await adminSupabase().storage.from(bucket).download(path);
-  return data ? Buffer.from(await data.arrayBuffer()) : null;
+  const storage = adminSupabase().storage.from(bucket);
+  for (let attempt = 0; ; attempt++) {
+    const { data, error } = await storage.download(path);
+    if (data) return Buffer.from(await data.arrayBuffer());
+    // Only a missing object means "not uploaded". A network or Storage error
+    // is retried once and then reported, instead of looking like no upload.
+    if (!error || isMissingObject(error)) return null;
+    if (attempt >= 1) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
+function isMissingObject(error: unknown) {
+  const info = error as {
+    status?: unknown;
+    statusCode?: unknown;
+    message?: unknown;
+  };
+  const message = String(info.message ?? "");
+  // Storage also answers "Bucket not found" with a 404. That is a setup error,
+  // not a missing upload, so it must reach the logs instead.
+  if (/bucket/i.test(message)) return false;
+  return (
+    info.status === 404 ||
+    info.statusCode === "404" ||
+    /object not found|no such (?:key|object)/i.test(message)
+  );
 }
 export async function putObject(
   bucket: Bucket,

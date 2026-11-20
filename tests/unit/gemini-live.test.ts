@@ -288,7 +288,7 @@ describe("Gemini Interactions API, TTS, and Live API", () => {
     ]);
   });
 
-  it("retries once with field feedback on Zod error and fails fast on 400 errors", async () => {
+  it("retries once with field feedback on Zod error and tries each model once on 400 errors", async () => {
     const schema = z.object({ count: z.number().int() });
     const bodies: Array<Record<string, unknown>> = [];
     let call = 0;
@@ -328,7 +328,8 @@ describe("Gemini Interactions API, TTS, and Live API", () => {
     await expect(
       geminiJSON({ system: "sys", user: "count?" }, schema),
     ).rejects.toBeInstanceOf(Error);
-    expect(failFetch).toHaveBeenCalledTimes(1);
+    // One request per model in the flash chain; never a retry on the same model.
+    expect(failFetch).toHaveBeenCalledTimes(flashModelChain().length);
   });
 
   it("builds TTS interactions with style inside speech_metadata annotations and validates WAV output", async () => {

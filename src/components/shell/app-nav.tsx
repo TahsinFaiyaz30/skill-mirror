@@ -1,19 +1,13 @@
 "use client";
-import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useTheme } from "next-themes";
 import { Dialog, DropdownMenu } from "radix-ui";
 import {
   Building2,
   ChevronDown,
   LogOut,
   Menu,
-  Monitor,
-  Moon,
-
-  Sun,
   UserRound,
   X,
 } from "lucide-react";
@@ -80,15 +74,7 @@ function useItems(org: CompanyBrand | null): Item[] {
   return items;
 }
 
-const modes = [
-  ["light", Sun, "Light"],
-  ["dark", Moon, "Dark"],
-  ["system", Monitor, "System"],
-] as const;
-const noop = () => () => {};
-
-// The account menu: who is signed in, the light/dark mode switch, profile
-// settings and sign out.
+// The account menu: who is signed in, profile settings and sign out.
 function ProfileMenu({
   name,
   email,
@@ -98,13 +84,6 @@ function ProfileMenu({
   email: string;
   org: CompanyBrand | null;
 }) {
-  const { theme, setTheme } = useTheme();
-  const hydrated = useSyncExternalStore(
-    noop,
-    () => true,
-    () => false,
-  );
-  const mode = hydrated ? (theme ?? "system") : "system";
   const firstName = name.trim().split(/\s+/)[0] || "Account";
   return (
     <DropdownMenu.Root>
@@ -130,26 +109,6 @@ function ProfileMenu({
               <p className="muted small">{email}</p>
             </div>
           </div>
-          <div className="menu-separator" />
-          <DropdownMenu.Label className="menu-label">Mode</DropdownMenu.Label>
-          <DropdownMenu.RadioGroup
-            className="mode-switch"
-            value={mode}
-            onValueChange={setTheme}
-          >
-            {modes.map(([value, Icon, label]) => (
-              <DropdownMenu.RadioItem
-                key={value}
-                value={value}
-                className="mode-option"
-                disabled={!hydrated}
-                onSelect={(event) => event.preventDefault()}
-              >
-                <Icon size={17} aria-hidden="true" />
-                {label}
-              </DropdownMenu.RadioItem>
-            ))}
-          </DropdownMenu.RadioGroup>
           <div className="menu-separator" />
           <DropdownMenu.Item className="menu-item" asChild>
             <Link href="/settings">

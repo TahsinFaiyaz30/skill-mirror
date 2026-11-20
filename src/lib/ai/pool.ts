@@ -136,6 +136,12 @@ function rejectsModelOptions(error: unknown): boolean {
   );
 }
 
+function rejectsPayload(error: unknown): boolean {
+  return /payload size|request (?:entity )?(?:is )?too large|exceeds the (?:maximum|limit)|request size/i.test(
+    extractMessage(error),
+  );
+}
+
 export function parseRetryAfterMs(error: unknown): number | undefined {
   if (!error || typeof error !== "object") return undefined;
   const record = error as { headers?: unknown; cause?: unknown };
@@ -382,32 +388,59 @@ export async function tryProviderModels<T, Model extends ProviderModel>(
       if (isCooledDown(provider, slot, model)) continue;
       const remaining = modelDeadline - Date.now();
       if (remaining <= 0) break;
-      const fairShare = Math.ceil(remaining / (slots.length - keyIndex));
-      const timeout = Math.min(remaining, Math.max(1_500, fairShare));
+      // With a fallback model, the first key gets the model's whole budget:
+      // a timeout moves on to the next model, and fast failures (429, 5xx,
+      // auth) return their unused time to the next key. The last model has
+      // nothing to move on to, so its keys share the time and one hung key
+      // cannot use all of it.
+      const timeout = hasFallback
+        ? remaining
+        : Math.min(
+            remaining,
+            Math.max(1_500, Math.ceil(remaining / (slots.length - keyIndex))),
+          );
       const signal = AbortSignal.timeout(timeout);
+      const started = Date.now();
       try {
         const result = await request(candidate, slot, signal, timeout);
         signal.throwIfAborted();
         clearCooldown(provider, slot, model);
+        console.info("SkillMirror AI candidate succeeded", {
+          provider,
+          model,
+          keyIndex: slot.index,
+          durationMs: Date.now() - started,
+        });
         return result;
       } catch (error) {
         lastError = signal.aborted ? signal.reason : error;
         const status = extractStatus(lastError);
+        const timedOut =
+          status === undefined && isAbortOrTimeoutError(lastError);
         markCooldown(provider, slot, model, lastError);
         console.warn("SkillMirror AI candidate failed", {
           provider,
           model,
           keyIndex: slot.index,
-          status:
-            status ?? (isAbortOrTimeoutError(lastError) ? "timeout" : "error"),
+          durationMs: Date.now() - started,
+          status: status ?? (timedOut ? "timeout" : "error"),
         });
-        // A generic invalid request would be repeated unchanged on this
-        // provider. Model options and key errors can differ by candidate.
+        // A slow model is slow on every key, so try the next model instead
+        // of spending the remaining time on the same model.
+        if (timedOut && hasFallback) break;
+        // A generic invalid request would repeat unchanged on other keys,
+        // but another model may accept it. Key and model-option errors can
+        // differ by key, so those keep rotating. A request rejected for its
+        // size would fail on every model, so stop re-uploading it.
         if (
           status === 400 &&
           !isInvalidKey(lastError) &&
           !rejectsModelOptions(lastError)
         ) {
+          if (rejectsPayload(lastError)) rejectedProviders.add(provider);
+          break;
+        }
+        if (status === 413) {
           rejectedProviders.add(provider);
           break;
         }

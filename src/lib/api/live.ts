@@ -42,6 +42,7 @@ import {
   LIVE_TOKEN_TTL_MS,
   LIVE_VAD_PREFIX_MS,
   LIVE_VAD_SILENCE_MS,
+  usesFastReasoning,
 } from "@/lib/config/constants";
 import { serverEnv, unpaidAI } from "@/lib/config/env";
 import {
@@ -533,7 +534,7 @@ export function buildLiveConnectConfig(
     },
     ...(extendedThinking && {
       thinkingConfig: {
-        thinkingLevel: session.config.judgeMode
+        thinkingLevel: usesFastReasoning(session.config)
           ? ThinkingLevel.LOW
           : thinkingLevelValue(serverEnv().MODEL_LIVE_THINKING_LEVEL),
       },

@@ -623,7 +623,14 @@ export function NewInterview({
               <legend className="flow-q">How long?</legend>
               <div className="length-switch">
                 {lengths.map(([value, label, note]) => (
-                  <label key={value}>
+                  <label
+                    key={value}
+                    className={
+                      value === QUICK_INTERVIEW_MINUTES
+                        ? "length-recommended"
+                        : undefined
+                    }
+                  >
                     <input
                       type="radio"
                       name="lengthMinutes"
@@ -634,6 +641,11 @@ export function NewInterview({
                     />
                     <strong>{label}</strong>
                     <small>{note}</small>
+                    {value === QUICK_INTERVIEW_MINUTES && (
+                      <span className="length-badge">
+                        Recommended for judges
+                      </span>
+                    )}
                   </label>
                 ))}
               </div>

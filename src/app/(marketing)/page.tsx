@@ -21,7 +21,6 @@ import {
   Video,
 } from "lucide-react";
 import { Reveal } from "@/components/common/reveal";
-import { ThemeToggle } from "@/components/common/theme-toggle";
 import { LandingAuthGuard } from "@/components/landing/auth-guard";
 import { Brand } from "@/components/shell/brand";
 import { authenticatedHome, getUser } from "@/lib/auth/guards";
@@ -176,7 +175,6 @@ export default async function Landing() {
             <Brand />
           </div>
           <div className="cluster" style={{ gap: 8 }}>
-            <ThemeToggle variant="icon" />
             <Link className="lp-login" href="/login">
               Log in
             </Link>

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Brand } from "@/components/shell/brand";
 import { Shell } from "@/components/shell/shell";
 import Footer01 from "@/components/ui/footer-01";
@@ -93,7 +92,6 @@ export default async function Page() {
       <header className="nav">
         <div className="container nav-inner">
           <Brand />
-          <ThemeToggle />
         </div>
       </header>
       <main className="container page">{article}</main>

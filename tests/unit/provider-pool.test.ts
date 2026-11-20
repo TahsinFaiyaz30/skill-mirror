@@ -168,14 +168,14 @@ describe("Multi-key AI provider pool and model-outer failover", () => {
     ]);
   });
 
-  it("leaves time for the next model after every key on a stalled primary times out", async () => {
+  it("gives a stalled primary its full budget once, then moves to the next model instead of other keys", async () => {
     vi.stubEnv(
       "GEMINI_API_KEY",
       Array.from({ length: 9 }, (_, index) => "slow-key-" + index).join(","),
     );
     let now = Date.now();
     const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
-    const attempts: Array<[string, number]> = [];
+    const attempts: Array<[string, number, number]> = [];
     try {
       const result = await tryProviderModels(
         [
@@ -184,23 +184,101 @@ describe("Multi-key AI provider pool and model-outer failover", () => {
         ],
         30_000,
         async ({ model }, slot, _signal, timeout) => {
-          attempts.push([model, slot.index]);
-          if (model === "backup") {
-            expect(timeout).toBeGreaterThan(1_000);
-            return "ready";
-          }
+          attempts.push([model, slot.index, timeout]);
+          if (model === "backup") return "ready";
           now += timeout;
           throw new DOMException("Request stalled", "TimeoutError");
         },
       );
       expect(result).toBe("ready");
+      // The primary is not split nine ways: one key gets 60% of the budget.
       expect(attempts).toEqual([
-        ...Array.from({ length: 9 }, (_, index) => ["primary", index + 1]),
-        ["backup", 1],
+        ["primary", 1, 18_000],
+        // The last model shares the remaining 12 s across its 9 keys
+        // (at least 1.5 s each), so one hung key cannot use all of it.
+        ["backup", 1, 1_500],
       ]);
     } finally {
       clock.mockRestore();
     }
+  });
+
+  it("keeps trying other keys on a timeout when no other model is left", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "only-model-key-1, only-model-key-2");
+    let now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    const attempts: Array<[number, number]> = [];
+    try {
+      const result = await tryProviderModels(
+        [{ provider: "gemini", model: "only" }],
+        10_000,
+        async (_model, slot, _signal, timeout) => {
+          attempts.push([slot.index, timeout]);
+          if (slot.index === 2) return "ready";
+          now += timeout;
+          throw new DOMException("Request stalled", "TimeoutError");
+        },
+      );
+      expect(result).toBe("ready");
+      // A hung first key uses only its share, leaving time for the second.
+      expect(attempts).toEqual([
+        [1, 5_000],
+        [2, 5_000],
+      ]);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it("stops re-sending a request that was rejected for its size", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "payload-key-1");
+    const attempts: string[] = [];
+    await expect(
+      tryProviderModels(
+        [
+          { provider: "gemini", model: "first" },
+          { provider: "gemini", model: "second" },
+        ],
+        10_000,
+        async ({ model }) => {
+          attempts.push(model);
+          throw Object.assign(
+            new Error("Request payload size exceeds the limit"),
+            { status: 400 },
+          );
+        },
+      ),
+    ).rejects.toThrow(/payload size/);
+    expect(attempts).toEqual(["first"]);
+  });
+
+  it("moves to the next model after a generic 400 instead of abandoning the provider", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "bad-request-key-1, bad-request-key-2");
+    const attempts: Array<[string, number]> = [];
+    const result = await tryProviderModels(
+      [
+        { provider: "gemini", model: "rejects-input" },
+        { provider: "gemini", model: "accepts-input" },
+      ],
+      10_000,
+      async ({ model }, slot) => {
+        attempts.push([model, slot.index]);
+        if (model === "rejects-input")
+          throw Object.assign(
+            new Error("Request contains an invalid argument"),
+            {
+              status: 400,
+            },
+          );
+        return "parsed";
+      },
+    );
+    expect(result).toBe("parsed");
+    // The same invalid request is not repeated on the second key.
+    expect(attempts).toEqual([
+      ["rejects-input", 1],
+      ["accepts-input", 1],
+    ]);
   });
 
   it("rotates speakGemini and transcribeGemini (plain text, no JSON response_format) across keys and models", async () => {

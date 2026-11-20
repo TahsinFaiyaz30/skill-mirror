@@ -10,7 +10,6 @@ import {
 import { browserSupabase } from "@/lib/supabase/client";
 import { send, showError } from "@/lib/utils/client";
 import { signOut } from "@/components/shell/app-nav";
-import { ThemeSelector } from "./theme-toggle";
 export function Settings({
   id,
   name,
@@ -109,15 +108,6 @@ export function Settings({
             <button className="button">Save profile</button>
           </div>
         </form>
-        <section id="appearance" className="card stack anchor-target">
-          <h2>Appearance</h2>
-          <p className="muted">
-            Choose light, dark, or match your device setting.
-          </p>
-          <div>
-            <ThemeSelector />
-          </div>
-        </section>
         {provider === "email" ? (
           <form
             id="security"

@@ -32,7 +32,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider
       attribute="class"
       defaultTheme="dark"
-      enableSystem
+      // Dark mode only for now. forcedTheme also overrides a "light" choice a
+      // visitor saved before the switcher was removed. To bring light mode
+      // back, drop forcedTheme and restore the ThemeToggle in the headers.
+      forcedTheme="dark"
+      enableSystem={false}
       disableTransitionOnChange
     >
       <QueryClientProvider client={query}>

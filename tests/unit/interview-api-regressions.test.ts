@@ -20,7 +20,7 @@ import { initializeMockDatabase } from "@/lib/db/mockSetup";
 import * as schema from "@/lib/db/schema";
 import { sampleParsedCv } from "@/lib/ai/mock/sampleParsedCv";
 import { deleteAccount, retention } from "@/lib/api/account";
-import { useSampleCv } from "@/lib/api/cv";
+import { parseCv, useSampleCv } from "@/lib/api/cv";
 import { startSession, strategist } from "@/lib/api/live";
 import { mediaUpload, patchMediaRoute, telemetry } from "@/lib/api/media";
 import { previewOpening } from "@/lib/api/opening";
@@ -35,7 +35,10 @@ import {
   buildSessionConfig,
   defaultOpeningConfig,
 } from "@/lib/config/sessionConfig";
-import { processInterview } from "@/lib/report/pipeline";
+import {
+  PROCESSING_STEP_START_BUDGET_MS,
+  processInterview,
+} from "@/lib/report/pipeline";
 import { buildReport } from "@/lib/report/buildReport";
 import { compose } from "@/lib/strategist/compose";
 import { startInterview } from "@/lib/strategist/engine";
@@ -170,6 +173,32 @@ describe("account and interview API writes", () => {
     expect(other.parsed).toEqual(sampleParsedCv);
   });
 
+  it("waits for a CV read that is already running instead of starting another", async () => {
+    services.userId = await user();
+    const cvId = randomUUID();
+    await database.insert(schema.candidateCvs).values({
+      id: cvId,
+      userId: services.userId,
+      storagePath: services.userId + "/" + cvId + ".pdf",
+      fileName: "cv.pdf",
+      parseStatus: "parsing",
+    });
+    services.readObject.mockResolvedValue(
+      await readFile("tests/fixtures/sample-cv.pdf"),
+    );
+    const call = parseCv(request({ syntheticMaterial: true }), {
+      params: Promise.resolve({ cvId }),
+    });
+    // The first read finishes while the second request is waiting.
+    await database
+      .update(schema.candidateCvs)
+      .set({ parseStatus: "parsed", parsed: sampleParsedCv })
+      .where(eq(schema.candidateCvs.id, cvId));
+    const response = await call;
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ cvId, parsed: sampleParsedCv });
+  });
+
   it("requires a selected CV and uses the entered details in a judge practice session", async () => {
     const input = {
       company: "Example Company",
@@ -189,13 +218,16 @@ describe("account and interview API writes", () => {
     expect(
       (await createSession(request({ ...input, judgeMode: true }))).status,
     ).toBe(400);
-    const [cv] = await database.insert(schema.candidateCvs).values({
-      userId: services.userId,
-      storagePath: services.userId + "/selected.pdf",
-      fileName: "Selected CV.pdf",
-      parseStatus: "parsed",
-      parsed: sampleParsedCv,
-    }).returning();
+    const [cv] = await database
+      .insert(schema.candidateCvs)
+      .values({
+        userId: services.userId,
+        storagePath: services.userId + "/selected.pdf",
+        fileName: "Selected CV.pdf",
+        parseStatus: "parsed",
+        parsed: sampleParsedCv,
+      })
+      .returning();
     const response = await createSession(
       request({ ...input, cvId: cv.id, judgeMode: true }),
     );
@@ -239,7 +271,10 @@ describe("account and interview API writes", () => {
     const quick = await createSession(request({ ...input, cvId: cv.id }));
     expect(quick.status).toBe(201);
     const quickId = (await quick.json()).sessionId;
-    const quickSession = await getSession(request(undefined, "GET"), params(quickId));
+    const quickSession = await getSession(
+      request(undefined, "GET"),
+      params(quickId),
+    );
     expect(await quickSession.json()).toMatchObject({
       session: { lengthMinutes: 3.5, aiMode: publicEnv.aiMode },
       config: { hardCapMs: 210_000 },
@@ -940,6 +975,50 @@ describe("report processing", () => {
         }),
         expect.objectContaining({ turnIdx: aligned.idx, source: "whisper" }),
       ]),
+    );
+  });
+
+  it("hands a long report run back to the browser instead of holding the lease", async () => {
+    const { turns, words } = goldenFixture("off");
+    services.userId = await user();
+    const session = freshSession(services.userId);
+    await database.insert(schema.interviewSessions).values(session);
+    await database.insert(schema.turns).values(
+      turns.map((turn) => ({
+        ...turn,
+        id: randomUUID(),
+        sessionId: session.id,
+      })),
+    );
+    const stepsDone = ["verify_media", "transcribe", "rescore", "tone"];
+    await database
+      .insert(schema.reports)
+      .values({ sessionId: session.id, status: "queued", stepsDone });
+    services.readObject.mockImplementation(async (_bucket, path: string) =>
+      path.endsWith("/words.json") ? Buffer.from(JSON.stringify(words)) : null,
+    );
+    const start = Date.now();
+    // The run starts, then finds its step-start budget already spent.
+    const clock = vi
+      .spyOn(Date, "now")
+      .mockReturnValueOnce(start)
+      .mockReturnValue(start + PROCESSING_STEP_START_BUDGET_MS + 1);
+    let yielded: Awaited<ReturnType<typeof processInterview>>;
+    try {
+      yielded = await processInterview(services.database, session);
+    } finally {
+      clock.mockRestore();
+    }
+    expect(yielded).toMatchObject({ status: "queued", busy: false });
+    const [paused] = await database
+      .select()
+      .from(schema.reports)
+      .where(eq(schema.reports.sessionId, session.id));
+    // Released, not left "running": the next request can claim it at once.
+    expect(paused.status).toBe("queued");
+    expect(paused.stepsDone).toEqual(stepsDone);
+    expect((await processInterview(services.database, session)).status).toBe(
+      "completed",
     );
   });
 

@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { clamp } from "@/lib/utils/math";
+import { usesFastReasoning } from "@/lib/config/constants";
 import {
   COMPETENCY_KEYS,
   PHASE_LABELS,
@@ -245,7 +246,7 @@ export async function generatePlan(
         }),
         blueprintResponseSchema,
         {
-          thinking: config.judgeMode ? "low" : "high",
+          thinking: usesFastReasoning(config) ? "low" : "high",
           timeout: Math.min(BLUEPRINT_TIMEOUT_MS, deadline - Date.now()),
           validate: (plan) => {
             if (
@@ -333,7 +334,7 @@ export async function generatePlan(
       if (generated && Date.now() < deadline) {
         try {
           const { value } = await planOutput(prompt, ladderSchema, {
-            thinking: config.judgeMode ? "low" : "medium",
+            thinking: usesFastReasoning(config) ? "low" : "medium",
             timeout: deadline - Date.now(),
             preferred: generated.source,
             validate: (response) => {

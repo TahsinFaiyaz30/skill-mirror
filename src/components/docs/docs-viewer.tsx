@@ -24,7 +24,6 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Brand } from "@/components/shell/brand";
 import Footer01 from "@/components/ui/footer-01";
 import {
@@ -424,7 +423,6 @@ export function DocsViewer({
                 <span className="hidden sm:inline">Edit</span>
               </Link>
             )}
-            <ThemeToggle />
           </div>
         </div>
       </header>

@@ -2,6 +2,7 @@ import type { SessionRow } from "@/lib/db/schema";
 import type { Baseline, StrategistInput } from "@/types/interview";
 import {
   GEMINI_STRATEGIST_TIMEOUT_MS,
+  RESCORE_TIMEOUT_MS,
   STRATEGIST_TIMEOUT_MS,
 } from "@/lib/config/constants";
 import { displayCompetency } from "@/lib/strategist/compose";
@@ -114,7 +115,10 @@ export async function evaluateAnswer(
         maxTokens: 900,
         validate,
         thinking: "low",
-        timeout: GEMINI_STRATEGIST_TIMEOUT_MS,
+        // Live turns must answer within the conversation's pause. The
+        // post-interview rescore has no listener waiting, so it gets enough
+        // time to finish instead of falling back to the live score.
+        timeout: rescore ? RESCORE_TIMEOUT_MS : GEMINI_STRATEGIST_TIMEOUT_MS,
       }),
       source: "gemini",
     };

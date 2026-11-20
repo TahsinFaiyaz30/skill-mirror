@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { PDFDocument } from "pdf-lib";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -22,6 +22,13 @@ import {
 } from "@/lib/utils/http";
 
 const maxBytes = 5_242_880;
+// Finish below the parse route's 120 s maxDuration so a slow provider ends as
+// a "failed" parse the user can retry, not a platform timeout that leaves the
+// row in "parsing".
+const CV_PARSE_TIMEOUT_MS = 100_000;
+// A request that finds a read already running waits slightly longer than that
+// read may take, still inside the 120 s route limit.
+const CV_PARSE_WAIT_MS = CV_PARSE_TIMEOUT_MS + 5_000;
 const cvPath = (userId: string, cvId: string) => userId + "/" + cvId + ".pdf";
 const sampleCvPath = (userId: string) => userId + "/sample.pdf";
 
@@ -120,7 +127,12 @@ export const parseCv = route(async (request, context: Params<"cvId">) => {
     );
   if (cv.parseStatus === "parsed" && cv.parsed)
     return json({ cvId: cv.id, parsed: cv.parsed });
-  const pdf = await readObject("cvs", path);
+  const pdf = await readObject("cvs", path).catch((error: unknown) => {
+    console.error("SkillMirror CV download failed", {
+      type: error instanceof Error ? error.name : typeof error,
+    });
+    fail("INTERNAL", "We couldn't load your CV file. Please try again.");
+  });
   if (!pdf) fail("UPLOAD_MISSING", "Upload your CV before reading it.");
   if (pdf.length > maxBytes || pdf.subarray(0, 5).toString() !== "%PDF-")
     fail("BAD_REQUEST", "Upload a PDF smaller than 5 MB.");
@@ -136,10 +148,14 @@ export const parseCv = route(async (request, context: Params<"cvId">) => {
   if (pageCount > 10 || pageCount === 0)
     fail("BAD_REQUEST", "The CV must be a PDF of 1 to 10 pages.");
   const where = eq(candidateCvs.id, cv.id);
-  await database
+  // Only one request reads a CV at a time. A second click or retry waits for
+  // the running read instead of sending the PDF to the model again.
+  const [claimed] = await database
     .update(candidateCvs)
     .set({ parseStatus: "parsing", error: null })
-    .where(where);
+    .where(and(where, ne(candidateCvs.parseStatus, "parsing")))
+    .returning({ id: candidateCvs.id });
+  if (!claimed) return json(await awaitRunningParse(database, cv.id));
   try {
     const parsed =
       publicEnv.aiMode === "mock"
@@ -147,6 +163,7 @@ export const parseCv = route(async (request, context: Params<"cvId">) => {
         : {
             ...(await geminiJSON(p1({}), parsedCvSchema, {
               inline: attachment("document", "application/pdf", pdf),
+              timeout: CV_PARSE_TIMEOUT_MS,
             })),
             skills_removed: [],
           };
@@ -170,6 +187,42 @@ export const parseCv = route(async (request, context: Params<"cvId">) => {
     fail("AI_UNAVAILABLE", "We couldn't read your CV. Please try again.");
   }
 });
+async function awaitRunningParse(
+  database: Awaited<ReturnType<typeof db>>,
+  cvId: string,
+) {
+  const where = eq(candidateCvs.id, cvId);
+  const until = Date.now() + CV_PARSE_WAIT_MS;
+  while (Date.now() < until) {
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    const [row] = await database
+      .select({
+        parseStatus: candidateCvs.parseStatus,
+        parsed: candidateCvs.parsed,
+        error: candidateCvs.error,
+      })
+      .from(candidateCvs)
+      .where(where);
+    if (!row) fail("NOT_FOUND", "CV not found.");
+    if (row.parseStatus === "parsed" && row.parsed)
+      return { cvId, parsed: row.parsed };
+    if (row.parseStatus !== "parsing")
+      fail(
+        "AI_UNAVAILABLE",
+        row.error ?? "We couldn't read your CV. Please try again.",
+      );
+  }
+  // A read that outlived its own time limit was cut off. Free the row so the
+  // next attempt can start a fresh read.
+  await database
+    .update(candidateCvs)
+    .set({
+      parseStatus: "failed",
+      error: "We couldn't read your CV. Please try again.",
+    })
+    .where(and(where, eq(candidateCvs.parseStatus, "parsing")));
+  fail("AI_UNAVAILABLE", "We couldn't read your CV. Please try again.");
+}
 export const patchCv = route(async (request, context: Params<"cvId">) => {
   const { cv, database } = await ownedCv((await context.params).cvId);
   if (!cv.parsed) fail("CONFLICT", "Your CV is still being read.");

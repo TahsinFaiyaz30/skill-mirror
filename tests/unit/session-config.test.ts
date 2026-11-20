@@ -7,6 +7,10 @@ import {
 } from "@/lib/config/sessionConfig";
 import type { OpeningConfig, OpeningQuestion } from "@/types/interview";
 import { mockQuestion } from "@/lib/ai/mock/fixtures";
+import {
+  QUICK_INTERVIEW_MINUTES,
+  usesFastReasoning,
+} from "@/lib/config/constants";
 
 const company = { name: "Northstar", logoUrl: null };
 const opening = () => structuredClone(defaultOpeningConfig);
@@ -306,5 +310,18 @@ describe("opening validation", () => {
       [...result.errors, ...result.warnings].map((issue) => issue.code),
     ).toContain(code);
     if (code === "W3") expect(result.budgets.presentation).toBeUndefined();
+  });
+});
+
+describe("fast AI path", () => {
+  it("applies to every 3 min 30 s interview and to Judge mode", () => {
+    expect(usesFastReasoning({ lengthMinutes: QUICK_INTERVIEW_MINUTES })).toBe(
+      true,
+    );
+    expect(usesFastReasoning({ lengthMinutes: 20, judgeMode: true })).toBe(
+      true,
+    );
+    expect(usesFastReasoning({ lengthMinutes: 20 })).toBe(false);
+    expect(usesFastReasoning({ lengthMinutes: 2 })).toBe(false);
   });
 });
