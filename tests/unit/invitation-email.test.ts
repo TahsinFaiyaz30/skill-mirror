@@ -20,7 +20,7 @@ const invite = {
   roleTitle: "Software Engineer",
   lengthMinutes: 3.5,
   expiresAt: new Date("2026-12-01T00:00:00.000Z"),
-  link: "https://skillmirror.example.test/i/sample",
+  link: "https://skillmirror.example.test/i/sample?a=1&b=2",
 };
 
 describe("Gmail candidate invitations", () => {
@@ -44,14 +44,19 @@ describe("Gmail candidate invitations", () => {
         auth: { user: "sender@gmail.com", pass: "abcdefghijklmnop" },
       }),
     );
-    expect(mailer.sendMail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        from: { name: "SkillMirror", address: "sender@gmail.com" },
-        to: invite.email,
-        text: expect.stringContaining(invite.link),
-        html: expect.stringContaining("Example &amp; Co."),
-      }),
+    const message = mailer.sendMail.mock.calls[0][0];
+    expect(message).toMatchObject({
+      from: { name: "SkillMirror", address: "sender@gmail.com" },
+      to: invite.email,
+    });
+    expect(message.text).toContain(invite.link);
+    expect(message.text).toContain("3 minutes 30 seconds");
+    expect(message.html).toContain("Example &amp; Co.");
+    expect(message.html).toContain("View interview invitation");
+    expect(message.html).toContain(
+      `href="${invite.link.replace("&", "&amp;")}"`,
     );
+    expect(message.html).toContain("3 minutes 30 seconds");
   });
 
   it("keeps the invite available when Gmail is missing or rejects delivery", async () => {

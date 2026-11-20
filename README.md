@@ -214,7 +214,7 @@ src/
 │   └── vision/            # MediaPipe telemetry, baseline calibration & binary LMK1 logging
 ├── stores/                # Zustand live interview store
 supabase/
-├── email-templates/       # Auth signup & password-reset HTML email templates
+├── email-templates/       # Supabase Auth and security notification HTML
 └── migrations/            # Ordered PostgreSQL + RLS migrations (0000–0006)
 tests/
 ├── e2e/                   # Playwright browser workflows

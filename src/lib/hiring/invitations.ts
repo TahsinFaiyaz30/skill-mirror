@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { createTransport } from "nodemailer";
 import { publicEnv, serverEnv } from "@/lib/config/env";
+import { renderEmail } from "@/lib/email/layout";
 export const newInviteToken = () => randomBytes(32).toString("base64url");
 export const inviteExpires = (days: number, now = Date.now()) =>
   new Date(now + days * 86400000);
@@ -14,41 +15,71 @@ export const emailMatches = (email: string | null, expected: string) =>
   Boolean(
     email && email.trim().toLowerCase() === expected.trim().toLowerCase(),
   );
-const escape = (s: string) =>
-  s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
-        c
-      ]!,
-  );
-export async function sendInviteEmail(input: {
+
+type CandidateInvite = {
   email: string;
   company: string;
   roleTitle: string;
   lengthMinutes: number;
   expiresAt: Date;
   link: string;
-}) {
+};
+
+const expiryFormat = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  timeZoneName: "short",
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+export function candidateInviteMessage(input: CandidateInvite) {
+  const { company, roleTitle, lengthMinutes, expiresAt, link } = input;
+  const totalSeconds = Math.round(lengthMinutes * 60);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const length = `${minutes} minutes${seconds ? ` ${seconds} seconds` : ""}`;
+  const expiry = expiryFormat.format(expiresAt);
+  const message = `The hiring team at ${company} has invited you to complete an AI interview. Open your invitation to review the details and sign in when you’re ready.`;
+  const note =
+    "Use desktop Chrome or Edge with a camera and microphone for the interview.";
+  const details = [
+    { label: "Role", value: roleTitle },
+    { label: "Interview length", value: length },
+    { label: "Link expires", value: expiry },
+  ];
+
+  return {
+    subject: `${company} invited you to interview for ${roleTitle}`.replace(
+      /[\r\n]+/g,
+      " ",
+    ),
+    text: [
+      "You’re invited to interview",
+      message,
+      ...details.map(({ label, value }) => `${label}: ${value}`),
+      "View interview invitation\n" + link,
+      note,
+    ].join("\n\n"),
+    html: renderEmail({
+      category: "Interview invitation",
+      title: "You’re invited to interview",
+      preheader: `${roleTitle} at ${company}. Review your invitation and interview details.`,
+      message,
+      details,
+      action: { label: "View interview invitation", url: link, showUrl: true },
+      note,
+    }),
+  };
+}
+
+export async function sendInviteEmail(input: CandidateInvite) {
   const env = serverEnv();
   const user = env.GMAIL_USER?.trim();
   const pass = env.GMAIL_APP_PASSWORD?.replace(/\s/g, "");
   if (!user || !pass || publicEnv.aiMode === "mock") return false;
-  const date = input.expiresAt.toISOString().slice(0, 10);
-  const subject = (
-    input.company +
-    " invited you to an AI interview for " +
-    input.roleTitle
-  ).replace(/[\r\n]/g, " ");
-  const text =
-    input.company +
-    " invited you to interview for " +
-    input.roleTitle +
-    ". It takes about " +
-    input.lengthMinutes +
-    " minutes. This link expires " +
-    date +
-    ".";
   try {
     const mailer = createTransport({
       host: "smtp.gmail.com",
@@ -63,14 +94,7 @@ export async function sendInviteEmail(input: {
     const result = await mailer.sendMail({
       from: { name: "SkillMirror", address: user },
       to: input.email,
-      subject,
-      text: text + "\n" + input.link,
-      html:
-        "<p>" +
-        escape(text) +
-        '</p><p><a href="' +
-        escape(input.link) +
-        '">View invitation</a></p>',
+      ...candidateInviteMessage(input),
     });
     return result.accepted.length > 0;
   } catch {
