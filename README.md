@@ -37,7 +37,7 @@ Backend AI helpers (`src/lib/ai/pool.ts`, `src/lib/ai/gemini.ts`, `src/lib/ai/gr
    - **Groq Strategist (`GROQ_STRATEGIST_MODEL`):** `openai/gpt-oss-120b` → `qwen/qwen3.8-27b` → `openai/gpt-oss-20b`
    - **Groq Whisper STT + Gemini STT Fallback (`GROQ_WHISPER_MODEL`):** `whisper-large-v3-turbo` → `whisper-large-v3` → Gemini (`gemini-3.5-transcribe` → Flash ladder)
 4. **Protected Admin Diagnostics (`/admin`):** Email-allowlisted admin dashboard (`ADMIN_EMAILS`) displaying loaded key slot counts, masked key suffixes (never raw secrets), model failover ladders, live cooldown timers (with one-click cooldown reset), and quota/retention settings.
-5. **Light, Dark & System Themes (`next-themes`):** Instant light/dark switching via the sidebar, mobile topbar, and auth-header `ThemeToggle`, plus a 3-way **Appearance** selector (`Light`, `Dark`, `System`) in **Settings** (`#appearance`), while keeping a deep-navy surface on the landing page and live interview room.
+5. **Light, Dark & System Themes (`next-themes`):** Instant `Light`, `Dark`, or `System` switching directly from the top navigation bar, mobile drawer, auth header (`ThemeToggle`), or **Settings → Appearance** (`ThemeSelector`), while keeping a deep-navy surface on the landing page and live interview room.
 
 ---
 
@@ -46,7 +46,7 @@ Backend AI helpers (`src/lib/ai/pool.ts`, `src/lib/ai/gemini.ts`, `src/lib/ai/gr
 | Layer | Technologies |
 | :--- | :--- |
 | **Framework** | Next.js 16 (App Router, Turbopack), React 19, TypeScript |
-| **Styling & UI** | CSS design system (coral-accent light + deep-navy dark mode via `next-themes`, sidebar & mobile drawer navigation), Tailwind CSS v4, Radix UI, Framer Motion, Recharts, Lucide Icons, Sonner |
+| **Styling & UI** | CSS design system (coral-accent light + deep-navy dark mode via `next-themes`, glass-pill top navigation bar & mobile drawer), Tailwind CSS v4, Radix UI, Framer Motion, Recharts, Lucide Icons, Sonner |
 | **Auth & Database** | Supabase Auth (Email + Google OAuth), PostgreSQL + Row-Level Security (`0000`–`0006` migrations), Drizzle ORM, Supabase Storage (`cvs`, `recordings`, `artifacts`, `org-assets`) |
 | **Live & Offline AI** | `@google/genai` (Interactions API v1beta, Live API v1alpha ephemeral tokens, Extended Thinking, Live Transcribe, TTS), `groq-sdk` (GPT-OSS / Qwen JSON mode + Whisper timestamps) |
 | **Client Media & Vision** | `@mediapipe/tasks-vision`, `@ricky0123/vad-web`, Web Audio `AudioWorklet`, `pitchy`, `MediaRecorder`, `pdf-lib`, `mammoth` |

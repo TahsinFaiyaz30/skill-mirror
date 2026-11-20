@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { Building2, Clock, Lock, Trash2 } from "lucide-react";
 import { Brand } from "@/components/shell/brand";
-import { GuideCard, IconList } from "@/components/common/guides";
 import { unpaidAI } from "@/lib/config/env";
 export default function Page() {
   return (
@@ -12,7 +10,7 @@ export default function Page() {
         </div>
       </header>
       <main className="container page">
-        <div className="with-aside">
+        <div className="narrow">
           <article className="card prose stack">
             <h1>Privacy policy</h1>
             <p>
@@ -38,26 +36,8 @@ export default function Page() {
               You can delete individual practice sessions or delete your account
               and all associated interview data in Settings.
             </p>
+            <Link href="/terms">Read the terms of use</Link>
           </article>
-          <aside aria-label="At a glance">
-            <GuideCard title="At a glance">
-              <IconList
-                items={[
-                  [Lock, "Practice feedback is an AI coaching signal"],
-                  [
-                    Building2,
-                    "Invited interviews: the company receives your recording, transcript, evaluation and a CV summary",
-                  ],
-                  [Clock, "Recordings are deleted after 30 days by default"],
-                  [
-                    Trash2,
-                    "Delete a session or your whole account in Settings",
-                  ],
-                ]}
-              />
-              <Link href="/terms">Read the terms of use</Link>
-            </GuideCard>
-          </aside>
         </div>
       </main>
     </>

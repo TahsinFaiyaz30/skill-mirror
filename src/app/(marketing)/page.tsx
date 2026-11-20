@@ -403,8 +403,9 @@ export default function Landing() {
             <Link className="lp-login" href="/login">
               Log in
             </Link>
-            <Link className="button sm" href="/signup">
+            <Link className="button sm lp-signup" href="/signup">
               Sign up
+              <ArrowRight size={15} aria-hidden="true" />
             </Link>
           </div>
         </div>

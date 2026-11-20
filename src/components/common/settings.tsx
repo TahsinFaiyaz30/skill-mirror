@@ -9,15 +9,8 @@ import {
 } from "@/lib/auth/password";
 import { browserSupabase } from "@/lib/supabase/client";
 import { send, showError } from "@/lib/utils/client";
-import { initials, signOut } from "@/components/shell/app-nav";
+import { signOut } from "@/components/shell/app-nav";
 import { ThemeSelector } from "./theme-toggle";
-import { KeyRound, LogOut, ShieldCheck, SunMoon, UserRound } from "lucide-react";
-const sections = [
-  ["#profile", UserRound, "Profile"],
-  ["#appearance", SunMoon, "Appearance"],
-  ["#security", KeyRound, "Security"],
-  ["#data", ShieldCheck, "Data and privacy"],
-] as const;
 export function Settings({
   id,
   name,
@@ -94,127 +87,93 @@ export function Settings({
   return (
     <div className="stack-lg">
       <div className="stack-sm">
-        <span className="eyebrow">Account</span>
         <h1>Settings</h1>
         <p className="muted">Manage your profile, password and data.</p>
       </div>
-      <div className="with-aside start">
-        <aside aria-label="Account">
-          <section className="card stack-sm guide-card account-card">
-            <span className="avatar lg" aria-hidden="true">
-              {initials(name, email)}
-            </span>
-            <strong>{name || "Your account"}</strong>
-            <small className="account-email">{email}</small>
-            <span className="badge">
-              {provider === "email" ? "Email and password" : "Google account"}
-            </span>
-            <div>
-              <button
-                className="button secondary sm"
-                onClick={() => void signOut()}
-              >
-                <LogOut size={15} aria-hidden="true" />
-                Sign out
-              </button>
-            </div>
-          </section>
-          <nav className="card settings-nav" aria-label="Settings sections">
-            {sections.map(([href, Icon, label]) => (
-              <a key={href} href={href}>
-                <Icon size={17} aria-hidden="true" />
-                {label}
-              </a>
-            ))}
-          </nav>
-        </aside>
-        <div className="stack-lg">
+      <div className="settings-body">
+        <form
+          id="profile"
+          className="card stack anchor-target"
+          onSubmit={profile}
+        >
+          <h2>Profile</h2>
+          <label className="field">
+            Name
+            <input name="name" defaultValue={name} maxLength={120} required />
+          </label>
+          <label className="field">
+            Email
+            <input value={email} readOnly />
+          </label>
+          <div>
+            <button className="button">Save profile</button>
+          </div>
+        </form>
+        <section id="appearance" className="card stack anchor-target">
+          <h2>Appearance</h2>
+          <p className="muted">
+            Choose light, dark, or match your device setting.
+          </p>
+          <div>
+            <ThemeSelector />
+          </div>
+        </section>
+        {provider === "email" ? (
           <form
-            id="profile"
+            id="security"
             className="card stack anchor-target"
-            onSubmit={profile}
+            onSubmit={password}
           >
-            <h2>Profile</h2>
+            <h2>Security</h2>
             <label className="field">
-              Name
-              <input name="name" defaultValue={name} maxLength={120} required />
+              New password
+              <input
+                name="password"
+                type="password"
+                minLength={8}
+                maxLength={128}
+                autoComplete="new-password"
+                required
+              />
             </label>
             <label className="field">
-              Email
-              <input value={email} readOnly />
+              Confirm password
+              <input
+                name="confirm"
+                type="password"
+                autoComplete="new-password"
+                required
+              />
             </label>
             <div>
-              <button className="button">Save profile</button>
+              <button className="button">Change password</button>
             </div>
           </form>
-          <section id="appearance" className="card stack anchor-target">
-            <h2>Appearance</h2>
-            <p className="muted">
-              Choose light, dark, or match your device setting.
-            </p>
-            <div>
-              <ThemeSelector />
-            </div>
+        ) : (
+          <section id="security" className="card stack anchor-target">
+            <h2>Security</h2>
+            <p>Connected Google account · {email}</p>
           </section>
-          {provider === "email" ? (
-            <form
-              id="security"
-              className="card stack anchor-target"
-              onSubmit={password}
-            >
-              <h2>Security</h2>
-              <label className="field">
-                New password
-                <input
-                  name="password"
-                  type="password"
-                  minLength={8}
-                  maxLength={128}
-                  autoComplete="new-password"
-                  required
-                />
-              </label>
-              <label className="field">
-                Confirm password
-                <input
-                  name="confirm"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                />
-              </label>
-              <div>
-                <button className="button">Change password</button>
-              </div>
-            </form>
-          ) : (
-            <section id="security" className="card stack anchor-target">
-              <h2>Security</h2>
-              <p>Connected Google account · {email}</p>
-            </section>
+        )}
+        <section id="data" className="card stack anchor-target">
+          <h2>Data</h2>
+          <p>
+            Recordings are retained for 30 days by default. Your reports remain
+            available until you delete them.
+          </p>
+          {blocked && (
+            <p className="muted">Transfer ownership or remove members first.</p>
           )}
-          <section id="data" className="card stack anchor-target">
-            <h2>Data</h2>
-            <p>
-              Recordings are retained for 30 days by default. Your reports
-              remain available until you delete them.
-            </p>
-            {blocked && (
-              <p className="muted">
-                Transfer ownership or remove members first.
-              </p>
-            )}
-            <div>
-              <button
-                className="button secondary danger"
-                disabled={blocked}
-                onClick={() => setOpen(true)}
-              >
-                Delete all my data
-              </button>
-            </div>
-          </section>
-        </div>
+          <div>
+            <button
+              className="button secondary danger"
+              disabled={blocked}
+              onClick={() => setOpen(true)}
+            >
+              Delete all my data
+            </button>
+          </div>
+        </section>
       </div>
       <Dialog.Root open={open} onOpenChange={setOpen}>
         <Dialog.Portal>

@@ -74,20 +74,21 @@ export function ScoreHeader({
           .map((flag) => readable(flag.type) + " · " + flag.count)
           .join(", ")
       : "";
+  const levels = report.technical.competencies
+    .map((c) => c.ceiling)
+    .filter((n): n is number => n !== null);
+  const tiles = [
+    ["Questions answered", String(report.turns.length)],
+    ["Key moments", String(report.keyMoments.length)],
+    [
+      "Best technical level",
+      levels.length ? "Level " + Math.max(...levels) : "–",
+    ],
+    ["Interview length", shortTime(session.durationMs)],
+  ];
   return (
-    <section className="card stack" id="overview">
-      <div className="cluster between">
-        <h1>
-          {recruiter ? "Candidate interview report" : "Your interview report"}
-        </h1>
-        {recruiter && (
-          <button className="button secondary no-print" onClick={() => print()}>
-            <Printer size={16} />
-            Print / Save PDF
-          </button>
-        )}
-      </div>
-      <div className="score-header">
+    <section className="card stack report-hero" id="overview">
+      <div className="report-hero-top">
         <div
           className="score-gauge"
           style={
@@ -102,11 +103,36 @@ export function ScoreHeader({
         >
           <div>
             <strong className="mono">{headline.overallScore}</strong>
-            <small>/ 100</small>
+            <small>out of 100</small>
           </div>
         </div>
-        <div className="stack-sm">
-          <div className="cluster">
+        <div className="stack-sm report-hero-text">
+          <div className="cluster between">
+            <h1>
+              {recruiter
+                ? "Candidate interview report"
+                : "Your interview report"}
+            </h1>
+            {recruiter ? (
+              <button
+                className="button secondary no-print"
+                onClick={() => print()}
+              >
+                <Printer size={16} />
+                Print / Save PDF
+              </button>
+            ) : (
+              actions
+            )}
+          </div>
+          <p className="report-meta">
+            <span>{session.roleTitle}</span>
+            <span>{session.company}</span>
+            {session.startedAt && (
+              <span>{new Date(session.startedAt).toLocaleDateString()}</span>
+            )}
+          </p>
+          <div className="cluster" style={{ gap: 8 }}>
             {headline.verdict && (
               <span className="badge primary">{headline.verdict}</span>
             )}
@@ -121,27 +147,28 @@ export function ScoreHeader({
                   ? "danger"
                   : headline.integrityBadge === "minor"
                     ? "warning"
-                    : "accent")
+                    : "success")
               }
             >
               {integrity[headline.integrityBadge]}
             </span>
           </div>
-          <p>{headline.summary}</p>
+          <p className="report-summary">{headline.summary}</p>
           <small>{headline.disclaimer}</small>
           {session.kind === "preview" && headline.recommendation && (
             <small>
               AI recommendation to support, not replace, human judgement.
             </small>
           )}
-          <p className="muted">
-            {session.roleTitle} · {session.company} ·{" "}
-            {session.startedAt
-              ? new Date(session.startedAt).toLocaleDateString()
-              : ""}{" "}
-            · {shortTime(session.durationMs)}
-          </p>
         </div>
+      </div>
+      <div className="report-tiles">
+        {tiles.map(([label, text]) => (
+          <div className="report-tile" key={label}>
+            <small>{label}</small>
+            <strong>{text}</strong>
+          </div>
+        ))}
       </div>
       {recruiter && (
         <div className="grid-4">
@@ -156,82 +183,50 @@ export function ScoreHeader({
           ))}
         </div>
       )}
-      {actions}
     </section>
   );
 }
 export function CeilingLadder({
   competency,
   expected,
-  scripted,
 }: {
   competency: CompetencyResult;
   expected: number;
-  scripted: boolean;
+  scripted?: boolean;
 }) {
   const c = competency;
+  const level = Math.max(0, Math.min(5, c.ceiling ?? Math.round(c.theta)));
   return (
-    <article className={"inset stack " + (c.notAssessed ? "muted" : "")}>
+    <article className={"skill-row " + (c.notAssessed ? "muted" : "")}>
       <div className="cluster between">
-        <h3>{c.subLabel ?? c.displayName}</h3>
-        {c.notAssessed && <span className="badge">Not assessed</span>}
+        <strong>{c.subLabel ?? c.displayName}</strong>
+        <span className="skill-level">
+          {c.notAssessed ? "Not assessed" : "Level " + level + " of 5"}
+        </span>
       </div>
-      {scripted || (c.ceiling === null && !c.notAssessed) ? (
-        <div className="stack-sm">
-          <strong>Ability estimate</strong>
-          <progress max={5} value={c.theta} aria-label="Ability estimate" />
-        </div>
-      ) : (
-        <ol className="ladder" aria-label={"Expected level " + expected}>
-          {[5, 4, 3, 2, 1].map((level) => {
-            const rows = c.path.filter(
-              (p) =>
-                p.level === level && !p.isFollowUp && p.source === "ai_plan",
-            );
-            return (
-              <li
-                key={level}
+      {!c.notAssessed && (
+        <>
+          <div
+            className="level-bar"
+            role="img"
+            aria-label={"Level " + level + " of 5, expected " + expected}
+          >
+            {[1, 2, 3, 4, 5].map((n) => (
+              <i
+                key={n}
                 className={
-                  (rows.some((r) => r.outcome === "pass")
-                    ? "passed "
-                    : rows.some((r) => r.outcome === "fail")
-                      ? "failed "
-                      : "") + (level === expected ? "expected" : "")
+                  (n <= level ? "on" : "") + (n === expected ? " expected" : "")
                 }
-              >
-                <span className="mono">L{level}</span>
-                {level === expected && <small>Expected level</small>}
-                {c.ceiling === level && <span title="Ceiling">🏁</span>}
-              </li>
-            );
-          })}
-          {c.ceiling === 0 && (
-            <li>
-              <span className="mono">0</span>
-              <span title="Ceiling">🏁</span>
-            </li>
-          )}
-        </ol>
+              />
+            ))}
+          </div>
+          <small>
+            {level >= expected
+              ? "At or above the level expected for this role"
+              : "Level " + expected + " is expected for this role"}
+          </small>
+        </>
       )}
-      <div className="cluster small">
-        {c.path.map((p) => (
-          <span
-            key={p.turnIdx}
-            title={
-              "Turn " + (p.turnIdx + 1) + " · " + (p.outcome ?? "unscored")
-            }
-            className={"path-dot " + (p.outcome ?? "")}
-          />
-        ))}
-      </div>
-      <div className="cluster">
-        <span className="mono">θ {c.theta.toFixed(1)}</span>
-        <span className="mono">{c.score} / 100</span>
-        {c.cvClaim && (
-          <span className="badge">{readable(c.cvClaim.signal)}</span>
-        )}
-      </div>
-      {c.commentary && <p>{c.commentary}</p>}
     </article>
   );
 }
@@ -525,6 +520,20 @@ const section = [
   "Practice plan",
 ];
 const sectionId = (title: string) => title.toLowerCase().replaceAll(" ", "-");
+function SectionHead({ title, hint }: { title: string; hint: string }) {
+  const Icon = sectionIcon[title] ?? Activity;
+  return (
+    <div className="section-head">
+      <span className="section-icon">
+        <Icon size={20} aria-hidden="true" />
+      </span>
+      <div className="stack-sm" style={{ gap: 2 }}>
+        <h2>{title}</h2>
+        <p className="section-hint">{hint}</p>
+      </div>
+    </div>
+  );
+}
 const sectionIcon: Record<string, LucideIcon> = {
   Overview: Gauge,
   Technical: Brain,
@@ -624,29 +633,24 @@ export function ReportView({
     );
   return (
     <div className={"report-layout " + (recruiter ? "recruiter-report" : "")}>
-      {!recruiter && (
-        <aside className="report-toc no-print">
-          <nav aria-label="Report sections" className="card">
-            <span className="nav-section">In this report</span>
+      <div className="stack">
+        <ScoreHeader report={report} actions={actions} recruiter={recruiter} />
+        {!recruiter && (
+          <nav className="report-tabs no-print" aria-label="Report sections">
             {section
-              .filter(
-                (name) =>
-                  !off || !["Soft skills", "Composure", "Stats"].includes(name),
-              )
+              .filter((name) => !["Composure", "Stats"].includes(name))
+              .filter((name) => !off || name !== "Soft skills")
               .map((name) => {
                 const Icon = sectionIcon[name];
                 return (
                   <a key={name} href={"#" + sectionId(name)}>
-                    <Icon size={17} aria-hidden="true" />
+                    <Icon size={16} aria-hidden="true" />
                     {name}
                   </a>
                 );
               })}
           </nav>
-        </aside>
-      )}
-      <div className="stack">
-        <ScoreHeader report={report} actions={actions} recruiter={recruiter} />
+        )}
         {recruiter && report.companyView && (
           <section className="card stack">
             <h2>Question coverage</h2>
@@ -705,15 +709,15 @@ export function ReportView({
           </section>
         )}
         <section className="card stack" id="technical">
-          <h2>Technical</h2>
-          <p className="section-hint">
-            How far you got on each skill, from level 1 to level 5.
-          </p>
+          <SectionHead
+            title="Technical"
+            hint="How far you got on each skill, from level 1 to level 5."
+          />
           {!report.technical.competencies.length &&
             report.technical.companyQuestionsScore === null && (
               <p className="muted">No technical competencies were assessed.</p>
             )}
-          <div className="grid-2">
+          <div className="skill-list">
             {report.technical.competencies.map((c) => (
               <CeilingLadder
                 key={c.key}
@@ -749,55 +753,53 @@ export function ReportView({
                 </span>
               )}
             </div>
-            <SoftSkillRadar
-              candidates={[
-                {
-                  name: recruiter ? "Candidate score" : "Your score",
-                  dimensions: report.softSkills.dimensions,
-                },
-              ]}
-            />
-            <div className="grid-2">
+            {recruiter && (
+              <SoftSkillRadar
+                candidates={[
+                  {
+                    name: "Candidate score",
+                    dimensions: report.softSkills.dimensions,
+                  },
+                ]}
+              />
+            )}
+            <ul className="score-bars">
               {report.softSkills.dimensions.map((d) => (
-                <article key={d.key} className="inset stack-sm">
+                <li key={d.key}>
                   <div className="cluster between">
-                    <h3>{d.label}</h3>
-                    <span className="mono">{d.score ?? "—"}</span>
+                    <strong>{d.label}</strong>
+                    <span className="mono">
+                      {d.score ?? "–"}
+                      {d.score !== null && <small>/100</small>}
+                    </span>
                   </div>
-                  {d.levelLabel && <small>{d.levelLabel}</small>}
-                  {d.drivers
-                    .filter((driver) => driver.value !== null)
-                    .map((driver) => (
-                      <small key={driver.name}>
-                        {driver.name} {value(driver.value, driver.unit)}
-                        {driver.baseline !== null &&
-                          (recruiter
-                            ? " · candidate baseline "
-                            : " · your baseline ") +
-                            value(driver.baseline, driver.unit)}
-                      </small>
-                    ))}
-                  {d.commentary && <p>{d.commentary}</p>}
-                </article>
+                  <span className="bar">
+                    <i style={{ width: (d.score ?? 0) + "%" }} />
+                  </span>
+                  {d.commentary ? (
+                    <small>{d.commentary}</small>
+                  ) : (
+                    d.levelLabel && <small>{d.levelLabel}</small>
+                  )}
+                </li>
               ))}
-            </div>
+            </ul>
           </section>
         )}
-        {report.composure && (
+        {recruiter && report.composure && (
           <section className="card stack" id="composure">
-            <h2>Composure</h2>
-            <p className="section-hint">
-              How calm and steady you stayed as the questions got harder.
-            </p>
+            <SectionHead
+              title="Composure"
+              hint="How calm and steady you stayed as the questions got harder."
+            />
             <ComposureCurve data={report.composure} />
           </section>
         )}
         <section className="card stack" id="timeline">
-          <h2>Timeline</h2>
-          <p className="section-hint">
-            Your interview minute by minute. Select any mark to replay that
-            moment.
-          </p>
+          <SectionHead
+            title="Timeline"
+            hint="Your interview minute by minute. Select any mark to replay that moment."
+          />
           <TimelineTracks
             timeline={report.timeline}
             playhead={head}
@@ -806,10 +808,10 @@ export function ReportView({
           />
         </section>
         <section className="card stack" id="key-moments">
-          <h2>Key moments</h2>
-          <p className="section-hint">
-            Short clips worth watching, each with one thing to try next time.
-          </p>
+          <SectionHead
+            title="Key moments"
+            hint="Short clips worth watching, each with one thing to try next time."
+          />
           {report.keyMoments.length ? (
             <div className="grid-2">
               {report.keyMoments.map((item) => (
@@ -861,10 +863,10 @@ export function ReportView({
           </section>
         )}
         <section className="card stack" id="questions">
-          <h2>Questions</h2>
-          <p className="section-hint">
-            Every question you were asked, with how your answer was rated.
-          </p>
+          <SectionHead
+            title="Questions"
+            hint="Every question you were asked, with how your answer was rated."
+          />
           {report.turns.map((turn) => (
             <TurnAccordion
               key={turn.turnIdx}
@@ -878,12 +880,12 @@ export function ReportView({
             />
           ))}
         </section>
-        {!off && (
+        {recruiter && !off && (
           <section className="card stack" id="stats">
-            <h2>Stats</h2>
-            <p className="section-hint">
-              Numbers from your voice and delivery.
-            </p>
+            <SectionHead
+              title="Stats"
+              hint="Numbers from your voice and delivery."
+            />
             <StatsTable stats={report.stats} recruiter={recruiter} />
           </section>
         )}
@@ -918,10 +920,10 @@ export function ReportView({
           </section>
         )}
         <section className="card stack" id="practice-plan">
-          <h2>Practice plan</h2>
-          <p className="section-hint">
-            Drills to practice before your next interview.
-          </p>
+          <SectionHead
+            title="Practice plan"
+            hint="Drills to practice before your next interview."
+          />
           <PracticePlan items={report.practicePlan} />
         </section>
       </div>
@@ -1056,10 +1058,10 @@ export function InterviewReport({
             </section>
           </div>
           <div className="card stack">
-            <h2>Practice plan</h2>
-            <p className="section-hint">
-              Drills to practice before your next interview.
-            </p>
+            <SectionHead
+              title="Practice plan"
+              hint="Drills to practice before your next interview."
+            />
             <PracticePlan items={data.practicePlan} />
           </div>
         </>
