@@ -17,7 +17,11 @@ import { ROLE_FAMILIES, SENIORITIES } from "@/lib/config/taxonomy";
 import { toPublicConfig, buildSessionConfig } from "@/lib/config/sessionConfig";
 import { INTERRUPTED_AFTER_MS } from "@/lib/config/constants";
 import { publicEnv, serverEnv, unpaidAI } from "@/lib/config/env";
-import { generatePlan, getPlanSummary } from "@/lib/ai/plan";
+import {
+  generatePlan,
+  getPlanSummary,
+  PLAN_PREPARATION_TIMEOUT_MS,
+} from "@/lib/ai/plan";
 import { enrichProjects } from "@/lib/hiring/github";
 import { voiceName } from "@/lib/ai/schemas";
 import { body, fail, json, ok, route, type Params } from "@/lib/utils/http";
@@ -263,63 +267,98 @@ export const patchSession = route(async (request, context: Params<"id">) => {
   } else fail("CONFLICT", "This interview cannot be edited now.");
   return ok();
 });
+const PLAN_LEASE_MS = PLAN_PREPARATION_TIMEOUT_MS + 10_000;
+
 export const planSession = route(async (_request, context: Params<"id">) => {
+  const deadline = Date.now() + PLAN_PREPARATION_TIMEOUT_MS;
   const { user, session, database } = await requireSessionAccess(
     (await context.params).id,
     owner,
   );
   if (session.status === "ready")
     return json({ planSummary: getPlanSummary(session) });
-  if (!["draft", "planning"].includes(session.status))
-    fail("CONFLICT", "This interview cannot be planned now.");
-  if (!session.cvId && session.config.cvRequired)
-    fail("CONFLICT", "Upload your CV first.");
-  const parsed = session.cvId
-    ? await getParsedCv(database, session.cvId, user.id)
-    : null;
-  await database.transaction(async (tx) => {
+
+  const claim = await database.transaction(async (tx) => {
+    // Serialize the daily quota check and lease acquisition for this user.
     await tx
       .select({ id: profiles.id })
       .from(profiles)
       .where(eq(profiles.id, user.id))
       .for("update");
-    if (session.kind === "practice")
-      await enforcePracticeLimit(tx, user.id, session.id);
+    const [current] = await tx
+      .select()
+      .from(interviewSessions)
+      .where(whereId(session))
+      .for("update");
+
+    if (!current) fail("NOT_FOUND", "Interview not found.");
+    if (current.status === "ready")
+      return { status: "ready", current } as const;
+    if (!["draft", "planning"].includes(current.status))
+      fail("CONFLICT", "This interview cannot be planned now.");
+
+    // A reload can join the current request. An expired lease can be reclaimed.
+    const now = Date.now();
+    if (
+      current.status === "planning" &&
+      current.lastActiveAt &&
+      now - current.lastActiveAt.getTime() < PLAN_LEASE_MS
+    )
+      return { status: "planning" } as const;
+    if (!current.cvId && current.config.cvRequired)
+      fail("CONFLICT", "Upload your CV first.");
+    const parsed = current.cvId
+      ? await getParsedCv(tx, current.cvId, user.id)
+      : null;
+    if (current.kind === "practice")
+      await enforcePracticeLimit(tx, user.id, current.id);
+    const lease = new Date();
     await tx
       .update(interviewSessions)
-      .set({ status: "planning" })
-      .where(
-        and(whereId(session), eq(interviewSessions.status, session.status)),
-      );
+      .set({ status: "planning", lastActiveAt: lease })
+      .where(whereId(current));
+    return { status: "acquired", current, parsed, lease } as const;
   });
+
+  if (claim.status === "ready")
+    return json({ planSummary: getPlanSummary(claim.current) });
+  if (claim.status === "planning") return json({ planSummary: null }, 202);
+
+  const { current, parsed, lease } = claim;
+  const ownsLease = and(
+    whereId(current),
+    eq(interviewSessions.status, "planning"),
+    eq(interviewSessions.lastActiveAt, lease),
+  );
   try {
     const github =
-      session.config.useGithub &&
-      session.aiMode !== "mock" &&
+      current.config.useGithub &&
+      current.aiMode !== "mock" &&
       parsed?.links.github.length
         ? await enrichProjects(parsed.links.github, serverEnv().GITHUB_TOKEN)
         : [];
     const plan = await generatePlan(
-      session,
+      current,
       parsed,
       (await getProfile(user.id))?.fullName ?? "",
       github,
+      deadline,
     );
     const [saved] = await database
       .update(interviewSessions)
-      .set({ plan, status: "ready" })
-      .where(and(whereId(session), eq(interviewSessions.status, "planning")))
+      .set({ plan, status: "ready", lastActiveAt: null })
+      .where(ownsLease)
       .returning();
-    return json({ planSummary: getPlanSummary(saved ?? { ...session, plan }) });
+    if (saved) return json({ planSummary: getPlanSummary(saved) });
+    return json({ planSummary: null }, 202);
   } catch (error) {
-    console.error(
-      "SkillMirror planSession failed:",
-      error instanceof Error ? error.message : String(error),
-    );
+    console.error("SkillMirror planSession failed", {
+      type: error instanceof Error ? error.name : typeof error,
+    });
     await database
       .update(interviewSessions)
-      .set({ status: "draft" })
-      .where(and(whereId(session), eq(interviewSessions.status, "planning")));
+      .set({ status: "draft", lastActiveAt: null })
+      .where(ownsLease);
     fail(
       "AI_UNAVAILABLE",
       "We couldn't prepare your interview. Please try again.",

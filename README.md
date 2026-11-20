@@ -36,6 +36,7 @@ Backend AI helpers (`src/lib/ai/pool.ts`, `src/lib/ai/gemini.ts`, `src/lib/ai/gr
    - **Gemini Interviewer TTS (`MODEL_TTS`):** `gemini-3.8-flash-tts` → `gemini-3.8-flash-lite-tts`
    - **Groq Strategist (`GROQ_STRATEGIST_MODEL`):** `openai/gpt-oss-120b` → `qwen/qwen3.8-27b` → `openai/gpt-oss-20b`
    - **Groq Whisper STT + Gemini STT Fallback (`GROQ_WHISPER_MODEL`):** `whisper-large-v3-turbo` → `whisper-large-v3` → Gemini (`gemini-3.5-transcribe` → Flash ladder)
+   - **Interview preparation** tries each ranked Gemini and Groq text model with its eligible keys, preferring Gemini at each rank. If both providers are unavailable within the preparation deadline, the interview continues with role-based questions.
 4. **Protected Admin Diagnostics (`/admin`):** Email-allowlisted admin dashboard (`ADMIN_EMAILS`) displaying loaded key slot counts, masked key suffixes (never raw secrets), model failover ladders, live cooldown timers (with one-click cooldown reset), and quota/retention settings.
 5. **Light, Dark & System Themes (`next-themes`):** Instant `Light`, `Dark`, or `System` switching directly from the top navigation bar, mobile drawer, auth header (`ThemeToggle`), or **Settings → Appearance** (`ThemeSelector`), while keeping a deep-navy surface on the landing page and live interview room.
 

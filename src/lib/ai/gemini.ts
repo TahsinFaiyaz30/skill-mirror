@@ -2,16 +2,10 @@ import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { serverEnv } from "@/lib/config/env";
 import {
-  clearCooldown,
-  extractStatus,
-  isAbortOrTimeoutError,
-  isKeyDisabled,
-  markCooldown,
-  modelChain,
-  orderCandidates,
-  providerKeys,
-  shouldFailoverStatus,
-} from "./pool";
+  requestStructuredOutput,
+  type StructuredRequest,
+} from "./structured-output";
+import { modelChain, providerKeys, tryProviderModels } from "./pool";
 
 export function requireGeminiKeys() {
   const keys = providerKeys("gemini");
@@ -52,8 +46,7 @@ function sanitizeSchemaNode(value: unknown, isRoot = false): unknown {
   for (const [key, child] of Object.entries(value)) {
     if (isRoot && key === "$schema") continue;
     if (key === "$schema" && typeof child === "string") continue;
-    if (key === "maxItems" && typeof child === "number" && child > 10)
-      continue;
+    if (key === "maxItems" && typeof child === "number" && child > 10) continue;
     result[key] = sanitizeSchemaNode(child);
   }
   return result;
@@ -87,9 +80,7 @@ function extractInteractionText(interaction: InteractionLike): string {
       continue;
     }
     const text = (step.content ?? [])
-      .filter(
-        (part) => part.type === "text" && typeof part.text === "string",
-      )
+      .filter((part) => part.type === "text" && typeof part.text === "string")
       .map((part) => part.text as string)
       .join("");
     if (text) trailing.unshift(text);
@@ -151,158 +142,71 @@ export function ttsModelChain(
   return modelChain(primary, configured, DEFAULT_TTS_FALLBACKS);
 }
 
+type GeminiJSONOptions<T> = {
+  inline?: Inline;
+  thinking?: "low" | "medium" | "high";
+  maxTokens?: number;
+  timeout?: number;
+  validate?: (value: T) => void;
+};
+
+export function geminiStructuredRequest<T>(
+  prompt: Prompt,
+  schema: z.ZodType<T>,
+  options: GeminiJSONOptions<T>,
+): StructuredRequest {
+  const structure = geminiJsonSchema(schema);
+  return async (model, apiKey, text, signal, timeout) => {
+    const thinking =
+      model.includes("flash-lite") && options.thinking === "high"
+        ? "low"
+        : options.thinking;
+    const generationConfig = {
+      ...(thinking !== undefined && { thinking_level: thinking }),
+      ...(options.maxTokens !== undefined && {
+        max_output_tokens: options.maxTokens,
+      }),
+    };
+    const interaction = await gemini(apiKey).interactions.create(
+      {
+        stream: false,
+        model,
+        input: options.inline ? [{ type: "text", text }, options.inline] : text,
+        system_instruction: prompt.system,
+        store: false,
+        ...(Object.keys(generationConfig).length > 0 && {
+          generation_config: generationConfig,
+        }),
+        response_format: {
+          type: "text",
+          mime_type: "application/json",
+          schema: structure,
+        },
+      },
+      { timeout_ms: timeout, signal, retries: { strategy: "none" } },
+    );
+    if (interaction.status === "failed")
+      throw new Error("Gemini interaction failed.");
+    return extractInteractionText(interaction as InteractionLike);
+  };
+}
+
 export async function geminiJSON<T>(
   prompt: Prompt,
   schema: z.ZodType<T>,
-  options: {
-    inline?: Inline;
-    thinking?: "low" | "medium" | "high";
-    maxTokens?: number;
-    timeout?: number;
-    validate?: (value: T) => void;
-  } = {},
+  options: GeminiJSONOptions<T> = {},
 ) {
-  const keys = requireGeminiKeys();
-  const environment = serverEnv();
-  const structure = geminiJsonSchema(schema);
-  const deadline = Date.now() + (options.timeout ?? 120_000);
-  const models = flashModelChain(
-    environment.MODEL_FLASH,
-    environment.MODEL_FLASH_FALLBACKS,
-  );
-  const candidates = orderCandidates("gemini", models, keys);
-
-  for (let i = 0; i < candidates.length; i++) {
-    const { model, slot } = candidates[i];
-    if (
-      isKeyDisabled("gemini", slot) &&
-      candidates.slice(i + 1).some((c) => !isKeyDisabled("gemini", c.slot))
-    ) {
-      continue;
-    }
-    const nextCandidate = candidates[i + 1];
-    const hasNext = Boolean(nextCandidate);
-    const client = gemini(slot.key);
-    let retry = "";
-
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) throw new Error("Gemini timeout");
-      const modelTimeout = hasNext
-        ? Math.min(remaining, Math.max(2_000, Math.floor(remaining * 0.65)))
-        : remaining;
-      const text = prompt.user + retry;
-      const input = options.inline
-        ? [{ type: "text" as const, text }, options.inline]
-        : text;
-      let validationPhase = false;
-      try {
-        const generationConfig: {
-          thinking_level?: "low" | "medium" | "high";
-          max_output_tokens?: number;
-        } = {};
-        if (options.thinking !== undefined) {
-          generationConfig.thinking_level =
-            model.includes("flash-lite") && options.thinking === "high"
-              ? "low"
-              : options.thinking;
-        }
-        if (options.maxTokens !== undefined)
-          generationConfig.max_output_tokens = options.maxTokens;
-        const params = {
-          stream: false as const,
-          model,
-          input,
-          system_instruction: prompt.system,
-          store: false,
-          ...(Object.keys(generationConfig).length > 0 && {
-            generation_config: generationConfig,
-          }),
-          response_format: {
-            type: "text" as const,
-            mime_type: "application/json" as const,
-            schema: structure,
-          },
-        };
-        const interaction = await client.interactions.create(params, {
-          timeout_ms: modelTimeout,
-          signal: AbortSignal.timeout(modelTimeout),
-          retries: { strategy: "none" as const },
-        });
-        if (interaction.status === "failed")
-          throw new Error("Gemini interaction failed.");
-        const rawText = extractInteractionText(interaction as InteractionLike);
-        if (!rawText) throw new Error("Gemini returned no JSON text.");
-        validationPhase = true;
-        const result = schema.parse(JSON.parse(rawText));
-        options.validate?.(result);
-        clearCooldown("gemini", slot, model);
-        return result;
-      } catch (error) {
-        const status = extractStatus(error);
-        const timedOut = isAbortOrTimeoutError(error);
-        if (status === 400) {
-          throw error;
-        }
-        if ((status === 401 || status === 403) && keys.length === 1) {
-          throw error;
-        }
-        if (
-          shouldFailoverStatus(status, keys.length) ||
-          (timedOut && hasNext && deadline - Date.now() > 1_000)
-        ) {
-          markCooldown("gemini", slot, model, error);
-          if (hasNext) {
-            console.warn("SkillMirror Gemini failover:", {
-              provider: "gemini",
-              keyIndex: slot.index,
-              from: model,
-              to: nextCandidate.model,
-              nextKeyIndex: nextCandidate.slot.index,
-              status: status ?? "timeout",
-            });
-            break;
-          }
-          throw error;
-        }
-        if (timedOut) {
-          markCooldown("gemini", slot, model, error);
-          throw error;
-        }
-        if (
-          validationPhase ||
-          error instanceof SyntaxError ||
-          error instanceof z.ZodError
-        ) {
-          if (attempt > 0) {
-            throw error;
-          }
-          retry =
-            "\n\nThe previous output failed validation. Return the complete response using the required fields and limits." +
-            (error instanceof z.ZodError
-              ? " Invalid fields: " +
-                error.issues.map((item) => item.path.join(".")).join(", ")
-              : "");
-        } else if (attempt === 0) {
-          retry = "";
-        } else if (hasNext) {
-          markCooldown("gemini", slot, model, error);
-          console.warn("SkillMirror Gemini failover:", {
-            provider: "gemini",
-            keyIndex: slot.index,
-            from: model,
-            to: nextCandidate.model,
-            nextKeyIndex: nextCandidate.slot.index,
-            status: status ?? "error",
-          });
-          break;
-        } else {
-          throw error;
-        }
-      }
-    }
-  }
-  throw new Error("Gemini unavailable");
+  const request = geminiStructuredRequest(prompt, schema, options);
+  const models = flashModelChain().map((model) => ({
+    provider: "gemini" as const,
+    model,
+    request,
+  }));
+  const { value } = await requestStructuredOutput(models, prompt, schema, {
+    timeout: options.timeout ?? 120_000,
+    validate: options.validate,
+  });
+  return value;
 }
 
 export function buildTtsInteraction(
@@ -344,37 +248,19 @@ export async function speakGemini(
   voice: "Kore" | "Charon",
   timeoutMs = 15_000,
 ) {
-  const keys = requireGeminiKeys();
-  const candidates = orderCandidates("gemini", ttsModelChain(), keys);
-  const deadline = Date.now() + timeoutMs;
-
-  for (let i = 0; i < candidates.length; i++) {
-    const { model, slot } = candidates[i];
-    if (
-      isKeyDisabled("gemini", slot) &&
-      candidates.slice(i + 1).some((c) => !isKeyDisabled("gemini", c.slot))
-    ) {
-      continue;
-    }
-    const nextCandidate = candidates[i + 1];
-    const hasNext = Boolean(nextCandidate);
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) throw new Error("Gemini TTS timeout");
-    const callTimeout = hasNext
-      ? Math.min(remaining, Math.max(2_000, Math.floor(remaining * 0.65)))
-      : remaining;
-
-    try {
+  const models = ttsModelChain().map((model) => ({
+    provider: "gemini" as const,
+    model,
+  }));
+  return tryProviderModels(
+    models,
+    timeoutMs,
+    async ({ model }, slot, signal, timeout) => {
       const response = await gemini(slot.key).interactions.create(
         buildTtsInteraction(text, voice, model),
-        {
-          timeout_ms: callTimeout,
-          signal: AbortSignal.timeout(callTimeout),
-          retries: { strategy: "none" as const },
-        },
+        { timeout_ms: timeout, signal, retries: { strategy: "none" } },
       );
       const encoded = extractInteractionAudio(response as InteractionLike);
-      if (!encoded) throw new Error("Speech generation returned no audio.");
       const wav = Buffer.from(encoded, "base64");
       if (
         wav.length < 44 ||
@@ -383,34 +269,9 @@ export async function speakGemini(
       ) {
         throw new Error("Speech generation did not return WAV audio.");
       }
-      clearCooldown("gemini", slot, model);
       return wav;
-    } catch (error) {
-      const status = extractStatus(error);
-      const timedOut = isAbortOrTimeoutError(error);
-      if (status === 400) throw error;
-      if ((status === 401 || status === 403) && keys.length === 1) throw error;
-      if (
-        shouldFailoverStatus(status, keys.length) ||
-        (timedOut && hasNext && deadline - Date.now() > 1_000)
-      ) {
-        markCooldown("gemini", slot, model, error);
-        if (hasNext) {
-          console.warn("SkillMirror Gemini TTS failover:", {
-            provider: "gemini",
-            keyIndex: slot.index,
-            from: model,
-            to: nextCandidate.model,
-            nextKeyIndex: nextCandidate.slot.index,
-            status: status ?? "timeout",
-          });
-          continue;
-        }
-      }
-      throw error;
-    }
-  }
-  throw new Error("Gemini TTS unavailable");
+    },
+  );
 }
 
 export async function transcribeGemini(
@@ -418,87 +279,34 @@ export async function transcribeGemini(
   mimeType = "audio/wav",
   timeoutMs = 20_000,
 ): Promise<{ text: string }> {
-  const keys = requireGeminiKeys();
   const environment = serverEnv();
   const models = [
-    ...new Set([
-      environment.MODEL_TRANSCRIBE,
-      ...flashModelChain(
-        environment.MODEL_FLASH,
-        environment.MODEL_FLASH_FALLBACKS,
-      ),
-    ]),
-  ];
-  const candidates = orderCandidates("gemini", models, keys);
-  const deadline = Date.now() + timeoutMs;
-
-  for (let i = 0; i < candidates.length; i++) {
-    const { model, slot } = candidates[i];
-    if (
-      isKeyDisabled("gemini", slot) &&
-      candidates.slice(i + 1).some((c) => !isKeyDisabled("gemini", c.slot))
-    ) {
-      continue;
-    }
-    const nextCandidate = candidates[i + 1];
-    const hasNext = Boolean(nextCandidate);
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) throw new Error("Gemini transcription timeout");
-    const callTimeout = hasNext
-      ? Math.min(remaining, Math.max(2_000, Math.floor(remaining * 0.65)))
-      : remaining;
-
-    try {
+    ...new Set([environment.MODEL_TRANSCRIBE, ...flashModelChain()]),
+  ].map((model) => ({ provider: "gemini" as const, model }));
+  return tryProviderModels(
+    models,
+    timeoutMs,
+    async ({ model }, slot, signal, timeout) => {
       const response = await gemini(slot.key).interactions.create(
         {
-          stream: false as const,
+          stream: false,
           model,
           input: [
             {
-              type: "text" as const,
+              type: "text",
               text: "Transcribe the spoken audio verbatim. Return only the spoken words with no extra commentary.",
             },
             attachment("audio", mimeType, bytes),
           ],
           store: false,
         },
-        {
-          timeout_ms: callTimeout,
-          signal: AbortSignal.timeout(callTimeout),
-          retries: { strategy: "none" as const },
-        },
+        { timeout_ms: timeout, signal, retries: { strategy: "none" } },
       );
-      if (response.status === "failed") {
+      if (response.status === "failed")
         throw new Error("Gemini transcription failed.");
-      }
-      clearCooldown("gemini", slot, model);
       return {
         text: extractInteractionText(response as InteractionLike).trim(),
       };
-    } catch (error) {
-      const status = extractStatus(error);
-      const timedOut = isAbortOrTimeoutError(error);
-      if (status === 400) throw error;
-      if ((status === 401 || status === 403) && keys.length === 1) throw error;
-      if (
-        shouldFailoverStatus(status, keys.length) ||
-        (timedOut && hasNext && deadline - Date.now() > 1_000)
-      ) {
-        markCooldown("gemini", slot, model, error);
-        if (hasNext) {
-          console.warn("SkillMirror Gemini STT failover:", {
-            provider: "gemini",
-            keyIndex: slot.index,
-            from: model,
-            to: nextCandidate.model,
-            nextKeyIndex: nextCandidate.slot.index,
-            status: status ?? "timeout",
-          });
-          continue;
-        }
-      }
-      throw error;
-    }
-  }
-  throw new Error("Gemini transcription unavailable");
+    },
+  );
 }

@@ -21,7 +21,14 @@ import {
   competencyKey,
   ladderSchema,
 } from "./schemas";
-import { geminiJSON } from "./gemini";
+import {
+  flashModelChain,
+  geminiStructuredRequest,
+  type Prompt,
+} from "./gemini";
+import { groqStrategistModelChain, groqStructuredRequest } from "./groq";
+import { requestStructuredOutput } from "./structured-output";
+import type { ProviderModel } from "./pool";
 import { p2 } from "./prompts/p2_blueprint";
 import { p3 } from "./prompts/p3_ladder";
 
@@ -105,11 +112,81 @@ export function getPlanSummary(s: SessionRow): PlanSummary | null {
   };
 }
 
+export const PLAN_PREPARATION_TIMEOUT_MS = 50_000;
+const BLUEPRINT_TIMEOUT_MS = 38_000;
+
+async function planOutput<T>(
+  prompt: Prompt,
+  schema: z.ZodType<T>,
+  options: {
+    thinking: "medium" | "high";
+    timeout: number;
+    preferred?: ProviderModel;
+    validate: (value: T) => void;
+  },
+) {
+  const geminiRequest = geminiStructuredRequest(prompt, schema, options);
+  const groqRequest = groqStructuredRequest(prompt, schema, {
+    temperature: 0.4,
+    maxTokens: 3_200,
+    strict: false,
+  });
+  const geminiModels = flashModelChain();
+  const groqModels = groqStrategistModelChain();
+  const models = Array.from(
+    { length: Math.max(geminiModels.length, groqModels.length) },
+    (_, rank) => [
+      {
+        provider: "gemini" as const,
+        model: geminiModels[rank],
+        request: geminiRequest,
+      },
+      {
+        provider: "groq" as const,
+        model: groqModels[rank],
+        request: groqRequest,
+      },
+    ],
+  )
+    .flat()
+    .filter(({ model }) => Boolean(model));
+  const preferredIndex = models.findIndex(
+    ({ provider, model }) =>
+      provider === options.preferred?.provider &&
+      model === options.preferred.model,
+  );
+  if (preferredIndex > 0) {
+    // Start ladder generation with the model that just produced a valid blueprint.
+    const [preferred] = models.splice(preferredIndex, 1);
+    models.unshift(preferred);
+  }
+  return requestStructuredOutput(models, prompt, schema, options);
+}
+
+function fallbackBlueprint(s: SessionRow, cv: ParsedCV | null): PlanBlueprint {
+  const blueprint = mockBlueprint(s.config, s.roleFamily);
+  const anchor = (index: number, generic: string) =>
+    cv?.projects[index]?.name.trim().slice(0, 120) || generic;
+  return {
+    ...blueprint,
+    role_summary: `The ${s.roleTitle} interview at ${s.company} focuses on technical decisions, tradeoffs, and ownership.`,
+    behavioral: blueprint.behavioral.map((question, index) => ({
+      ...question,
+      cv_anchor: anchor(index, "Your experience"),
+    })),
+    cv_questions: blueprint.cv_questions.map((question, index) => ({
+      ...question,
+      anchor: anchor(index, question.anchor),
+    })),
+  };
+}
+
 export async function generatePlan(
   s: SessionRow,
   cv: ParsedCV | null,
   profileName: string,
   github: GithubProject[] = [],
+  deadline = Date.now() + PLAN_PREPARATION_TIMEOUT_MS,
 ): Promise<InterviewPlan> {
   const config = s.config;
   const { skills_removed: removed = [], ...profile } = cv ?? {
@@ -142,48 +219,57 @@ export async function generatePlan(
   };
   const companyActive = s.kind !== "practice";
   const mock = s.aiMode === "mock";
-  const initial = mock
-    ? mockBlueprint(config, s.roleFamily)
-    : normalizeBlueprint(
-        await geminiJSON(
-          p2({
-            ...focus,
-            company: s.company,
-            parsedCvJsonWithoutRemovedSkillsOrEmptyProfile:
-              JSON.stringify(visible),
-            jobDescription: s.jobDescription ?? "",
-            taxonomyListAsKeyNameFamiliesLines: taxonomyLines,
-            enabledPhasesList: config.phaseOrder
-              .map((p) => PHASE_LABELS[p])
-              .join(", "),
-            aiInstructions: config.ai.instructions,
-            customQuestionTextsBulletedOrNone:
-              config.customQuestions.map((q) => "- " + q.text).join("\n") ||
-              "None",
-            githubSummaries: github.length ? JSON.stringify(github) : "",
-            techCount,
-            behavioralCountForPlan: behaviorCount,
-            cvQuestionCount: cvCount,
-            presentationEnabled: enabled(s, "presentation"),
-            companyBlock: companyActive,
-          }),
-          blueprintResponseSchema,
-          {
-            thinking: "high",
-            validate: (plan) => {
-              if (
-                plan.technical.length < techCount ||
-                plan.behavioral.length !== behaviorCount ||
-                plan.cv_questions.length !== cvCount ||
-                (enabled(s, "presentation") &&
-                  !plan.presentation &&
-                  !config.presentation.custom)
-              )
-                throw new Error("Blueprint is missing interview items");
-            },
+  const generated = mock
+    ? undefined
+    : await planOutput(
+        p2({
+          ...focus,
+          company: s.company,
+          parsedCvJsonWithoutRemovedSkillsOrEmptyProfile:
+            JSON.stringify(visible),
+          jobDescription: s.jobDescription ?? "",
+          taxonomyListAsKeyNameFamiliesLines: taxonomyLines,
+          enabledPhasesList: config.phaseOrder
+            .map((p) => PHASE_LABELS[p])
+            .join(", "),
+          aiInstructions: config.ai.instructions,
+          customQuestionTextsBulletedOrNone:
+            config.customQuestions.map((q) => "- " + q.text).join("\n") ||
+            "None",
+          githubSummaries: github.length ? JSON.stringify(github) : "",
+          techCount,
+          behavioralCountForPlan: behaviorCount,
+          cvQuestionCount: cvCount,
+          presentationEnabled: enabled(s, "presentation"),
+          companyBlock: companyActive,
+        }),
+        blueprintResponseSchema,
+        {
+          thinking: "high",
+          timeout: Math.min(BLUEPRINT_TIMEOUT_MS, deadline - Date.now()),
+          validate: (plan) => {
+            if (
+              plan.technical.length < techCount ||
+              plan.behavioral.length !== behaviorCount ||
+              plan.cv_questions.length !== cvCount ||
+              (enabled(s, "presentation") &&
+                !plan.presentation &&
+                !config.presentation.custom)
+            )
+              throw new Error("Blueprint is missing interview items");
           },
-        ),
-      );
+        },
+      ).catch(() => {
+        console.warn("SkillMirror is using a role-based interview plan", {
+          roleFamily: s.roleFamily,
+        });
+        return undefined;
+      });
+  const initial = generated
+    ? normalizeBlueprint(generated.value)
+    : mock
+      ? mockBlueprint(config, s.roleFamily)
+      : fallbackBlueprint(s, cv);
   const expected_level = SENIORITIES.indexOf(s.seniority) + 1;
   let items = initial.technical.slice(0, techCount);
   if (techCount && config.competencies.selection === "manual") {
@@ -244,10 +330,12 @@ export async function generatePlan(
         companyBlock: companyActive,
       });
       let partialLadder: PartialLadder = {};
-      if (!mock) {
+      if (generated && Date.now() < deadline) {
         try {
-          const response = await geminiJSON(prompt, ladderSchema, {
+          const { value } = await planOutput(prompt, ladderSchema, {
             thinking: "medium",
+            timeout: deadline - Date.now(),
+            preferred: generated.source,
             validate: (response) => {
               for (const level of levels) {
                 const questions = response.levels[level];
@@ -265,7 +353,7 @@ export async function generatePlan(
               }
             },
           });
-          partialLadder = response.levels;
+          partialLadder = value.levels;
         } catch {
           console.warn(
             "SkillMirror could not generate a complete question ladder",

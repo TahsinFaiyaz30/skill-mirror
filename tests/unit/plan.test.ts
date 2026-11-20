@@ -1,9 +1,109 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mockBlueprint, mockLadder } from "@/lib/ai/mock/fixtures";
-import { completeLadder, normalizeBlueprint } from "@/lib/ai/plan";
+import {
+  completeLadder,
+  generatePlan,
+  normalizeBlueprint,
+} from "@/lib/ai/plan";
+import { resetProviderPool } from "@/lib/ai/pool";
+import { goldenFixture } from "../fixtures/session-01/fixture";
 import { buildSessionConfig } from "@/lib/config/sessionConfig";
 
 describe("interview plan recovery", () => {
+  afterEach(() => {
+    resetProviderPool();
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("tries the preferred Gemini model on each configured key before accepting a Groq plan", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "gemini-primary-key,gemini-secondary-key");
+    vi.stubEnv("GEMINI_API_KEYS", "");
+    vi.stubEnv("GROQ_API_KEY", "groq-test-key");
+    vi.stubEnv("MODEL_FLASH", "preferred-gemini");
+    vi.stubEnv("GROQ_STRATEGIST_MODEL", "openai/gpt-oss-120b");
+    const config = buildSessionConfig("practice", {
+      lengthMinutes: 2,
+      voiceName: "Kore",
+    });
+    const session = {
+      ...goldenFixture("off").session,
+      kind: "practice" as const,
+      aiMode: "live" as const,
+      config,
+    };
+    const blueprint = mockBlueprint(config, session.roleFamily);
+    blueprint.persona.interviewer_name = "Jordan";
+    const attempts: Array<[string, string | null]> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request =
+          input instanceof Request ? input : new Request(input, init);
+        const { model, response_format } = await request.json();
+        const geminiKey = request.headers.get("x-goog-api-key");
+        attempts.push([model, geminiKey]);
+        if (geminiKey) {
+          const status = geminiKey === "gemini-primary-key" ? 429 : 400;
+          const message =
+            status === 429 ? "Quota exceeded" : "API key not valid";
+          return Response.json(
+            { error: { message, code: status } },
+            { status },
+          );
+        }
+        const value = response_format.json_schema.schema.properties.persona
+          ? blueprint
+          : { levels: mockLadder(blueprint.technical[0].key) };
+        return Response.json({
+          choices: [{ message: { content: JSON.stringify(value) } }],
+        });
+      }),
+    );
+
+    const plan = await generatePlan(session, null, "Test Candidate");
+    expect(plan.persona.interviewer_name).toBe("Jordan");
+    expect(plan.technical).toHaveLength(config.techCount);
+    expect(attempts.slice(0, 3)).toEqual([
+      ["preferred-gemini", "gemini-primary-key"],
+      ["preferred-gemini", "gemini-secondary-key"],
+      ["openai/gpt-oss-120b", null],
+    ]);
+  });
+
+  it("prepares role-based questions when both services are unavailable", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "gemini-test-key");
+    vi.stubEnv("GROQ_API_KEY", "groq-test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ error: { message: "Overloaded" } }, { status: 503 }),
+      ),
+    );
+    const config = buildSessionConfig("practice", {
+      lengthMinutes: 20,
+      voiceName: "Kore",
+    });
+    const session = {
+      ...goldenFixture("off").session,
+      kind: "practice" as const,
+      aiMode: "live" as const,
+      config,
+    };
+
+    const plan = await generatePlan(session, null, "Test Candidate");
+    expect(plan.role_summary).toContain(session.roleTitle);
+    expect(plan.technical).toHaveLength(config.techCount);
+    expect(
+      plan.technical.every(({ ladder }) =>
+        Object.values(ladder).every((questions) => questions.length === 2),
+      ),
+    ).toBe(true);
+    expect(
+      plan.behavioral.every(({ cv_anchor }) => cv_anchor === "Your experience"),
+    ).toBe(true);
+  });
+
   it("keeps the provider's wording when a competency key is outside the taxonomy", () => {
     const blueprint = mockBlueprint(
       buildSessionConfig("practice", { lengthMinutes: 10, voiceName: "Kore" }),

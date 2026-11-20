@@ -37,11 +37,16 @@ export function Prepare({ state }: { state: SessionPublic }) {
   const plan = useQuery({
     queryKey: ["plan", id],
     queryFn: () =>
-      send<{ planSummary: PlanSummary }>(
+      send<{ planSummary: PlanSummary | null }>(
         "/api/sessions/" + id + "/plan",
         "POST",
       ),
     enabled: !state.planSummary,
+    staleTime: Infinity,
+    refetchInterval: (query) =>
+      query.state.status === "success" && query.state.data?.planSummary === null
+        ? 2_000
+        : false,
   });
   useEffect(() => {
     const steps = window.setInterval(
@@ -55,14 +60,21 @@ export function Prepare({ state }: { state: SessionPublic }) {
     };
   }, []);
   const summary = state.planSummary ?? plan.data?.planSummary;
-  if (plan.isError)
+  if (plan.isError && !plan.isFetching && !summary)
     return (
       <section className="panel prep">
         <h1>Interview preparation</h1>
         <p role="alert" className="danger">
           {errorMessage(plan.error)}
         </p>
-        <button className="button" onClick={() => void plan.refetch()}>
+        <button
+          className="button"
+          onClick={() => {
+            setTick(0);
+            setTip(0);
+            void plan.refetch();
+          }}
+        >
           Retry
         </button>
       </section>

@@ -7,6 +7,7 @@ import {
   parseKeyList,
   providerKeys,
   resetProviderPool,
+  tryProviderModels,
 } from "@/lib/ai/pool";
 
 function fakeWavBuffer() {
@@ -52,7 +53,7 @@ describe("Multi-key AI provider pool and model-outer failover", () => {
   });
 
   it("parses unlimited comma-separated, plural, and numbered API keys without exposing raw secrets", () => {
-    expect(parseKeyList(' "k1" , \'k2\';k3\nk4 ')).toEqual([
+    expect(parseKeyList(" \"k1\" , 'k2';k3\nk4 ")).toEqual([
       "k1",
       "k2",
       "k3",
@@ -167,6 +168,41 @@ describe("Multi-key AI provider pool and model-outer failover", () => {
     ]);
   });
 
+  it("leaves time for the next model after every key on a stalled primary times out", async () => {
+    vi.stubEnv(
+      "GEMINI_API_KEY",
+      Array.from({ length: 9 }, (_, index) => "slow-key-" + index).join(","),
+    );
+    let now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    const attempts: Array<[string, number]> = [];
+    try {
+      const result = await tryProviderModels(
+        [
+          { provider: "gemini", model: "primary" },
+          { provider: "gemini", model: "backup" },
+        ],
+        30_000,
+        async ({ model }, slot, _signal, timeout) => {
+          attempts.push([model, slot.index]);
+          if (model === "backup") {
+            expect(timeout).toBeGreaterThan(1_000);
+            return "ready";
+          }
+          now += timeout;
+          throw new DOMException("Request stalled", "TimeoutError");
+        },
+      );
+      expect(result).toBe("ready");
+      expect(attempts).toEqual([
+        ...Array.from({ length: 9 }, (_, index) => ["primary", index + 1]),
+        ["backup", 1],
+      ]);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it("rotates speakGemini and transcribeGemini (plain text, no JSON response_format) across keys and models", async () => {
     vi.stubEnv("GEMINI_API_KEY", "tts-key-1, tts-key-2");
     vi.stubEnv("MODEL_TTS", "gemini-3.8-flash-tts");
@@ -279,19 +315,13 @@ describe("Multi-key AI provider pool and model-outer failover", () => {
             model: string;
           };
           calls.push({ url: req.url, model: body.model, key });
-          if (
-            body.model === "openai/gpt-oss-120b" &&
-            key === "gsk-test-1111"
-          ) {
+          if (body.model === "openai/gpt-oss-120b" && key === "gsk-test-1111") {
             return new Response(
               JSON.stringify({ error: { message: "Rate limit" } }),
               { status: 429, headers: { "content-type": "application/json" } },
             );
           }
-          if (
-            body.model === "openai/gpt-oss-120b" &&
-            key === "gsk-test-2222"
-          ) {
+          if (body.model === "openai/gpt-oss-120b" && key === "gsk-test-2222") {
             return new Response(
               JSON.stringify({ error: { message: "Overloaded" } }),
               { status: 503, headers: { "content-type": "application/json" } },
@@ -339,9 +369,7 @@ describe("Multi-key AI provider pool and model-outer failover", () => {
       { timeout: 10_000, temperature: 0.2, maxTokens: 100 },
     );
     expect(evalOut).toEqual({ score: 4 });
-    expect(
-      calls.map((c) => [c.model, c.key]),
-    ).toEqual([
+    expect(calls.map((c) => [c.model, c.key])).toEqual([
       ["openai/gpt-oss-120b", "gsk-test-1111"],
       ["openai/gpt-oss-120b", "gsk-test-2222"],
       ["qwen/qwen3.8-27b", "gsk-test-1111"],

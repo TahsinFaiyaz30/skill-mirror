@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 
 export type ProviderName = "gemini" | "groq";
 
+export type ProviderModel = { provider: ProviderName; model: string };
+
 export type KeySlot = {
   index: number;
   key: string;
@@ -122,6 +124,18 @@ export function extractMessage(error: unknown): string {
   return String(error ?? "");
 }
 
+function isInvalidKey(error: unknown): boolean {
+  return /api_key_invalid|api[- ]key (?:is )?(?:not valid|invalid)|invalid api[- ]key/i.test(
+    extractMessage(error),
+  );
+}
+
+function rejectsModelOptions(error: unknown): boolean {
+  return /model_(?:not_found|decommissioned|not_supported)|\bmodel\b.*(?:not supported|not available|does not support|not found|decommissioned)|thinking[_ ]level|reasoning[_ ]effort|response[_ ]format|json_validate_failed|failed to generate (?:valid )?json/i.test(
+    extractMessage(error),
+  );
+}
+
 export function parseRetryAfterMs(error: unknown): number | undefined {
   if (!error || typeof error !== "object") return undefined;
   const record = error as { headers?: unknown; cause?: unknown };
@@ -175,35 +189,39 @@ export function shouldFailoverStatus(
 }
 
 function classifyCooldown(
-  status: number | undefined,
-  message: string,
-  retryAfterMs: number | undefined,
-  timedOut: boolean,
+  error: unknown,
 ): { scope: "key" | "pair"; ms: number; reason: string } | null {
-  if (status === 401 || status === 403) {
+  const status = extractStatus(error);
+  if (status === 401 || (status === 400 && isInvalidKey(error))) {
     return { scope: "key", ms: 30 * 60_000, reason: "auth_error" };
   }
-  if (status === 429 && /limit:\s*0\b/i.test(message)) {
+  if (status === 403) {
+    return { scope: "pair", ms: 60 * 60_000, reason: "model_access_denied" };
+  }
+  if (status === 429 && /limit:\s*0\b/i.test(extractMessage(error))) {
     return { scope: "pair", ms: 60 * 60_000, reason: "tier_limit_0" };
   }
   if (status === 429) {
+    const retrySeconds = /please retry in (\d+(?:\.\d+)?)s\b/i.exec(
+      extractMessage(error),
+    )?.[1];
+    const retryAfterMs =
+      parseRetryAfterMs(error) ??
+      (retrySeconds ? Number(retrySeconds) * 1000 : 60_000);
     return {
       scope: "pair",
-      ms: Math.min(15 * 60_000, Math.max(5 * 60_000, retryAfterMs ?? 0)),
+      ms: Math.min(24 * 60 * 60_000, Math.max(1_000, retryAfterMs)),
       reason: "rate_limit",
     };
   }
   if (status === 404) {
     return { scope: "pair", ms: 60 * 60_000, reason: "model_unavailable" };
   }
-  if (
-    status !== undefined &&
-    [500, 502, 503, 504].includes(status)
-  ) {
+  if (status !== undefined && [500, 502, 503, 504].includes(status)) {
     return { scope: "pair", ms: 45_000, reason: "upstream_unavailable" };
   }
-  if (timedOut) {
-    return { scope: "pair", ms: 45_000, reason: "timeout" };
+  if (isAbortOrTimeoutError(error)) {
+    return { scope: "pair", ms: 15_000, reason: "timeout" };
   }
   return null;
 }
@@ -256,12 +274,7 @@ export function markCooldown(
   now = Date.now(),
 ) {
   const status = extractStatus(error);
-  const info = classifyCooldown(
-    status,
-    extractMessage(error),
-    parseRetryAfterMs(error),
-    isAbortOrTimeoutError(error),
-  );
+  const info = classifyCooldown(error);
   if (!info) return;
   const scopeModel = info.scope === "key" ? "*" : model;
   const cacheKey =
@@ -329,6 +342,80 @@ export function orderCandidates(
       slot,
     })),
   ];
+}
+
+export async function tryProviderModels<T, Model extends ProviderModel>(
+  models: readonly Model[],
+  timeoutMs: number,
+  request: (
+    model: Model,
+    slot: KeySlot,
+    signal: AbortSignal,
+    timeout: number,
+  ) => Promise<T>,
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  const keys = { gemini: providerKeys("gemini"), groq: providerKeys("groq") };
+  const rejectedProviders = new Set<ProviderName>();
+  const usableKeys = ({ provider, model }: ProviderModel) =>
+    rejectedProviders.has(provider)
+      ? []
+      : keys[provider].filter((slot) => !isCooledDown(provider, slot, model));
+  let lastError: unknown;
+
+  for (const [index, candidate] of models.entries()) {
+    const { provider, model } = candidate;
+    const slots = usableKeys(candidate);
+    const now = Date.now();
+    if (now >= deadline) break;
+    if (!slots.length) continue;
+
+    // Leave time for a lower-ranked model when the preferred model is slow
+    // on every key. Fast failures return their unused time to the pool.
+    const hasFallback = models
+      .slice(index + 1)
+      .some((next) => usableKeys(next).length);
+    const modelDeadline = hasFallback
+      ? now + Math.ceil((deadline - now) * 0.6)
+      : deadline;
+    for (const [keyIndex, slot] of slots.entries()) {
+      if (isCooledDown(provider, slot, model)) continue;
+      const remaining = modelDeadline - Date.now();
+      if (remaining <= 0) break;
+      const fairShare = Math.ceil(remaining / (slots.length - keyIndex));
+      const timeout = Math.min(remaining, Math.max(1_500, fairShare));
+      const signal = AbortSignal.timeout(timeout);
+      try {
+        const result = await request(candidate, slot, signal, timeout);
+        signal.throwIfAborted();
+        clearCooldown(provider, slot, model);
+        return result;
+      } catch (error) {
+        lastError = signal.aborted ? signal.reason : error;
+        const status = extractStatus(lastError);
+        markCooldown(provider, slot, model, lastError);
+        console.warn("SkillMirror AI candidate failed", {
+          provider,
+          model,
+          keyIndex: slot.index,
+          status:
+            status ?? (isAbortOrTimeoutError(lastError) ? "timeout" : "error"),
+        });
+        // A generic invalid request would be repeated unchanged on this
+        // provider. Model options and key errors can differ by candidate.
+        if (
+          status === 400 &&
+          !isInvalidKey(lastError) &&
+          !rejectsModelOptions(lastError)
+        ) {
+          rejectedProviders.add(provider);
+          break;
+        }
+      }
+    }
+  }
+
+  throw lastError ?? new Error("No AI model and key are currently available.");
 }
 
 export function getPoolSnapshot(

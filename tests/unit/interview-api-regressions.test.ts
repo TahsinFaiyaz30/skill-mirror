@@ -23,10 +23,14 @@ import { startSession, strategist } from "@/lib/api/live";
 import { mediaUpload, patchMediaRoute, telemetry } from "@/lib/api/media";
 import { SEGMENTS_PER_CAPTURE } from "@/lib/recording/captures";
 import { addMember } from "@/lib/api/organization";
+import { planSession } from "@/lib/api/session";
 import { statusRoute } from "@/lib/api/reports";
 import { certificateBySlug, createCertificate } from "@/lib/api/practice";
 import { REPORT_LEASE_MS } from "@/lib/config/constants";
-import { defaultOpeningConfig } from "@/lib/config/sessionConfig";
+import {
+  buildSessionConfig,
+  defaultOpeningConfig,
+} from "@/lib/config/sessionConfig";
 import { processInterview } from "@/lib/report/pipeline";
 import { buildReport } from "@/lib/report/buildReport";
 import { compose } from "@/lib/strategist/compose";
@@ -142,6 +146,40 @@ function freshSession(
 }
 
 describe("account and interview API writes", () => {
+  it("joins an active preparation and recovers a stale one", async () => {
+    services.userId = await user();
+    const config = buildSessionConfig("practice", {
+      lengthMinutes: 10,
+      voiceName: "Kore",
+    });
+    const active = freshSession(services.userId, {
+      kind: "practice",
+      lengthMinutes: 10,
+      status: "planning",
+      plan: null,
+      startedAt: null,
+      endedAt: null,
+      lastActiveAt: new Date(),
+      config: { ...config, cvRequired: false },
+    });
+    await database.insert(schema.interviewSessions).values(active);
+
+    const waiting = await planSession(request(), params(active.id));
+    expect(waiting.status).toBe(202);
+    expect(await waiting.json()).toEqual({ planSummary: null });
+
+    await database
+      .update(schema.interviewSessions)
+      .set({ lastActiveAt: new Date(0) })
+      .where(eq(schema.interviewSessions.id, active.id));
+    const recovered = await planSession(request(), params(active.id));
+    expect(recovered.status).toBe(200);
+    const ready = await recovered.json();
+    expect(ready.planSummary.interviewerName).toBeTruthy();
+    const reloaded = await planSession(request(), params(active.id));
+    expect(await reloaded.json()).toEqual(ready);
+  });
+
   it("expires abandoned media without deleting a fresh or never-started recording", async () => {
     services.userId = await user();
     const old = new Date(Date.now() - 35 * 86400000);
