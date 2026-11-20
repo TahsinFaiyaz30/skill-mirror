@@ -3,8 +3,8 @@
 **SkillMirror** is a multimodal AI technical interviewing, delivery analytics, and structured hiring platform built with Next.js 16, Supabase, Drizzle ORM, MediaPipe, Google Gemini, and Groq.
 
 It runs **two workflows on one unified interview engine** inside desktop Chrome or Edge:
-- **Practice Mode** — Select a target company/role/seniority, upload your CV, run a timed adaptive AI voice & video interview, and receive a private, evidence-backed coaching report with replayable video clips, skeleton overlays, and a shareable verification certificate.
-- **Company Hiring Mode** — Create an organization workspace, design interview openings (automatic, hybrid, or scripted), import/generate/enrich question rubrics from PDF/DOCX/text, invite candidates via unique links or bulk CSV, preview interviews before publishing, compare candidates side by side, and export CSVs.
+- **Practice Mode** — Select a target company/role/seniority (2, 10, or 20 minutes, including a 2-minute quick test option), upload your CV, run a timed adaptive AI voice & video interview, and receive a private, evidence-backed coaching report with replayable video clips, skeleton overlays, and a shareable verification certificate.
+- **Company Hiring Mode** — Create an organization workspace, design interview openings (automatic, hybrid, or scripted; 2, 15, 20, 30, or 45 minutes), import/generate/enrich question rubrics from PDF/DOCX/text, invite candidates via unique links or bulk CSV, preview interviews before publishing, compare candidates side by side, and export CSVs.
 
 ---
 
@@ -47,7 +47,7 @@ Backend AI helpers (`src/lib/ai/pool.ts`, `src/lib/ai/gemini.ts`, `src/lib/ai/gr
 | :--- | :--- |
 | **Framework** | Next.js 16 (App Router, Turbopack), React 19, TypeScript |
 | **Styling & UI** | CSS design system (coral-accent light + deep-navy dark mode via `next-themes`, glass-pill top navigation bar & mobile drawer), Tailwind CSS v4, Radix UI, Framer Motion, Recharts, Lucide Icons, Sonner |
-| **Auth & Database** | Supabase Auth (Email + Google OAuth), PostgreSQL + Row-Level Security (`0000`–`0006` migrations), Drizzle ORM, Supabase Storage (`cvs`, `recordings`, `artifacts`, `org-assets`) |
+| **Auth & Database** | Supabase Auth (Email + Google OAuth), PostgreSQL + Row-Level Security (`0000`–`0007` migrations), Drizzle ORM, Supabase Storage (`cvs`, `recordings`, `artifacts`, `org-assets`) |
 | **Live & Offline AI** | `@google/genai` (Interactions API v1beta, Live API v1alpha ephemeral tokens, Extended Thinking, Live Transcribe, TTS), `groq-sdk` (GPT-OSS / Qwen JSON mode + Whisper timestamps) |
 | **Client Media & Vision** | `@mediapipe/tasks-vision`, `@ricky0123/vad-web`, Web Audio `AudioWorklet`, `pitchy`, `MediaRecorder`, `pdf-lib`, `mammoth` |
 | **Testing** | Vitest (`pglite` RLS + unit/API regression tests), Playwright E2E, ESLint v9, TypeScript |

@@ -59,14 +59,14 @@ export function ReadyChecklist() {
           ],
           [Camera, "A working camera and microphone"],
           [Headphones, "Headphones or a quiet room"],
-          [Clock, "10 or 20 minutes without interruptions"],
+          [Clock, "2, 10, or 20 minutes without interruptions"],
         ]}
       />
     </GuideCard>
   );
 }
 
-export function PhasePlan({ minutes = 20 }: { minutes?: 10 | 20 }) {
+export function PhasePlan({ minutes = 20 }: { minutes?: 2 | 10 | 20 }) {
   const phases = Object.entries(PRACTICE_TEMPLATES[minutes].budgets);
   const longest = Math.max(...phases.map(([, ms]) => ms));
   return (
@@ -81,9 +81,11 @@ export function PhasePlan({ minutes = 20 }: { minutes?: 10 | 20 }) {
         ))}
       </ol>
       <small>
-        {minutes === 20
-          ? "The 10 minute interview is shorter and skips Your questions."
-          : "The 20 minute interview adds time for Your questions."}
+        {minutes === 2
+          ? "The 2 minute quick test runs intro, one behavioral, one technical question, and close."
+          : minutes === 20
+            ? "The 10 minute interview is shorter and skips Your questions."
+            : "The 20 minute interview adds time for Your questions."}
       </small>
     </GuideCard>
   );

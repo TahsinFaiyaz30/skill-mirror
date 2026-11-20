@@ -722,7 +722,7 @@ export function OpeningWizard({
               <fieldset className="stack-sm">
                 <legend>Length</legend>
                 <div className="cluster">
-                  {([15, 20, 30, 45] as const).map((n) => (
+                  {([2, 15, 20, 30, 45] as const).map((n) => (
                     <label className="check inset" key={n}>
                       <input
                         name="opening-length"
@@ -730,7 +730,7 @@ export function OpeningWizard({
                         checked={config.lengthMinutes === n}
                         onChange={() => changeConfig("lengthMinutes", n)}
                       />
-                      {n} min
+                      {n === 2 ? "2 min (test)" : n + " min"}
                     </label>
                   ))}
                 </div>

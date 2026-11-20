@@ -1,10 +1,17 @@
 import {
   COMPANY_BUDGET as B,
+  FORCE_CLOSE_BEFORE_CAP_MS,
   MAX_ANSWER_MS,
   MINUTE,
+  PHASE_GRACE_MS,
   PRACTICE_TEMPLATES,
   PRESENTATION_TIMING as P,
   SCORING,
+  SHORT_FORCE_CLOSE_BEFORE_CAP_MS,
+  SHORT_MAX_ANSWER_MS,
+  SHORT_MIN_PHASE_REMAINING_MS,
+  SHORT_PHASE_GRACE_MS,
+  SHORT_SESSION_CAP_MS,
 } from "./constants";
 import { OPTIONAL_PHASES, QUESTION_PHASES } from "./taxonomy";
 import { clamp } from "@/lib/utils/math";
@@ -21,6 +28,24 @@ import type {
   VoiceName,
   Weights,
 } from "@/types/interview";
+
+export function forceCloseBeforeCapMs(hardCapMs: number) {
+  return hardCapMs <= SHORT_SESSION_CAP_MS
+    ? SHORT_FORCE_CLOSE_BEFORE_CAP_MS
+    : FORCE_CLOSE_BEFORE_CAP_MS;
+}
+
+export function phaseGraceMs(hardCapMs: number) {
+  return hardCapMs <= SHORT_SESSION_CAP_MS
+    ? SHORT_PHASE_GRACE_MS
+    : PHASE_GRACE_MS;
+}
+
+export function minPhaseRemainingMs(hardCapMs: number) {
+  return hardCapMs <= SHORT_SESSION_CAP_MS
+    ? SHORT_MIN_PHASE_REMAINING_MS
+    : MINUTE;
+}
 
 export const defaultOpeningConfig: OpeningConfig = {
   mode: "hybrid",
@@ -80,12 +105,17 @@ function companyBudgets(
   questions: OpeningQuestionInput[],
 ) {
   const T = config.lengthMinutes * MINUTE;
-  const intro = T <= 20 * MINUTE ? B.shortIntroMs : B.longIntroMs;
-  const remaining = T - intro - B.closingMs - B.safetyMs;
+  const short = T <= SHORT_SESSION_CAP_MS;
+  const safetyMs = short ? 10_000 : B.safetyMs;
+  const closingMs = short ? 15_000 : B.closingMs;
+  const intro = short ? 15_000 : T <= 20 * MINUTE ? B.shortIntroMs : B.longIntroMs;
+  const roundMs = short ? 5_000 : B.roundMs;
+  const questionsCapMs = short ? 15_000 : B.questionsCapMs;
+  const remaining = T - intro - closingMs - safetyMs;
   let enabled = OPTIONAL_PHASES.filter((phase) => config.phases[phase]);
   const budgets: PhaseBudgets = {
     intro_calibration: intro,
-    close: B.closingMs,
+    close: closingMs,
   };
   const largest = (phases: OptionalPhase[]) =>
     phases.reduce<OptionalPhase | undefined>(
@@ -98,14 +128,15 @@ function companyBudgets(
   const distribute = () => {
     const weight = enabled.reduce((sum, phase) => sum + B.weights[phase], 0);
     for (const phase of OPTIONAL_PHASES) delete budgets[phase];
+    if (weight <= 0) return;
     for (const phase of enabled)
       budgets[phase] = (remaining * B.weights[phase]) / weight;
-    const excess = (budgets.candidate_questions ?? 0) - B.questionsCapMs;
+    const excess = (budgets.candidate_questions ?? 0) - questionsCapMs;
     const other = enabled.includes("technical")
       ? "technical"
       : largest(enabled.filter((phase) => phase !== "candidate_questions"));
     if (excess > 0) {
-      budgets.candidate_questions = B.questionsCapMs;
+      budgets.candidate_questions = questionsCapMs;
       if (other) budgets[other] = (budgets[other] ?? 0) + excess;
     }
   };
@@ -129,11 +160,11 @@ function companyBudgets(
     largest(enabled.filter((phase) => phase !== "candidate_questions")) ??
     "intro_calibration";
   for (const phase of enabled)
-    budgets[phase] = Math.round((budgets[phase] ?? 0) / B.roundMs) * B.roundMs;
+    budgets[phase] = Math.round((budgets[phase] ?? 0) / roundMs) * roundMs;
   budgets[destination] =
     (budgets[destination] ?? 0) +
     T -
-    B.safetyMs -
+    safetyMs -
     Object.values(budgets).reduce((a, b) => a + b, 0);
   const phaseOrder: Phase[] = ["intro_calibration", ...enabled, "close"];
   return { budgets, phaseOrder, presentationDisabled };
@@ -144,7 +175,7 @@ type CompanyInput = {
   company: CompanyBrand;
   featureGithub?: boolean;
 };
-type PracticeInput = { lengthMinutes: 10 | 20; voiceName: VoiceName };
+type PracticeInput = { lengthMinutes: 2 | 10 | 20; voiceName: VoiceName };
 export function buildSessionConfig(
   kind: "practice",
   input: PracticeInput,
@@ -170,9 +201,12 @@ export function buildSessionConfig(
       techMaxItems: template.techMaxItems,
       behavioralCount: template.behavioralCount,
       cvQuestionCount: 0,
-      maxAnswerMs: { ...MAX_ANSWER_MS },
+      maxAnswerMs:
+        input.lengthMinutes <= 5
+          ? { ...SHORT_MAX_ANSWER_MS }
+          : { ...MAX_ANSWER_MS },
       presentation: {
-        prepMs: P.prepMs,
+        prepMs: template.talkMs > 0 ? P.prepMs : 0,
         talkMs: template.talkMs,
         interruptAtMs: template.interruptAtMs,
         custom: null,
@@ -202,6 +236,7 @@ export function buildSessionConfig(
   const { config, questions, company } = structuredClone(input);
   const { budgets, phaseOrder } = companyBudgets(config, questions);
   const minutes = config.lengthMinutes;
+  const short = minutes <= 5;
   const enabled = (phase: Phase) => phaseOrder.includes(phase);
   const scripted = config.mode === "scripted";
   const techCount = !enabled("technical")
@@ -214,11 +249,13 @@ export function buildSessionConfig(
         ).size
       : config.competencies.selection === "manual"
         ? config.competencies.items.length
-        : minutes <= 20
-          ? 2
-          : minutes === 30
-            ? 3
-            : 4;
+        : short
+          ? 1
+          : minutes <= 20
+            ? 2
+            : minutes === 30
+              ? 3
+              : 4;
   const primaryCount = (
     phase: "behavioral" | "cv_deep_dive",
     itemMs: number,
@@ -227,7 +264,7 @@ export function buildSessionConfig(
       ? 0
       : scripted
         ? questions.filter((q) => q.phase === phase).length
-        : clamp(Math.round((budgets[phase] ?? 0) / itemMs), 1, 4);
+        : clamp(Math.round((budgets[phase] ?? 0) / itemMs), 1, short ? 1 : 4);
   const longTalk = (budgets.presentation ?? 0) >= B.presentationLongMs;
   const weights = { ...config.evaluation.weights };
   if (!enabled("technical")) weights.technical = 0;
@@ -247,16 +284,18 @@ export function buildSessionConfig(
     techMaxItems:
       scripted || !techCount
         ? 0
-        : clamp(
-            Math.floor(
-              (budgets.technical ?? 0) / techCount / B.technicalItemMs,
+        : short
+          ? clamp(Math.floor((budgets.technical ?? 0) / techCount / 20_000), 1, 2)
+          : clamp(
+              Math.floor(
+                (budgets.technical ?? 0) / techCount / B.technicalItemMs,
+              ),
+              2,
+              5,
             ),
-            2,
-            5,
-          ),
     behavioralCount: primaryCount("behavioral", B.behavioralItemMs),
     cvQuestionCount: primaryCount("cv_deep_dive", B.cvItemMs),
-    maxAnswerMs: { ...MAX_ANSWER_MS },
+    maxAnswerMs: short ? { ...SHORT_MAX_ANSWER_MS } : { ...MAX_ANSWER_MS },
     presentation: {
       prepMs: P.prepMs,
       talkMs: longTalk ? P.longTalkMs : P.shortTalkMs,

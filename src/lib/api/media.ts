@@ -424,11 +424,17 @@ export const partialSession = route(async (_request, context: Params<"id">) => {
       (part) => part.micAudio?.durationMs ?? 0,
     ),
   );
-  if (elapsed < PARTIAL_MIN_MS)
+  const minPartial = Math.min(
+    PARTIAL_MIN_MS,
+    Math.round(session.config.hardCapMs * 0.5),
+  );
+  if (elapsed < minPartial) {
+    const minMinutes = Math.max(1, Math.round(minPartial / 60_000));
     fail(
       "CONFLICT",
-      "Record at least five minutes to generate a partial report.",
+      `Record at least ${minMinutes} ${minMinutes === 1 ? "minute" : "minutes"} to generate a partial report.`,
     );
+  }
   await database.transaction(async (tx) => {
     const [saved] = await tx
       .update(interviewSessions)

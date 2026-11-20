@@ -64,7 +64,7 @@ export const sessionCreateSchema = privateDraft.extend({
   roleFamily: z.enum(ROLE_FAMILIES),
   seniority: z.enum(SENIORITIES),
   jobDescription: z.string().max(6000).optional(),
-  lengthMinutes: z.union([z.literal(10), z.literal(20)]),
+  lengthMinutes: z.union([z.literal(2), z.literal(10), z.literal(20)]),
   voiceName,
 });
 const whereId = (session: SessionRow) => eq(interviewSessions.id, session.id);

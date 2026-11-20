@@ -149,4 +149,22 @@ describe("Postgres row level security", () => {
       asUser(owner, "DELETE FROM openings WHERE id=$1", [opening]),
     ).rejects.toThrow(/Close the opening/);
   });
+
+  it("allows 2-minute length_minutes for both practice and company sessions after 0007 migration", async () => {
+    const shortPractice = "40000000-0000-4000-8000-000000000003";
+    const shortCompany = "40000000-0000-4000-8000-000000000004";
+    await pg.query(
+      "INSERT INTO interview_sessions(id,user_id,company,role_title,role_family,seniority,length_minutes,voice_name,ai_mode,config) VALUES ($1,$2,'Northstar','Backend','software_engineering','mid',2,'Kore','mock','{}')",
+      [shortPractice, candidate],
+    );
+    await pg.query(
+      "INSERT INTO interview_sessions(id,user_id,kind,org_id,opening_id,company,role_title,role_family,seniority,length_minutes,voice_name,ai_mode,config,plan) VALUES ($1,$2,'company',$3,$4,'Northstar','Backend','software_engineering','mid',2,'Kore','mock','{}','{}')",
+      [shortCompany, candidate, org, opening],
+    );
+    const check = await pg.query<{ length_minutes: number }>(
+      "SELECT length_minutes FROM interview_sessions WHERE id IN ($1, $2) ORDER BY length_minutes",
+      [shortPractice, shortCompany],
+    );
+    expect(check.rows.map((r) => r.length_minutes)).toEqual([2, 2]);
+  });
 });

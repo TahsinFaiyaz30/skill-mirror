@@ -142,7 +142,7 @@ export type InterviewAI = {
 };
 export interface OpeningConfig {
   mode: InterviewMode;
-  lengthMinutes: 15 | 20 | 30 | 45;
+  lengthMinutes: 2 | 15 | 20 | 30 | 45;
   phases: Record<OptionalPhase, boolean>;
   competencies: CompetencySelection;
   presentation: { custom: PresentationScenario | null };

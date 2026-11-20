@@ -1,9 +1,9 @@
+import { MAX_CLARIFICATIONS_PER_ITEM } from "@/lib/config/constants";
 import {
-  FORCE_CLOSE_BEFORE_CAP_MS,
-  MAX_CLARIFICATIONS_PER_ITEM,
-  MINUTE,
-  PHASE_GRACE_MS,
-} from "@/lib/config/constants";
+  forceCloseBeforeCapMs,
+  minPhaseRemainingMs,
+  phaseGraceMs,
+} from "@/lib/config/sessionConfig";
 import type {
   InterviewConfig,
   P4Output,
@@ -68,12 +68,13 @@ export function phaseLimits(
   const budget = config.phaseBudgetsMs[state.phase] ?? 0;
   const remaining =
     config.hardCapMs - elapsedMs - reserveFor(config, state.phaseIndex);
+  const closeReserve = forceCloseBeforeCapMs(config.hardCapMs);
   return {
-    underBudget: spent < budget && remaining >= MINUTE,
-    mustAskFits: remaining >= FORCE_CLOSE_BEFORE_CAP_MS,
+    underBudget: spent < budget && remaining >= minPhaseRemainingMs(config.hardCapMs),
+    mustAskFits: remaining >= closeReserve,
     allowFollowUp:
-      spent < budget + PHASE_GRACE_MS &&
-      elapsedMs < config.hardCapMs - FORCE_CLOSE_BEFORE_CAP_MS,
+      spent < budget + phaseGraceMs(config.hardCapMs) &&
+      elapsedMs < config.hardCapMs - closeReserve,
     spent,
     budget,
     remaining,
@@ -307,7 +308,7 @@ export function transition(
   const seq = original.lastDirective.seq + 1;
   const force =
     input.event === "force_close" ||
-    input.elapsedMs >= config.hardCapMs - FORCE_CLOSE_BEFORE_CAP_MS;
+    input.elapsedMs >= config.hardCapMs - forceCloseBeforeCapMs(config.hardCapMs);
   if (
     !force &&
     (input.event === "presentation_prep_done" ||

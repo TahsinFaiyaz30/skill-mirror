@@ -1,6 +1,10 @@
 export const MINUTE = 60_000;
 export const FORCE_CLOSE_BEFORE_CAP_MS = 30_000;
 export const PHASE_GRACE_MS = 45_000;
+export const SHORT_SESSION_CAP_MS = 5 * MINUTE;
+export const SHORT_FORCE_CLOSE_BEFORE_CAP_MS = 15_000;
+export const SHORT_PHASE_GRACE_MS = 10_000;
+export const SHORT_MIN_PHASE_REMAINING_MS = 15_000;
 export const NO_RESPONSE_MS = 25_000;
 export const GUARD_SILENCE_MS = 6_000;
 export const PIPELINE_END_SILENCE_MS = 2_500;
@@ -102,7 +106,31 @@ export const MAX_ANSWER_MS = {
   candidate_questions: 90000,
   close: 0,
 };
+export const SHORT_MAX_ANSWER_MS = {
+  intro: 0,
+  calibration: 20000,
+  cv_deep_dive: 35000,
+  behavioral: 35000,
+  technical: 40000,
+  presentation: 0,
+  presentation_followup: 25000,
+  candidate_questions: 20000,
+  close: 0,
+};
 export const PRACTICE_TEMPLATES = {
+  2: {
+    budgets: {
+      intro_calibration: 20000,
+      behavioral: 35000,
+      technical: 50000,
+      close: 15000,
+    },
+    behavioralCount: 1,
+    techCount: 1,
+    techMaxItems: 2,
+    talkMs: 0,
+    interruptAtMs: null,
+  },
   10: {
     budgets: {
       intro_calibration: 90000,

@@ -31,7 +31,7 @@ type Details = {
   roleTitle: string;
   roleFamily: string;
   seniority: string;
-  lengthMinutes: 10 | 20;
+  lengthMinutes: 2 | 10 | 20;
   jobDescription: string;
 };
 const companies = [
@@ -386,6 +386,16 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
                       onChange={() => update({ lengthMinutes: 10 })}
                     />
                     Quick 10 min
+                  </label>
+                  <label className="check inset">
+                    <input
+                      type="radio"
+                      name="lengthMinutes"
+                      value="2"
+                      checked={details.lengthMinutes === 2}
+                      onChange={() => update({ lengthMinutes: 2 })}
+                    />
+                    Test 2 min
                   </label>
                 </div>
               </fieldset>

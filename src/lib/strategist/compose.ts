@@ -108,10 +108,14 @@ export function compose(
           " position. It will take about " +
           config.lengthMinutes +
           " minutes, covering ";
+    const introTail =
+      config.lengthMinutes <= 5
+        ? ". Keep each answer concise. When you're finished, just pause or press Done answering. Let's start: tell me briefly about yourself in about fifteen seconds."
+        : ". Take your time with each answer. When you're finished, just pause or press Done answering. Let's start: tell me about yourself, in about a minute.";
     sayText =
       start +
       phaseListSpoken(config.phaseOrder) +
-      ". Take your time with each answer. When you're finished, just pause or press Done answering. Let's start: tell me about yourself, in about a minute.";
+      introTail;
     questionText = calibrationQuestion;
     cardLabel = "Introduction";
   } else if (mode === "close") {

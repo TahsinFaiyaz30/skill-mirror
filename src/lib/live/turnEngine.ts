@@ -1,4 +1,5 @@
 import * as C from "@/lib/config/constants";
+import { forceCloseBeforeCapMs } from "@/lib/config/sessionConfig";
 import type {
   AnswerStatus,
   Baseline,
@@ -729,7 +730,7 @@ export class TurnEngine {
       if (time - this.deviceAt >= 60000) void this.finish("connection_lost");
       return;
     }
-    if (!this.hardClose && time >= cap - C.FORCE_CLOSE_BEFORE_CAP_MS) {
+    if (!this.hardClose && time >= cap - forceCloseBeforeCapMs(cap)) {
       this.hardClose = true;
       if (["LISTENING", "PREP", "PRESENTING"].includes(stage))
         void this.submit("force_close", "time_cap");

@@ -50,6 +50,13 @@
       "when": 1795068149682,
       "tag": "0006_protect_interview_evidence",
       "breakpoints": false
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795100000000,
+      "tag": "0007_allow_two_minute_interviews",
+      "breakpoints": true
     }
   ]
 }

@@ -21,25 +21,10 @@ export function mockBlueprint(
     ),
     ...COMPETENCY_KEYS,
   ];
-  return {
-    persona: { interviewer_name: "Alex", style: "polite, probing and concise" },
-    role_summary:
-      "The role calls for clear decisions, technical depth and ownership of outcomes.",
-    technical:
-      config.mode === "scripted"
-        ? []
-        : [...new Set(keys)]
-            .slice(0, config.techCount)
-            .map((key) => ({
-              key,
-              sub_label: key === "domain_other" ? "Role expertise" : null,
-              why: "Relevant to the role and the candidate's experience.",
-              claimed_in_cv: false,
-              start_level: 2,
-            })),
-    behavioral:
-      config.mode !== "scripted" && config.phaseOrder.includes("behavioral")
-        ? [
+  const behavioral: PlanBlueprint["behavioral"] =
+    config.mode !== "scripted" && config.phaseOrder.includes("behavioral")
+      ? (
+          [
             {
               id: "b1",
               theme: "ownership",
@@ -61,8 +46,29 @@ export function mockBlueprint(
               cv_anchor: "Northstar Labs",
               look_for: ["Learning", "Follow-through"],
             },
-          ]
-        : [],
+          ] satisfies PlanBlueprint["behavioral"]
+        ).slice(
+          0,
+          config.lengthMinutes <= 5 ? Math.max(1, config.behavioralCount) : 3,
+        )
+      : [];
+  return {
+    persona: { interviewer_name: "Alex", style: "polite, probing and concise" },
+    role_summary:
+      "The role calls for clear decisions, technical depth and ownership of outcomes.",
+    technical:
+      config.mode === "scripted"
+        ? []
+        : [...new Set(keys)]
+            .slice(0, config.techCount)
+            .map((key) => ({
+              key,
+              sub_label: key === "domain_other" ? "Role expertise" : null,
+              why: "Relevant to the role and the candidate's experience.",
+              claimed_in_cv: false,
+              start_level: 2,
+            })),
+    behavioral,
     cv_questions: Array.from(
       { length: config.mode === "scripted" ? 0 : config.cvQuestionCount },
       (_, index) => ({

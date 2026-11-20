@@ -431,4 +431,56 @@ describe("scoring and wording", () => {
       "The team at Northstar will review",
     );
   });
+
+  it("progresses cleanly through a 2 minute quick-test interview and closes at 105s", () => {
+    const shortConfig = buildSessionConfig("practice", {
+      lengthMinutes: 2,
+      voiceName: "Kore",
+    });
+    const ctx = makeContext(shortConfig);
+    expect(ctx.plan.behavioral).toHaveLength(1);
+    expect(ctx.plan.technical).toHaveLength(1);
+
+    let state = startInterview(ctx);
+    expect(state.phase).toBe("intro_calibration");
+    expect(state.lastDirective.sayText).toContain("fifteen seconds");
+
+    // Advance out of calibration at t = 20s -> must enter behavioral (not skip phases!)
+    const afterCal = transition(
+      state,
+      ctx,
+      request(state, { elapsedMs: 20_000 }),
+    );
+    state = afterCal.state;
+    expect(state.phase).toBe("behavioral");
+
+    // Finish behavioral at t = 55s -> must enter technical (65s remaining minus 15s close = 50s left)
+    const afterBeh = transition(
+      state,
+      ctx,
+      request(state, { elapsedMs: 55_000 }),
+      strong,
+    );
+    state = afterBeh.state;
+    expect(state.phase).toBe("technical");
+
+    // Force close cleanly at t = 105s (120s - 15s short close buffer)
+    const closed = transition(
+      state,
+      ctx,
+      request(state, {
+        event: "force_close",
+        answerStatus: "time_cap",
+        elapsedMs: 105_000,
+        timings: {
+          askStartMs: 60_000,
+          askEndMs: 62_000,
+          answerStartMs: null,
+          answerEndMs: 105_000,
+        },
+      }),
+    );
+    expect(closed.state.phase).toBe("close");
+    expect(closed.state.lastDirective.mode).toBe("close");
+  });
 });

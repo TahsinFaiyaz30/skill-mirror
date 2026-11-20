@@ -69,6 +69,7 @@ const candidate = z.object({
 const integrity = z.object({ requireHeadphones: z.boolean() });
 const mode = z.enum(["scripted", "hybrid", "auto"]);
 const lengthMinutes = z.union([
+  z.literal(2),
   z.literal(15),
   z.literal(20),
   z.literal(30),

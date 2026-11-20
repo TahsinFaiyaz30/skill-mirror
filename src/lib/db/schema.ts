@@ -268,9 +268,9 @@ export const interviewSessions = pgTable(
     check(
       "interview_sessions_scope_check",
       sql`
-      (${t.kind} = 'practice' AND ${t.lengthMinutes} IN (10,20)
+      (${t.kind} = 'practice' AND ${t.lengthMinutes} IN (2,10,20)
         AND ${t.orgId} IS NULL AND ${t.openingId} IS NULL AND NOT ${t.organizationRemoved})
-      OR (${t.kind} IN ('company','preview') AND ${t.lengthMinutes} IN (15,20,30,45)
+      OR (${t.kind} IN ('company','preview') AND ${t.lengthMinutes} IN (2,15,20,30,45)
         AND (
           (NOT ${t.organizationRemoved} AND ${t.orgId} IS NOT NULL AND ${t.openingId} IS NOT NULL)
           OR (${t.organizationRemoved} AND ${t.orgId} IS NULL AND ${t.openingId} IS NULL AND ${t.invitationId} IS NULL)

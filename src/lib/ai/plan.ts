@@ -127,7 +127,12 @@ export async function generatePlan(
   const scripted = config.mode === "scripted";
   const techCount = scripted ? 0 : config.techCount;
   const cvCount = scripted ? 0 : config.cvQuestionCount;
-  const behaviorCount = !scripted && enabled(s, "behavioral") ? 3 : 0;
+  const behaviorCount =
+    !scripted && enabled(s, "behavioral")
+      ? config.lengthMinutes <= 5
+        ? Math.max(1, config.behavioralCount)
+        : 3
+      : 0;
   const focus = {
     company: s.company,
     seniority: s.seniority,

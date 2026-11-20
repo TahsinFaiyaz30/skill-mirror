@@ -23,6 +23,7 @@ export function question(
 }
 describe("session configuration", () => {
   it.each([
+    [2, [20000, 35000, 50000, 15000], 1, 1, 2, 0, null],
     [10, [90000, 120000, 240000, 120000, 30000], 1, 2, 3, 60000, null],
     [
       20,
@@ -57,7 +58,12 @@ describe("session configuration", () => {
         techCount,
         techMaxItems,
         cvQuestionCount: 0,
-        presentation: { prepMs: 30000, talkMs, interruptAtMs, custom: null },
+        presentation: {
+          prepMs: length === 2 ? 0 : 30000,
+          talkMs,
+          interruptAtMs,
+          custom: null,
+        },
         maxStrategistCalls: 60,
         feedbackVisibility: "full",
         cvRequired: true,
@@ -79,16 +85,55 @@ describe("session configuration", () => {
       expect(config.phaseOrder.includes("candidate_questions")).toBe(
         length === 20,
       );
-      expect(config.maxAnswerMs).toMatchObject({
-        calibration: 90000,
-        cv_deep_dive: 180000,
-        behavioral: 180000,
-        technical: 180000,
-        presentation_followup: 120000,
-        candidate_questions: 90000,
-      });
+      expect(config.maxAnswerMs).toMatchObject(
+        length === 2
+          ? {
+              calibration: 20000,
+              cv_deep_dive: 35000,
+              behavioral: 35000,
+              technical: 40000,
+              presentation_followup: 25000,
+              candidate_questions: 20000,
+            }
+          : {
+              calibration: 90000,
+              cv_deep_dive: 180000,
+              behavioral: 180000,
+              technical: 180000,
+              presentation_followup: 120000,
+              candidate_questions: 90000,
+            },
+      );
     },
   );
+  it("budgets 2 minute quick-test company openings across phase toggles", () => {
+    for (const toggles of [
+      {},
+      { technical: false },
+      { behavioral: false, cv_deep_dive: false },
+      { presentation: false, candidate_questions: false },
+    ]) {
+      const config = opening();
+      config.lengthMinutes = 2;
+      Object.assign(config.phases, toggles);
+      const built = buildSessionConfig("company", {
+        config,
+        company,
+        questions: [],
+      });
+      expect(
+        Object.values(built.phaseBudgetsMs).reduce((a, b) => a + b, 0),
+      ).toBe(110000);
+      expect(built.techCount).toBe(config.phases.technical ? 1 : 0);
+      expect(built.maxAnswerMs.technical).toBe(40000);
+      expect(built.phaseOrder.at(-1)).toBe("close");
+    }
+    const check = opening();
+    check.lengthMinutes = 2;
+    const validation = validateOpening(check, []);
+    expect(validation.warnings.map((issue) => issue.code)).toContain("W3");
+    expect(validation.budgets.presentation).toBeUndefined();
+  });
   it.each([15, 20, 30, 45] as const)(
     "budgets company time at %i minutes across phase combinations",
     (lengthMinutes) => {
