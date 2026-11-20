@@ -57,7 +57,7 @@ Backend AI helpers (`src/lib/ai/pool.ts`, `src/lib/ai/gemini.ts`, `src/lib/ai/gr
 ## Getting Started
 
 ### Prerequisites
-- **Node.js 24+** (`engines.node: ">=24"`)
+- **Node.js 24.x** (`engines.node: "24.x"`)
 - Desktop Chrome or Edge 120+ (for live webcam/mic capture and `AudioWorklet`)
 
 ### Option A: Fast Local Mock Mode (No External APIs Required)
