@@ -64,8 +64,8 @@ const serverSchema = z.object({
   MAX_INTERVIEWS_PER_DAY: positive(50),
   MAX_COMPANY_INTERVIEWS_PER_DAY_PER_ORG: positive(200),
   RECORDING_RETENTION_DAYS: positive(30),
-  RESEND_API_KEY: optional,
-  EMAIL_FROM: optional,
+  GMAIL_USER: optional,
+  GMAIL_APP_PASSWORD: optional,
   FEATURE_GITHUB: z.preprocess(
     blankAsUndefined,
     z

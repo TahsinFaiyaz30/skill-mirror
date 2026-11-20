@@ -159,7 +159,7 @@ Run the full UI, setup wizard, simulated interview, recording playback, hiring w
 | `ADMIN_EMAILS` | — | Comma-separated allowlist of emails allowed to view `/admin` and `/api/admin/providers` |
 | `CERT_SIGNING_SECRET` | `32+ bytes hex` | HMAC secret for signing certificate shares |
 | `CRON_SECRET` | `32+ bytes hex` | Bearer secret protecting `/api/cron/retention` |
-| `RESEND_API_KEY` / `EMAIL_FROM` | — | Optional Resend credentials for automated candidate invite emails |
+| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | — | Gmail sender address and Google App Password for candidate invitation emails. [Set up an App Password](https://support.google.com/accounts/answer/185833). |
 | `FEATURE_GITHUB` / `GITHUB_TOKEN` | `false` | Optional GitHub repository enrichment for CV projects |
 
 ---

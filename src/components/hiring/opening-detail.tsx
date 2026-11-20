@@ -424,6 +424,7 @@ export function InviteForm({ opening }: { opening: Opening }) {
 }
 function Invitations({ id }: { id: string }) {
   const [lastLink, setLastLink] = useState("");
+  const [emailFailed, setEmailFailed] = useState(false);
   const query = useQuery({
     queryKey: ["invitations", id],
     queryFn: () =>
@@ -436,11 +437,14 @@ function Invitations({ id }: { id: string }) {
     action: "resend" | "revoke" | "allow-retake",
   ) => {
     try {
-      const result = await send<{ ok: boolean; link?: string }>(
+      const result = await send<{ ok: boolean; link?: string; emailed?: boolean }>(
         "/api/invitations/" + row.id + "/" + action,
         "POST",
       );
-      if (result.link) setLastLink(result.link);
+      if (result.link) {
+        setLastLink(result.link);
+        setEmailFailed(result.emailed === false);
+      }
       await query.refetch();
     } catch (error) {
       showError(error);
@@ -449,6 +453,11 @@ function Invitations({ id }: { id: string }) {
   return (
     <section className="card stack">
       <h2>Invitations</h2>
+      {emailFailed && (
+        <p role="status" className="muted">
+          Gmail could not send the invitation. You can copy the link below.
+        </p>
+      )}
       {lastLink && (
         <div className="inset cluster">
           <a className="wrap-anywhere" href={lastLink}>

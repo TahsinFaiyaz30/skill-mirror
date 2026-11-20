@@ -462,14 +462,14 @@ export const resendInvite = route(async (_request, context: Params<"id">) => {
       : invite.expiresAt;
   const [saved] = await database
     .update(invitations)
-    .set({ expiresAt, lastSentAt: new Date() })
+    .set({ expiresAt })
     .where(
       and(eq(invitations.id, invite.id), eq(invitations.status, "pending")),
     )
     .returning();
   if (!saved) fail("CONFLICT", "Only pending invitations can be resent.");
   const link = inviteLink(saved.token);
-  await sendInviteEmail({
+  const emailed = await sendInviteEmail({
     email: saved.email,
     company: org.name,
     roleTitle: opening.roleTitle,
@@ -477,7 +477,12 @@ export const resendInvite = route(async (_request, context: Params<"id">) => {
     expiresAt,
     link,
   });
-  return json({ ok: true, link });
+  if (emailed)
+    await database
+      .update(invitations)
+      .set({ lastSentAt: new Date() })
+      .where(eq(invitations.id, saved.id));
+  return json({ ok: true, link, emailed });
 });
 export const revokeInvite = route(async (_request, context: Params<"id">) => {
   const { invite, database } = await ownedInvite((await context.params).id);

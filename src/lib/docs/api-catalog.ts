@@ -75,12 +75,12 @@ export const EXTERNAL_APIS: ExternalApiEntry[] = [
     auth: "Optional GITHUB_TOKEN bearer (public repositories only)",
   },
   {
-    provider: "Resend Email API (Optional)",
-    protocol: "HTTPS REST",
+    provider: "Gmail SMTP (Optional)",
+    protocol: "SMTP over TLS",
     modelsOrServices: "Transactional candidate invitation dispatch",
     purpose:
-      "Sends hiring invitation links to candidates when RESEND_API_KEY and EMAIL_FROM are configured.",
-    auth: "Server-side RESEND_API_KEY bearer",
+      "Sends candidate invitation links from the configured Gmail account.",
+    auth: "Server-side Gmail address and Google App Password",
   },
 ];
 

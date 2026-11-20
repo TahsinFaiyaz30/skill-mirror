@@ -122,7 +122,9 @@ export async function getLiveDocsTelemetry(
       maxPracticePerDay: env.MAX_INTERVIEWS_PER_DAY,
       maxCompanyPerDayPerOrg: env.MAX_COMPANY_INTERVIEWS_PER_DAY_PER_ORG,
       githubEnrichmentEnabled: env.FEATURE_GITHUB,
-      emailConfigured: Boolean(env.RESEND_API_KEY && env.EMAIL_FROM),
+      emailConfigured: Boolean(
+        env.GMAIL_USER?.trim() && env.GMAIL_APP_PASSWORD?.trim(),
+      ),
     },
     counts: {
       users: Number(countsRow?.users ?? 0),

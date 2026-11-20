@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { Resend } from "resend";
+import { createTransport } from "nodemailer";
 import { publicEnv, serverEnv } from "@/lib/config/env";
 export const newInviteToken = () => randomBytes(32).toString("base64url");
 export const inviteExpires = (days: number, now = Date.now()) =>
@@ -30,10 +30,10 @@ export async function sendInviteEmail(input: {
   expiresAt: Date;
   link: string;
 }) {
-  const { RESEND_API_KEY, EMAIL_FROM } = serverEnv();
-  if (!RESEND_API_KEY || !EMAIL_FROM || publicEnv.aiMode === "mock")
-    return false;
-  const resend = new Resend(RESEND_API_KEY);
+  const env = serverEnv();
+  const user = env.GMAIL_USER?.trim();
+  const pass = env.GMAIL_APP_PASSWORD?.replace(/\s/g, "");
+  if (!user || !pass || publicEnv.aiMode === "mock") return false;
   const date = input.expiresAt.toISOString().slice(0, 10);
   const subject = (
     input.company +
@@ -50,8 +50,18 @@ export async function sendInviteEmail(input: {
     date +
     ".";
   try {
-    const { error } = await resend.emails.send({
-      from: EMAIL_FROM,
+    const mailer = createTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: { user, pass },
+      dnsTimeout: 5_000,
+      connectionTimeout: 8_000,
+      greetingTimeout: 5_000,
+      socketTimeout: 10_000,
+    });
+    const result = await mailer.sendMail({
+      from: { name: "SkillMirror", address: user },
       to: input.email,
       subject,
       text: text + "\n" + input.link,
@@ -62,7 +72,7 @@ export async function sendInviteEmail(input: {
         escape(input.link) +
         '">View invitation</a></p>',
     });
-    return !error;
+    return result.accepted.length > 0;
   } catch {
     return false;
   }
