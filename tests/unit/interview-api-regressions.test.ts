@@ -20,6 +20,7 @@ import { initializeMockDatabase } from "@/lib/db/mockSetup";
 import * as schema from "@/lib/db/schema";
 import { sampleParsedCv } from "@/lib/ai/mock/sampleParsedCv";
 import { deleteAccount, retention } from "@/lib/api/account";
+import { useSampleCv } from "@/lib/api/cv";
 import { startSession, strategist } from "@/lib/api/live";
 import { mediaUpload, patchMediaRoute, telemetry } from "@/lib/api/media";
 import { previewOpening } from "@/lib/api/opening";
@@ -152,6 +153,23 @@ function freshSession(
 }
 
 describe("account and interview API writes", () => {
+  it("only supplies the authenticated user's reusable sample CV", async () => {
+    services.userId = "";
+    expect((await useSampleCv(request())).status).toBe(401);
+
+    services.userId = await user();
+    const result = await useSampleCv(request());
+    expect(result.status).toBe(200);
+    const sample = await result.json();
+    expect(sample.parsed).toEqual(sampleParsedCv);
+    expect(await (await useSampleCv(request())).json()).toEqual(sample);
+
+    services.userId = await user();
+    const other = await (await useSampleCv(request())).json();
+    expect(other.cvId).not.toBe(sample.cvId);
+    expect(other.parsed).toEqual(sampleParsedCv);
+  });
+
   it("requires a selected CV and uses the entered details in a judge practice session", async () => {
     const input = {
       company: "Example Company",

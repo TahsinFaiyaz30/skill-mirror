@@ -34,7 +34,8 @@ import {
   route,
   type Params,
 } from "@/lib/utils/http";
-import { getParsedCv, sampleCandidateCv } from "./session";
+import { sampleCandidateCv } from "./cv";
+import { getParsedCv } from "./session";
 
 const key = (id: string) => eq(openings.id, id);
 async function latest(tx: Transaction, id: string) {
@@ -298,7 +299,7 @@ export const previewOpening = route(async (request, context: Params<"id">) => {
         company: { name: org.name, logoUrl: null },
       }).cvRequired
     )
-      cvId = await sampleCandidateCv(tx, user.id);
+      cvId = (await sampleCandidateCv(tx, user.id)).cvId;
     const values = companySessionInput(
       "preview",
       settings,

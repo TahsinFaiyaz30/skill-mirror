@@ -30,7 +30,6 @@ import {
   PLAN_PREPARATION_TIMEOUT_MS,
 } from "@/lib/ai/plan";
 import { enrichProjects } from "@/lib/hiring/github";
-import { sampleParsedCv } from "@/lib/ai/mock/sampleParsedCv";
 import { voiceName } from "@/lib/ai/schemas";
 import { body, fail, json, ok, route, type Params } from "@/lib/utils/http";
 import { removePrefix } from "@/lib/supabase/storage";
@@ -142,38 +141,6 @@ export function makeSessionPublic(s: SessionRow): SessionPublic {
     config: toPublicConfig(s.config, planSummary?.interviewerName),
     planSummary,
   };
-}
-export async function sampleCandidateCv(
-  database: Pick<Database, "select" | "insert">,
-  userId: string,
-): Promise<string> {
-  await database
-    .select({ id: profiles.id })
-    .from(profiles)
-    .where(eq(profiles.id, userId))
-    .for("update");
-  const storagePath = userId + "/sample.pdf";
-  const [sample] = await database
-    .select({ id: candidateCvs.id })
-    .from(candidateCvs)
-    .where(
-      and(
-        eq(candidateCvs.userId, userId),
-        eq(candidateCvs.storagePath, storagePath),
-      ),
-    );
-  if (sample) return sample.id;
-  const [created] = await database
-    .insert(candidateCvs)
-    .values({
-      userId,
-      storagePath,
-      fileName: "Sample candidate",
-      parseStatus: "parsed",
-      parsed: sampleParsedCv,
-    })
-    .returning({ id: candidateCvs.id });
-  return created.id;
 }
 export function interrupted(session: SessionRow, now = Date.now()) {
   return (

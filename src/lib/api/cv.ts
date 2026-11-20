@@ -3,8 +3,8 @@ import { PDFDocument } from "pdf-lib";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/guards";
-import { db } from "@/lib/db";
-import { candidateCvs } from "@/lib/db/schema";
+import { db, type Transaction } from "@/lib/db";
+import { candidateCvs, profiles } from "@/lib/db/schema";
 import { readObject, uploadURL } from "@/lib/supabase/storage";
 import { publicEnv, unpaidAI } from "@/lib/config/env";
 import { p1 } from "@/lib/ai/prompts/p1_cv";
@@ -23,6 +23,50 @@ import {
 
 const maxBytes = 5_242_880;
 const cvPath = (userId: string, cvId: string) => userId + "/" + cvId + ".pdf";
+const sampleCvPath = (userId: string) => userId + "/sample.pdf";
+
+export async function sampleCandidateCv(tx: Transaction, userId: string) {
+  // Serialize creation so Practice and Company previews can reuse one sample.
+  await tx
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .for("update");
+  const storagePath = sampleCvPath(userId);
+  const [sample] = await tx
+    .select({ cvId: candidateCvs.id, parsed: candidateCvs.parsed })
+    .from(candidateCvs)
+    .where(
+      and(
+        eq(candidateCvs.userId, userId),
+        eq(candidateCvs.storagePath, storagePath),
+        eq(candidateCvs.parseStatus, "parsed"),
+      ),
+    )
+    .limit(1);
+  if (sample?.parsed) return { cvId: sample.cvId, parsed: sample.parsed };
+  const [created] = await tx
+    .insert(candidateCvs)
+    .values({
+      userId,
+      storagePath,
+      fileName: "Sample candidate",
+      parseStatus: "parsed",
+      parsed: sampleParsedCv,
+    })
+    .returning({ cvId: candidateCvs.id });
+  return { cvId: created.cvId, parsed: sampleParsedCv };
+}
+
+export const useSampleCv = route(async () => {
+  const user = await requireUser();
+  const database = await db();
+  const sample = await database.transaction((tx) =>
+    sampleCandidateCv(tx, user.id),
+  );
+  return json(sample);
+});
+
 export const createCvUpload = route(async (request) => {
   const user = await requireUser();
   const { fileName } = await body(
@@ -63,7 +107,7 @@ export const parseCv = route(async (request, context: Params<"cvId">) => {
   const { cv, database } = await ownedCv((await context.params).cvId);
   const path = cvPath(cv.userId, cv.id);
   const sample =
-    cv.storagePath === cv.userId + "/sample.pdf" && cv.parseStatus === "parsed";
+    cv.storagePath === sampleCvPath(cv.userId) && cv.parseStatus === "parsed";
   if (cv.storagePath !== path && !sample) fail("NOT_FOUND", "CV not found.");
   if (unpaidAI)
     await body(

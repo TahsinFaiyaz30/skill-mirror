@@ -33,6 +33,13 @@ type Details = {
   lengthMinutes: 2 | 3.5 | 10 | 20;
   jobDescription: string;
 };
+type JudgeEntry = "sample" | "form" | null;
+const judgeSample = {
+  roleTitle: "Backend Engineer",
+  company: "Northstar Labs",
+  jobDescription:
+    "Build and maintain APIs for a fictional software company. Work with PostgreSQL and background jobs, and help diagnose reliability issues.",
+};
 const companies = [
   "Google",
   "Meta",
@@ -121,7 +128,7 @@ export function NewInterview({
 }) {
   const router = useRouter();
   const [state, setState] = useState<
-    "idle" | "uploading" | "parsing" | "saving"
+    "idle" | "uploading" | "parsing" | "loading-sample" | "saving"
   >("idle");
   const [error, setError] = useState("");
   const [cv, setCv] = useState<{ cvId: string; parsed: ParsedCV } | null>(null);
@@ -130,7 +137,8 @@ export function NewInterview({
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
   const [voice, setVoice] = useState<VoiceName>("Kore");
-  const [judgeMode, setJudgeMode] = useState(false);
+  const [judgeEntry, setJudgeEntry] = useState<JudgeEntry>(null);
+  const judgeMode = judgeEntry !== null;
   const [details, setDetails] = useState<Details>({
     company: "",
     roleTitle: "",
@@ -141,6 +149,20 @@ export function NewInterview({
   });
   const update = (patch: Partial<Details>) =>
     setDetails((current) => ({ ...current, ...patch }));
+  function selectJudgeMode(entry: JudgeEntry) {
+    setJudgeEntry(entry);
+    if (!entry) return;
+    setDetails((current) => ({
+      ...current,
+      roleTitle: current.roleTitle.trim()
+        ? current.roleTitle
+        : judgeSample.roleTitle,
+      company: current.company.trim() ? current.company : judgeSample.company,
+      jobDescription: current.jobDescription.trim()
+        ? current.jobDescription
+        : judgeSample.jobDescription,
+    }));
+  }
   const cvQuery = useQuery({
     queryKey: ["cvs"],
     queryFn: () => requestJSON<{ items: CVRow[] }>("/api/cv"),
@@ -154,6 +176,24 @@ export function NewInterview({
     existing?.session.lengthMinutes ??
     (judgeMode ? QUICK_INTERVIEW_MINUTES : details.lengthMinutes);
   const blocked = unpaidAI && !syntheticMaterial;
+  async function chooseSampleCv() {
+    setError("");
+    setFile(null);
+    setPrevious("");
+    setState("loading-sample");
+    try {
+      const sample = await send<{ cvId: string; parsed: ParsedCV }>(
+        "/api/cv/sample",
+        "POST",
+      );
+      setCv(sample);
+      selectJudgeMode("sample");
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setState("idle");
+    }
+  }
   // Upload (when there is a new file) and read the CV.
   async function readCv(
     source: { file: File | null; previous: string },
@@ -233,13 +273,15 @@ export function NewInterview({
     if (!blocked && (source.file || source.previous)) void readCv(source);
   }
   function changeCv() {
+    if (judgeEntry === "sample") setJudgeEntry(null);
     setCv(null);
     setFile(null);
     setPrevious("");
     setError("");
   }
   const busy = state !== "idle";
-  const reading = state === "uploading" || state === "parsing";
+  const reading =
+    state === "uploading" || state === "parsing" || state === "loading-sample";
   const pending = Boolean(file || previous);
 
   // Step 1: only the CV.
@@ -264,12 +306,18 @@ export function NewInterview({
         <div className="cv-reading" aria-live="polite">
           <Orbit />
           <strong>
-            {state === "uploading" ? "Uploading your CV…" : "Reading your CV…"}
+            {state === "uploading"
+              ? "Uploading your CV…"
+              : state === "loading-sample"
+                ? "Loading the sample CV…"
+                : "Reading your CV…"}
           </strong>
           <div className="prep-bar" aria-hidden="true">
             <i style={{ width: state === "uploading" ? "35%" : "78%" }} />
           </div>
-          <small>Finding your skills, experience and projects.</small>
+          {state !== "loading-sample" && (
+            <small>Finding your skills, experience and projects.</small>
+          )}
         </div>
       ) : (
         <div
@@ -350,6 +398,21 @@ export function NewInterview({
             ))}
           </ul>
         </details>
+      )}
+      {!existing && !reading && (
+        <div className="stack-sm center">
+          <button
+            type="button"
+            className="button secondary"
+            disabled={busy}
+            onClick={() => void chooseSampleCv()}
+          >
+            Use sample CV in Judge mode
+          </button>
+          <small className="muted">
+            Review a sample CV and editable job details before you start.
+          </small>
+        </div>
       )}
     </div>
   );
@@ -509,6 +572,26 @@ export function NewInterview({
           <form className="flow-form" onSubmit={start}>
             <fieldset className="flow-step rise rise-2">
               <legend className="flow-q">What job are you practising for?</legend>
+              {judgeEntry !== "sample" && (
+                <div className="stack-sm">
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={judgeMode}
+                      disabled={busy}
+                      aria-describedby="practice-judge-details"
+                      onChange={(event) =>
+                        selectJudgeMode(event.target.checked ? "form" : null)
+                      }
+                    />
+                    Judge mode
+                  </label>
+                  <small id="practice-judge-details" className="muted">
+                    Fills empty fields with editable sample details. Runs for
+                    up to 3 minutes 30 seconds with shorter AI reasoning.
+                  </small>
+                </div>
+              )}
               <div className="grid-2">
                 <label className="field">
                   Role
@@ -554,15 +637,6 @@ export function NewInterview({
                   </label>
                 ))}
               </div>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={judgeMode}
-                  disabled={busy}
-                  onChange={(event) => setJudgeMode(event.target.checked)}
-                />
-                Judge mode (3 minutes 30 seconds with shorter AI reasoning)
-              </label>
             </fieldset>
             <fieldset className="flow-step rise rise-4">
               <legend className="flow-q">
