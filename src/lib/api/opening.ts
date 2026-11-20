@@ -291,7 +291,6 @@ export const previewOpening = route(async (request, context: Params<"id">) => {
     let cvId = input.cvId;
     if (cvId) await getParsedCv(tx, cvId, user.id);
     else if (
-      input.judgeMode ||
       input.useSampleCandidate ||
       buildSessionConfig("preview", {
         config: row.config,

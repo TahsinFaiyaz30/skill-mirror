@@ -11,6 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { QUICK_INTERVIEW_MINUTES } from "@/lib/config/constants";
 import { unpaidAI } from "@/lib/config/env";
 import { ROLE_FAMILIES, SENIORITIES, readable } from "@/lib/config/taxonomy";
 import { errorMessage, requestJSON, send } from "@/lib/utils/client";
@@ -120,7 +121,7 @@ export function NewInterview({
 }) {
   const router = useRouter();
   const [state, setState] = useState<
-    "idle" | "uploading" | "parsing" | "saving" | "starting-judge"
+    "idle" | "uploading" | "parsing" | "saving"
   >("idle");
   const [error, setError] = useState("");
   const [cv, setCv] = useState<{ cvId: string; parsed: ParsedCV } | null>(null);
@@ -129,6 +130,7 @@ export function NewInterview({
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
   const [voice, setVoice] = useState<VoiceName>("Kore");
+  const [judgeMode, setJudgeMode] = useState(false);
   const [details, setDetails] = useState<Details>({
     company: "",
     roleTitle: "",
@@ -148,7 +150,9 @@ export function NewInterview({
   );
   const role = existing?.session.roleTitle ?? details.roleTitle;
   const company = existing?.session.company ?? details.company;
-  const minutes = existing?.session.lengthMinutes ?? details.lengthMinutes;
+  const minutes =
+    existing?.session.lengthMinutes ??
+    (judgeMode ? QUICK_INTERVIEW_MINUTES : details.lengthMinutes);
   const blocked = unpaidAI && !syntheticMaterial;
   // Upload (when there is a new file) and read the CV.
   async function readCv(
@@ -182,38 +186,31 @@ export function NewInterview({
       setState("idle");
     }
   }
-  async function confirmCv(judgeMode = false) {
-    if (judgeMode ? existing : !cv) return;
-    setState(judgeMode ? "starting-judge" : "saving");
+  async function confirmCv() {
+    if (!cv) return;
+    setState("saving");
     setError("");
     try {
-      if (!judgeMode && cv) {
-        await send("/api/cv/" + cv.cvId, "PATCH", {
-          skillsRemoved: cv.parsed.skills_removed,
-        });
-        if (existing) {
-          const id = existing.session.id;
-          await send("/api/sessions/" + id, "PATCH", { cvId: cv.cvId });
-          router.push("/interview/" + id + "/prepare");
-          return;
-        }
+      await send("/api/cv/" + cv.cvId, "PATCH", {
+        skillsRemoved: cv.parsed.skills_removed,
+      });
+      if (existing) {
+        const id = existing.session.id;
+        await send("/api/sessions/" + id, "PATCH", { cvId: cv.cvId });
+        router.push("/interview/" + id + "/prepare");
+        return;
       }
       const { sessionId } = await send<{ sessionId: string }>(
         "/api/sessions",
         "POST",
         {
-          company: judgeMode
-            ? details.company.trim() || "Sample Company"
-            : details.company,
-          roleTitle: judgeMode
-            ? details.roleTitle.trim() || "Software Engineer"
-            : details.roleTitle,
+          company: details.company,
+          roleTitle: details.roleTitle,
           roleFamily: details.roleFamily,
-          seniority:
-            details.seniority ||
-            (judgeMode ? "mid" : cv?.parsed.seniority_estimate),
-          lengthMinutes: details.lengthMinutes,
-          ...(judgeMode ? { judgeMode: true } : { cvId: cv?.cvId }),
+          seniority: details.seniority || cv.parsed.seniority_estimate,
+          lengthMinutes: minutes,
+          cvId: cv.cvId,
+          ...(judgeMode && { judgeMode: true }),
           voiceName: voice,
           jobDescription: details.jobDescription,
         },
@@ -230,7 +227,6 @@ export function NewInterview({
   }
   // Picking a file (or an earlier CV) reads it straight away.
   function choose(source: { file: File | null; previous: string }) {
-    if (state === "starting-judge") return;
     setFile(source.file);
     setPrevious(source.previous);
     setError("");
@@ -354,25 +350,6 @@ export function NewInterview({
             ))}
           </ul>
         </details>
-      )}
-      {!existing && (
-        <div className="stack-sm center">
-          <button
-            type="button"
-            className="button secondary"
-            disabled={busy}
-            aria-busy={state === "starting-judge"}
-            onClick={() => void confirmCv(true)}
-          >
-            {state === "starting-judge"
-              ? "Starting Judge mode…"
-              : "Try Judge mode"}
-          </button>
-          <p className="muted small">
-            Practice with a sample CV and shorter AI reasoning. Takes up to
-            3 minutes 30 seconds.
-          </p>
-        </div>
       )}
     </div>
   );
@@ -568,7 +545,8 @@ export function NewInterview({
                       type="radio"
                       name="lengthMinutes"
                       value={value}
-                      checked={details.lengthMinutes === value}
+                      checked={minutes === value}
+                      disabled={judgeMode}
                       onChange={() => update({ lengthMinutes: value })}
                     />
                     <strong>{label}</strong>
@@ -576,6 +554,15 @@ export function NewInterview({
                   </label>
                 ))}
               </div>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={judgeMode}
+                  disabled={busy}
+                  onChange={(event) => setJudgeMode(event.target.checked)}
+                />
+                Judge mode (3 minutes 30 seconds with shorter AI reasoning)
+              </label>
             </fieldset>
             <fieldset className="flow-step rise rise-4">
               <legend className="flow-q">

@@ -18,6 +18,7 @@ import type { Database } from "@/lib/db";
 import { authIdentity } from "@/lib/db/authSchema";
 import { initializeMockDatabase } from "@/lib/db/mockSetup";
 import * as schema from "@/lib/db/schema";
+import { sampleParsedCv } from "@/lib/ai/mock/sampleParsedCv";
 import { deleteAccount, retention } from "@/lib/api/account";
 import { startSession, strategist } from "@/lib/api/live";
 import { mediaUpload, patchMediaRoute, telemetry } from "@/lib/api/media";
@@ -151,7 +152,7 @@ function freshSession(
 }
 
 describe("account and interview API writes", () => {
-  it("prepares a 3:30 judge practice session using the configured AI engine and an owned sample CV", async () => {
+  it("requires a selected CV and uses the entered details in a judge practice session", async () => {
     const input = {
       company: "Example Company",
       roleTitle: "Backend Engineer",
@@ -167,8 +168,18 @@ describe("account and interview API writes", () => {
 
     services.userId = await user();
     expect((await createSession(request(input))).status).toBe(400);
+    expect(
+      (await createSession(request({ ...input, judgeMode: true }))).status,
+    ).toBe(400);
+    const [cv] = await database.insert(schema.candidateCvs).values({
+      userId: services.userId,
+      storagePath: services.userId + "/selected.pdf",
+      fileName: "Selected CV.pdf",
+      parseStatus: "parsed",
+      parsed: sampleParsedCv,
+    }).returning();
     const response = await createSession(
-      request({ ...input, judgeMode: true }),
+      request({ ...input, cvId: cv.id, judgeMode: true }),
     );
     expect(response.status).toBe(201);
     const { sessionId } = await response.json();
@@ -179,19 +190,12 @@ describe("account and interview API writes", () => {
     expect(session).toMatchObject({
       kind: "practice",
       userId: services.userId,
+      cvId: cv.id,
+      company: input.company,
+      roleTitle: input.roleTitle,
       lengthMinutes: 2,
       aiMode: publicEnv.aiMode,
       config: { judgeMode: true, lengthMinutes: 3.5, hardCapMs: 210_000 },
-    });
-    expect(session.cvId).toBeTruthy();
-    const [cv] = await database
-      .select()
-      .from(schema.candidateCvs)
-      .where(eq(schema.candidateCvs.id, session.cvId!));
-    expect(cv).toMatchObject({
-      userId: services.userId,
-      parseStatus: "parsed",
-      parsed: { headline: "Software engineer building reliable services" },
     });
 
     services.userId = await user();

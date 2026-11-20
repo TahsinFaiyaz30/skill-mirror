@@ -10,7 +10,7 @@ It runs **two workflows on one unified interview engine** inside desktop Chrome 
 
 ## Key Capabilities
 
-**Judge mode** is available on the practice CV step and in a company opening’s **Settings → Preview interview** dialog. It uses the same interview and report pages with lower AI reasoning settings and a 3-minute-30-second time limit. Practice supplies a sample CV. Company previews use the opening’s questions. The 3-minute-30-second duration is also available in both standard interview pickers.
+**Judge mode** is available in the practice duration picker and in a company opening’s **Settings → Preview interview** dialog. It uses the normal interview flow with lower AI reasoning settings and a 3-minute-30-second time limit. The 3-minute-30-second duration is also available in both standard interview pickers.
 
 ### 1. Adaptive Interview Engine
 - **CV & Job Parsing:** Extracts structured skills, experience, projects, and education from uploaded PDF CVs (1–10 pages, up to 5 MB) with optional GitHub repository enrichment.

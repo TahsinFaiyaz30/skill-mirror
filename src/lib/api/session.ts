@@ -71,7 +71,6 @@ export const consentSchema = z.object({
   acceptedAt: z.iso.datetime(),
 });
 export const sessionCreateSchema = privateDraft.extend({
-  cvId: z.uuid().optional(),
   judgeMode: z.boolean().optional(),
   company: z.string().trim().min(1).max(80),
   roleTitle: z.string().trim().min(1).max(80),
@@ -215,19 +214,18 @@ export const createSession = route(async (request) => {
     sessionCreateSchema,
   );
   const database = await db();
-  if (!cvId && !judgeMode) fail("BAD_REQUEST", "Select a CV first.");
   const lengthMinutes = judgeMode ? QUICK_INTERVIEW_MINUTES : input.lengthMinutes;
   const config = buildSessionConfig("practice", { ...input, lengthMinutes });
   if (judgeMode) config.judgeMode = true;
   const inserted = await database.transaction(async (tx) => {
-    if (cvId) await getParsedCv(tx, cvId, user.id);
+    await getParsedCv(tx, cvId, user.id);
     await enforcePracticeLimit(tx, user.id);
     const [session] = await tx
       .insert(interviewSessions)
       .values({
         ...input,
         lengthMinutes: storedInterviewLength(lengthMinutes),
-        cvId: cvId ?? (await sampleCandidateCv(tx, user.id)),
+        cvId,
         config,
         userId: user.id,
         aiMode: publicEnv.aiMode,
