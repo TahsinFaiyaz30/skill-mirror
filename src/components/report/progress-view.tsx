@@ -50,62 +50,21 @@ function best(values: Record<string, Gain>) {
     .sort((a, b) => b[1].delta! - a[1].delta!)[0];
 }
 // Before the first interview, show what this page will chart once there is data.
-const previews = [
-  [
-    "Score over time",
-    "Your overall score after every interview, on one line.",
-    <polyline key="line" points="4,62 60,50 116,54 172,34 228,26 292,12" />,
-  ],
-  [
-    "Technical ceilings",
-    "The highest level, L1 to L5, you reached in each competency you were tested on.",
-    <polyline
-      key="steps"
-      points="4,62 70,62 70,46 150,46 150,30 222,30 222,14 292,14"
-    />,
-  ],
-  [
-    "Soft skills",
-    "Seven skills, including composure, clarity and ownership, compared interview to interview.",
-    <g key="lines">
-      <polyline points="4,50 74,44 148,46 220,30 292,24" />
-      <polyline points="4,30 74,36 148,28 220,26 292,16" opacity="0.6" />
-      <polyline points="4,64 74,58 148,52 220,50 292,40" opacity="0.4" />
-    </g>,
-  ],
-] as const;
 function ProgressPreview() {
   return (
-    <>
-      <div className="preview-grid">
-        {previews.map(([title, text, viz]) => (
-          <section key={title} className="card preview-card">
-            <svg
-              className="preview-viz"
-              viewBox="0 0 296 72"
-              preserveAspectRatio="none"
-              aria-hidden="true"
-              fill="none"
-              stroke="var(--primary)"
-              strokeWidth="2"
-              strokeDasharray="5 6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              {viz}
-            </svg>
-            <h2>{title}</h2>
-            <p className="muted">{text}</p>
-          </section>
-        ))}
-      </div>
+    <div className="card stack center empty-state">
+      <h2>No progress yet</h2>
+      <p className="muted">
+        Finish your first interview. Your scores and how they change over time
+        will show up here.
+      </p>
       <div>
         <Link className="button" href="/interview/new">
           <Plus size={18} aria-hidden="true" />
           Start an interview
         </Link>
       </div>
-    </>
+    </div>
   );
 }
 export function ProgressView() {

@@ -18,7 +18,6 @@ import type { ParsedCV, SessionPublic, VoiceName } from "@/types/interview";
 import {
   GuideCard,
   IconList,
-  PhasePlan,
   ReadyChecklist,
 } from "@/components/common/guides";
 type CVRow = {
@@ -612,10 +611,7 @@ export function NewInterview({ existing }: { existing?: SessionPublic }) {
             minutes={minutes}
           />
           {step === 0 ? (
-            <>
-              <PhasePlan minutes={details.lengthMinutes} />
-              <ReadyChecklist />
-            </>
+            <ReadyChecklist />
           ) : (
             <GuideCard
               title={companyMode ? "Who sees what" : "Your CV stays private"}

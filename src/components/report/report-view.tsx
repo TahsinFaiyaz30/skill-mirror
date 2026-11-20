@@ -189,75 +189,44 @@ export function ScoreHeader({
 export function CeilingLadder({
   competency,
   expected,
-  scripted,
 }: {
   competency: CompetencyResult;
   expected: number;
-  scripted: boolean;
+  scripted?: boolean;
 }) {
   const c = competency;
+  const level = Math.max(0, Math.min(5, c.ceiling ?? Math.round(c.theta)));
   return (
-    <article className={"inset stack " + (c.notAssessed ? "muted" : "")}>
+    <article className={"skill-row " + (c.notAssessed ? "muted" : "")}>
       <div className="cluster between">
-        <h3>{c.subLabel ?? c.displayName}</h3>
-        {c.notAssessed && <span className="badge">Not assessed</span>}
+        <strong>{c.subLabel ?? c.displayName}</strong>
+        <span className="skill-level">
+          {c.notAssessed ? "Not assessed" : "Level " + level + " of 5"}
+        </span>
       </div>
-      {scripted || (c.ceiling === null && !c.notAssessed) ? (
-        <div className="stack-sm">
-          <strong>Ability estimate</strong>
-          <progress max={5} value={c.theta} aria-label="Ability estimate" />
-        </div>
-      ) : (
-        <ol className="ladder" aria-label={"Expected level " + expected}>
-          {[5, 4, 3, 2, 1].map((level) => {
-            const rows = c.path.filter(
-              (p) =>
-                p.level === level && !p.isFollowUp && p.source === "ai_plan",
-            );
-            return (
-              <li
-                key={level}
+      {!c.notAssessed && (
+        <>
+          <div
+            className="level-bar"
+            role="img"
+            aria-label={"Level " + level + " of 5, expected " + expected}
+          >
+            {[1, 2, 3, 4, 5].map((n) => (
+              <i
+                key={n}
                 className={
-                  (rows.some((r) => r.outcome === "pass")
-                    ? "passed "
-                    : rows.some((r) => r.outcome === "fail")
-                      ? "failed "
-                      : "") + (level === expected ? "expected" : "")
+                  (n <= level ? "on" : "") + (n === expected ? " expected" : "")
                 }
-              >
-                <span className="mono">L{level}</span>
-                {level === expected && <small>Expected level</small>}
-                {c.ceiling === level && <span title="Ceiling">🏁</span>}
-              </li>
-            );
-          })}
-          {c.ceiling === 0 && (
-            <li>
-              <span className="mono">0</span>
-              <span title="Ceiling">🏁</span>
-            </li>
-          )}
-        </ol>
+              />
+            ))}
+          </div>
+          <small>
+            {level >= expected
+              ? "At or above the level expected for this role"
+              : "Level " + expected + " is expected for this role"}
+          </small>
+        </>
       )}
-      <div className="cluster small">
-        {c.path.map((p) => (
-          <span
-            key={p.turnIdx}
-            title={
-              "Turn " + (p.turnIdx + 1) + " · " + (p.outcome ?? "unscored")
-            }
-            className={"path-dot " + (p.outcome ?? "")}
-          />
-        ))}
-      </div>
-      <div className="cluster">
-        <span className="mono">θ {c.theta.toFixed(1)}</span>
-        <span className="mono">{c.score} / 100</span>
-        {c.cvClaim && (
-          <span className="badge">{readable(c.cvClaim.signal)}</span>
-        )}
-      </div>
-      {c.commentary && <p>{c.commentary}</p>}
     </article>
   );
 }
@@ -669,10 +638,8 @@ export function ReportView({
         {!recruiter && (
           <nav className="report-tabs no-print" aria-label="Report sections">
             {section
-              .filter(
-                (name) =>
-                  !off || !["Soft skills", "Composure", "Stats"].includes(name),
-              )
+              .filter((name) => !["Composure", "Stats"].includes(name))
+              .filter((name) => !off || name !== "Soft skills")
               .map((name) => {
                 const Icon = sectionIcon[name];
                 return (
@@ -750,7 +717,7 @@ export function ReportView({
             report.technical.companyQuestionsScore === null && (
               <p className="muted">No technical competencies were assessed.</p>
             )}
-          <div className="grid-2">
+          <div className="skill-list">
             {report.technical.competencies.map((c) => (
               <CeilingLadder
                 key={c.key}
@@ -786,41 +753,40 @@ export function ReportView({
                 </span>
               )}
             </div>
-            <SoftSkillRadar
-              candidates={[
-                {
-                  name: recruiter ? "Candidate score" : "Your score",
-                  dimensions: report.softSkills.dimensions,
-                },
-              ]}
-            />
-            <div className="grid-2">
+            {recruiter && (
+              <SoftSkillRadar
+                candidates={[
+                  {
+                    name: "Candidate score",
+                    dimensions: report.softSkills.dimensions,
+                  },
+                ]}
+              />
+            )}
+            <ul className="score-bars">
               {report.softSkills.dimensions.map((d) => (
-                <article key={d.key} className="inset stack-sm">
+                <li key={d.key}>
                   <div className="cluster between">
-                    <h3>{d.label}</h3>
-                    <span className="mono">{d.score ?? "—"}</span>
+                    <strong>{d.label}</strong>
+                    <span className="mono">
+                      {d.score ?? "–"}
+                      {d.score !== null && <small>/100</small>}
+                    </span>
                   </div>
-                  {d.levelLabel && <small>{d.levelLabel}</small>}
-                  {d.drivers
-                    .filter((driver) => driver.value !== null)
-                    .map((driver) => (
-                      <small key={driver.name}>
-                        {driver.name} {value(driver.value, driver.unit)}
-                        {driver.baseline !== null &&
-                          (recruiter
-                            ? " · candidate baseline "
-                            : " · your baseline ") +
-                            value(driver.baseline, driver.unit)}
-                      </small>
-                    ))}
-                  {d.commentary && <p>{d.commentary}</p>}
-                </article>
+                  <span className="bar">
+                    <i style={{ width: (d.score ?? 0) + "%" }} />
+                  </span>
+                  {d.commentary ? (
+                    <small>{d.commentary}</small>
+                  ) : (
+                    d.levelLabel && <small>{d.levelLabel}</small>
+                  )}
+                </li>
               ))}
-            </div>
+            </ul>
           </section>
         )}
-        {report.composure && (
+        {recruiter && report.composure && (
           <section className="card stack" id="composure">
             <SectionHead
               title="Composure"
@@ -914,7 +880,7 @@ export function ReportView({
             />
           ))}
         </section>
-        {!off && (
+        {recruiter && !off && (
           <section className="card stack" id="stats">
             <SectionHead
               title="Stats"
