@@ -44,15 +44,6 @@ test("a hiring team imports must-ask questions, reviews two interviews and expor
   ).toHaveCount(3);
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(
-    page.getByRole("heading", { name: "AI behavior", exact: true }),
-  ).toBeVisible();
-  await page.getByLabel("Adversarial intensity").selectOption("high");
-  await page.getByRole("button", { name: "Save and continue" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Evaluation", exact: true }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Save and continue" }).click();
-  await expect(
     page.getByRole("heading", { name: "Review & publish", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Preview interview" }).click();

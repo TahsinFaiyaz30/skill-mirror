@@ -19,7 +19,7 @@ export async function Shell({
   ]);
   const isAdmin = isAdminEmail(user.email);
   return (
-    <>
+    <div className="app-shell">
       <AppNav
         name={profile?.fullName ?? ""}
         email={user.email ?? ""}
@@ -32,7 +32,9 @@ export async function Shell({
         company={company}
         isAdmin={isAdmin}
       />
-      <main className="container page">{children}</main>
-    </>
+      <main className="app-main">
+        <div className="container page">{children}</div>
+      </main>
+    </div>
   );
 }

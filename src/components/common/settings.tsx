@@ -10,9 +10,11 @@ import {
 import { browserSupabase } from "@/lib/supabase/client";
 import { send, showError } from "@/lib/utils/client";
 import { initials, signOut } from "@/components/shell/app-nav";
-import { KeyRound, LogOut, ShieldCheck, UserRound } from "lucide-react";
+import { ThemeSelector } from "./theme-toggle";
+import { KeyRound, LogOut, ShieldCheck, SunMoon, UserRound } from "lucide-react";
 const sections = [
   ["#profile", UserRound, "Profile"],
+  ["#appearance", SunMoon, "Appearance"],
   ["#security", KeyRound, "Security"],
   ["#data", ShieldCheck, "Data and privacy"],
 ] as const;
@@ -145,6 +147,15 @@ export function Settings({
               <button className="button">Save profile</button>
             </div>
           </form>
+          <section id="appearance" className="card stack anchor-target">
+            <h2>Appearance</h2>
+            <p className="muted">
+              Choose light, dark, or match your device setting.
+            </p>
+            <div>
+              <ThemeSelector />
+            </div>
+          </section>
           {provider === "email" ? (
             <form
               id="security"

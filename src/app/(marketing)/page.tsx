@@ -1,66 +1,143 @@
 import Link from "next/link";
 import {
-  Activity,
-  ArrowDown,
   ArrowRight,
-  AudioLines,
   Bookmark,
+  BriefcaseBusiness,
+  Building2,
   Check,
   ChevronDown,
   Clock,
+  ClipboardCheck,
   Eye,
   FileText,
-  Gauge,
-  Layers3,
   Lock,
+  MessagesSquare,
   Mic,
   Play,
-  ScanFace,
   ShieldCheck,
+  UserRound,
   Video,
 } from "lucide-react";
-import { ScrollGuide } from "@/components/common/scroll-guide";
+import { Reveal } from "@/components/common/reveal";
 import { Brand } from "@/components/shell/brand";
 import { PRACTICE_TEMPLATES } from "@/lib/config/constants";
 import { PHASE_LABELS } from "@/lib/config/taxonomy";
 
-const steps = [
+// What the product does, in three plain sentences.
+const does = [
   [
-    FileText,
-    "Upload your CV",
-    "Start with the experience and skills you want to put to the test.",
-  ],
-  [
-    Layers3,
-    "AI plans your interview",
-    "Get questions shaped by the role, seniority and your own projects.",
+    MessagesSquare,
+    "Realistic questions",
+    "Questions are based on your CV, the role and the company. Vague answers get follow-up questions, as in a real interview.",
   ],
   [
     Video,
-    "Live adaptive interview",
-    "Answer out loud as the interviewer probes, adjusts and follows up.",
+    "Feedback on how you speak",
+    "Besides what you say, SkillMirror looks at your pace, pauses, filler words, eye contact and posture.",
   ],
   [
-    Activity,
-    "Timestamped feedback report",
-    "Replay key moments and practice with specific drills.",
+    ClipboardCheck,
+    "A report you can use",
+    "You get a score, your strengths, the areas to improve and short video clips of the key moments.",
   ],
 ] as const;
 
-const roles = [
-  "Backend Engineer",
-  "Product Manager",
-  "Data Scientist",
-  "Frontend Engineer",
-  "ML Engineer",
-  "UX Researcher",
-  "DevOps Engineer",
-  "Data Analyst",
-  "Mobile Developer",
-  "Security Engineer",
-  "Data Engineer",
-  "Product Designer",
+// The same order the app uses: name the interview, add a CV, talk, read.
+const steps = [
+  [
+    BriefcaseBusiness,
+    "Set up the interview",
+    "Enter the role and company, choose the level and pick 10 or 20 minutes.",
+  ],
+  [
+    FileText,
+    "Upload your CV",
+    "Your skills, experience and projects are used to plan the questions.",
+  ],
+  [
+    Mic,
+    "Take the interview",
+    "Answer out loud with your camera on, in Chrome or Edge on a computer.",
+  ],
+  [
+    ClipboardCheck,
+    "Review your report",
+    "See your score, watch key moments again and practice with the suggested exercises.",
+  ],
+] as const;
+
+const reportItems = [
+  "An overall score out of 100",
+  "Your level for each technical skill, from 1 to 5",
+  "Feedback on your voice and body language",
+  "Video clips of key moments, each with a practice tip",
 ];
+
+const audiences = [
+  {
+    icon: UserRound,
+    title: "For job seekers",
+    points: [
+      "Practice for a specific role and company",
+      "Your reports are private",
+      "See your progress over time",
+    ],
+    cta: "Start practicing",
+    href: "/signup",
+  },
+  {
+    icon: Building2,
+    title: "For hiring teams",
+    points: [
+      "Create an opening with your own questions",
+      "Invite candidates with a link",
+      "Compare candidates side by side",
+    ],
+    cta: "Hire with AI interviews",
+    href: "/signup?intent=hiring",
+  },
+] as const;
+
+const privacy = [
+  [
+    Eye,
+    "Camera preview only during setup",
+    "You only see yourself while you check your framing.",
+  ],
+  [
+    ShieldCheck,
+    "Clear consent before you start",
+    "Before each interview, we explain what is recorded and who can see it.",
+  ],
+  [
+    Clock,
+    "Recordings are deleted",
+    "Recordings are deleted after 30 days by default, and you can delete your data at any time.",
+  ],
+] as const;
+
+const faqs = [
+  [
+    "What does SkillMirror do?",
+    "It runs a practice job interview with an AI interviewer. You answer the questions out loud on camera. Afterwards you get a report that shows what went well and what to improve, with video clips of the key moments.",
+  ],
+  [
+    "What do I need?",
+    "A computer with Chrome or Edge, a camera and a microphone. Before you start, a short setup checks your camera, microphone and sound.",
+  ],
+  [
+    "How long does an interview take?",
+    "You choose 10 or 20 minutes. The 20 minute interview adds time for your own questions at the end.",
+  ],
+  [
+    "Who can see my practice report?",
+    "Only you. Company interviews work differently: the company that invited you receives your recording, transcript, evaluation and a summary of your CV. This is explained before you start.",
+  ],
+  [
+    "Can my company use it for hiring?",
+    "Yes. Hiring teams create openings with their own questions, invite candidates with a link and compare candidates side by side. Follow-up questions from the AI are marked separately from your own questions.",
+  ],
+] as const;
 
 // The hero mock follows the real 20-minute practice plan, 9:40 in.
 const elapsed = 580;
@@ -78,62 +155,234 @@ const timeline = Object.entries(PRACTICE_TEMPLATES[20].budgets).map(
 );
 const total = phaseStart;
 const current = timeline.findIndex((phase) => phase.progress < 1);
-// Key moments at 04:22 (the one in the sample report below) and 08:05.
 const moments = [262, 485];
 const clock = (seconds: number) =>
   String(Math.floor(seconds / 60)).padStart(2, "0") +
   ":" +
   String(seconds % 60).padStart(2, "0");
 
-const wave = [
-  10, 18, 26, 14, 30, 22, 34, 16, 24, 32, 12, 28, 20, 34, 18, 26, 12, 30, 22,
-  16, 28, 14, 24, 10,
-];
-
-const voice = [
-  38, 52, 61, 47, 70, 58, 0, 0, 44, 66, 73, 55, 22, 63, 69, 51, 0, 48, 57, 64,
-  40, 59, 71, 46,
-];
-
-const candidates = [
-  {
-    initials: "CA",
-    label: "Candidate A",
-    score: 84,
-    bars: [86, 78],
-    top: true,
-  },
-  {
-    initials: "CB",
-    label: "Candidate B",
-    score: 71,
-    bars: [70, 64],
-    top: false,
-  },
-];
-
-const faqs = [
-  [
-    "What do I need to take an interview?",
-    "Desktop Chrome or Edge with a camera and microphone. Before you start, setup checks your framing, posture, gaze, microphone and audio so the interviewer can read you clearly.",
-  ],
-  [
-    "How does the interview adapt to me?",
-    "The interviewer plans questions from the role, seniority and your CV, then raises or lowers difficulty after each answer. Vague answers get follow-ups, just like a real panel.",
-  ],
-  [
-    "What's in the feedback report?",
-    "An overall score, your technical ceiling, delivery insights on voice and body language, and timestamped key moments you can replay as video clips, each with a specific drill to practice.",
-  ],
-  [
-    "Can my company run first-round interviews?",
-    "Yes. Hiring teams create openings with their own must-ask questions or fully automatic interviews, invite candidates with a link, and compare candidates side by side. AI follow-ups are labelled separately from your questions.",
-  ],
-  [
-    "Who can see my recording?",
-    "Camera preview is visible only during setup. Recording retention and sharing are explained before every interview, and recordings are kept for 30 days by default.",
-  ],
-] as const;
+// A candidate in a blazer on a video call, headset on, in a room lit by an
+// evening window. Drawn by hand in SVG so it stays sharp and light.
+function InterviewScene() {
+  return (
+    <svg
+      className="lp-person"
+      viewBox="0 0 480 300"
+      preserveAspectRatio="xMidYMid slice"
+    >
+      <defs>
+        <linearGradient id="lpc-wall" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#343d55" />
+          <stop offset="0.55" stopColor="#272e42" />
+          <stop offset="1" stopColor="#1b2030" />
+        </linearGradient>
+        <linearGradient id="lpc-window" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffd6b3" stopOpacity="0.62" />
+          <stop offset="1" stopColor="#f39a83" stopOpacity="0.3" />
+        </linearGradient>
+        <linearGradient id="lpc-beam" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ffd6b3" stopOpacity="0.16" />
+          <stop offset="1" stopColor="#ffd6b3" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="lpc-blazer" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#3a4964" />
+          <stop offset="1" stopColor="#263046" />
+        </linearGradient>
+        <linearGradient id="lpc-skin" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ecb390" />
+          <stop offset="1" stopColor="#cd8e6c" />
+        </linearGradient>
+        <linearGradient id="lpc-hair" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#3d2a24" />
+          <stop offset="1" stopColor="#1e1412" />
+        </linearGradient>
+        <linearGradient id="lpc-leaf" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#6fae8a" />
+          <stop offset="1" stopColor="#3f7559" />
+        </linearGradient>
+        <radialGradient id="lpc-vignette" cx="0.5" cy="0.42" r="0.78">
+          <stop offset="0.62" stopColor="#0f121a" stopOpacity="0" />
+          <stop offset="1" stopColor="#0f121a" stopOpacity="0.55" />
+        </radialGradient>
+        <linearGradient id="lpc-shade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0.6" stopColor="#0f121a" stopOpacity="0" />
+          <stop offset="1" stopColor="#0f121a" stopOpacity="0.6" />
+        </linearGradient>
+      </defs>
+      <rect width="480" height="300" fill="url(#lpc-wall)" />
+      <path d="M134 30 300 214 238 300H134z" fill="url(#lpc-beam)" />
+      <rect
+        x="30"
+        y="24"
+        width="104"
+        height="130"
+        rx="8"
+        fill="url(#lpc-window)"
+      />
+      <path d="M82 24v130M30 89h104" stroke="#2b3347" strokeWidth="5" />
+      <rect
+        x="30"
+        y="24"
+        width="104"
+        height="130"
+        rx="8"
+        fill="none"
+        stroke="#3d4762"
+        strokeWidth="3"
+      />
+      <rect x="22" y="152" width="120" height="6" rx="3" fill="#3d4762" />
+      <path d="M44 300l6-56h40l6 56z" fill="#c9725a" />
+      <path d="M50 244h40" stroke="#b05f4a" strokeWidth="3" />
+      <path
+        d="M70 244c-18-14-30-40-22-62 14 10 22 34 22 62zm0 0c4-26 18-46 36-52 2 22-14 44-36 52zm0 0c-4-20-2-44 8-58 8 14 4 40-8 58z"
+        fill="url(#lpc-leaf)"
+      />
+      <rect x="356" y="150" width="104" height="6" rx="3" fill="#4b3d36" />
+      <rect
+        x="364"
+        y="116"
+        width="10"
+        height="34"
+        rx="2"
+        fill="#fd7c68"
+        opacity="0.75"
+      />
+      <rect
+        x="376"
+        y="122"
+        width="9"
+        height="28"
+        rx="2"
+        fill="#fdc458"
+        opacity="0.7"
+      />
+      <rect
+        x="387"
+        y="112"
+        width="11"
+        height="38"
+        rx="2"
+        fill="#7aa2d6"
+        opacity="0.7"
+      />
+      <rect
+        x="402"
+        y="124"
+        width="8"
+        height="26"
+        rx="2"
+        fill="#b999fb"
+        opacity="0.6"
+        transform="rotate(-14 406 150)"
+      />
+      <path d="M430 150h22l-3-15h-16z" fill="#d7d2c8" opacity="0.85" />
+      <path
+        d="M441 135c-9-6-13-17-8-24 7 4 10 13 8 24zm0 0c6-8 15-11 20-9-3 7-12 10-20 9z"
+        fill="url(#lpc-leaf)"
+      />
+      <g transform="translate(240 300) scale(1.12) translate(-240 -300)">
+        <path
+          d="M112 300c6-46 38-74 86-84l20-4h44l20 4c48 10 80 38 86 84z"
+          fill="url(#lpc-blazer)"
+        />
+        <path d="M214 212l26 52 26-52z" fill="#eef1f6" />
+        <path d="M214 212l-17 10 34 56 9-14z" fill="#2c3750" />
+        <path d="M266 212l17 10-34 56-9-14z" fill="#2c3750" />
+        <path d="M219 210l15 17 6-13zM261 210l-15 17-6-13z" fill="#ffffff" />
+        <path
+          d="M324 232c24 12 40 34 44 66"
+          stroke="#fd7c68"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          opacity="0.5"
+          fill="none"
+        />
+        <path d="M223 168h34v42c0 9-34 9-34 0z" fill="#c98a69" />
+        <path
+          d="M223 176c10 9 24 9 34 0v10c-10 7-24 7-34 0z"
+          fill="#b47859"
+          opacity="0.55"
+        />
+        <ellipse cx="201" cy="134" rx="7" ry="11" fill="#d49473" />
+        <ellipse cx="279" cy="134" rx="7" ry="11" fill="#d49473" />
+        <ellipse cx="240" cy="130" rx="39" ry="47" fill="url(#lpc-skin)" />
+        <path
+          d="M206 146c6 26 20 40 34 40s28-14 34-40c-8 18-20 28-34 28s-26-10-34-28z"
+          fill="#b97a5c"
+          opacity="0.28"
+        />
+        <path
+          d="M199 126c-5-32 11-58 41-62 31-4 51 18 50 48 0 8-2 14-4 18-3-18-13-30-27-34-12 10-34 14-53 12-3 6-6 11-7 18z"
+          fill="url(#lpc-hair)"
+        />
+        <path
+          d="M226 74c14-6 34-3 46 9"
+          stroke="#5c4037"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          opacity="0.7"
+          fill="none"
+        />
+        <path
+          d="M216 119q9-6 18-1M246 118q9-5 18 1"
+          stroke="#2a1d1a"
+          strokeWidth="3.2"
+          strokeLinecap="round"
+          fill="none"
+        />
+        <ellipse cx="225" cy="134" rx="3.4" ry="4.2" fill="#2a1d1a" />
+        <ellipse cx="255" cy="134" rx="3.4" ry="4.2" fill="#2a1d1a" />
+        <circle cx="226.3" cy="132.4" r="1.1" fill="#ffffff" />
+        <circle cx="256.3" cy="132.4" r="1.1" fill="#ffffff" />
+        <path
+          d="M240 137q-5 12 0 15q3 1 5-1"
+          stroke="#b47859"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          fill="none"
+        />
+        <circle cx="216" cy="149" r="6" fill="#ef8a74" opacity="0.2" />
+        <circle cx="264" cy="149" r="6" fill="#ef8a74" opacity="0.2" />
+        <path d="M228 159q12 11 24 0q-12 4-24 0z" fill="#8f3f36" />
+        <path
+          d="M231 160.4q9 2.6 18 0"
+          stroke="#ffffff"
+          strokeWidth="1.6"
+          opacity="0.8"
+        />
+        <path
+          d="M276 102c8 14 9 34 4 52"
+          stroke="#fd7c68"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          opacity="0.55"
+          fill="none"
+        />
+        <path
+          d="M195 132c-2-46 20-74 45-74s47 28 45 74"
+          stroke="#12161f"
+          strokeWidth="6"
+          strokeLinecap="round"
+          fill="none"
+        />
+        <rect x="186" y="120" width="15" height="28" rx="6" fill="#12161f" />
+        <rect x="279" y="120" width="15" height="28" rx="6" fill="#12161f" />
+        <rect x="188.5" y="127" width="3" height="14" rx="1.5" fill="#fd7c68" />
+        <rect x="288.5" y="127" width="3" height="14" rx="1.5" fill="#fd7c68" />
+        <path
+          d="M194 147c4 18 14 24 28 21"
+          stroke="#12161f"
+          strokeWidth="4"
+          strokeLinecap="round"
+          fill="none"
+        />
+        <circle cx="224" cy="168" r="4.5" fill="#fd7c68" />
+      </g>
+      <rect width="480" height="300" fill="url(#lpc-vignette)" />
+      <rect width="480" height="300" fill="url(#lpc-shade)" />
+    </svg>
+  );
+}
 
 export default function Landing() {
   return (
@@ -143,10 +392,10 @@ export default function Landing() {
           <div className="nav-left">
             <Brand />
             <nav className="lp-nav-links" aria-label="Sections">
+              <a href="#what-it-does">What it does</a>
               <a href="#how-it-works">How it works</a>
-              <a href="#what-we-measure">What we measure</a>
-              <a href="#sample-report">Report</a>
-              <a href="#hiring">For hiring teams</a>
+              <a href="#report">Your report</a>
+              <a href="#who-its-for">Who it&apos;s for</a>
               <a href="#faq">FAQ</a>
             </nav>
           </div>
@@ -154,8 +403,8 @@ export default function Landing() {
             <Link className="lp-login" href="/login">
               Log in
             </Link>
-            <Link className="button" href="/signup">
-              Get started
+            <Link className="button sm" href="/signup">
+              Sign up
             </Link>
           </div>
         </div>
@@ -165,72 +414,41 @@ export default function Landing() {
         <section className="lp-hero">
           <div className="container lp-hero-grid">
             <div className="lp-hero-copy">
-              <span className="lp-pill">
-                <span className="lp-pill-dot" aria-hidden="true" />
-                AI interviewer for practice and hiring
-              </span>
               <h1 className="lp-title">
-                Pressure-tested <span className="grad-text">interviews.</span>
+                Practice job interviews with an{" "}
+                <span className="grad-text">AI interviewer</span>
               </h1>
               <p className="lp-lead">
-                An AI interviewer that adapts to your level, reads your body
-                language and voice, and shows you exactly what to fix, with
-                video proof.
+                Answer real interview questions out loud, on camera, for the job
+                you want. Then get a detailed report showing what went well and
+                what to improve.
               </p>
               <div className="lp-cta">
                 <Link className="button lg" href="/signup">
                   Start practicing
                   <ArrowRight size={18} aria-hidden="true" />
                 </Link>
-                <Link
-                  className="button secondary lg"
-                  href="/signup?intent=hiring"
-                >
-                  Hire with AI interviews
-                </Link>
+                <a className="button secondary lg" href="#how-it-works">
+                  See how it works
+                </a>
               </div>
-              <ul className="lp-points">
+              <ul className="lp-chips">
                 <li>
-                  <Check size={16} aria-hidden="true" />
-                  Adapts after every answer
+                  <Clock size={16} aria-hidden="true" />
+                  Takes 10 or 20 minutes
                 </li>
                 <li>
-                  <Check size={16} aria-hidden="true" />
-                  Reads body language and voice
+                  <Play size={16} aria-hidden="true" />
+                  Video clips in every report
                 </li>
                 <li>
-                  <Check size={16} aria-hidden="true" />
-                  Video proof for every note
+                  <Lock size={16} aria-hidden="true" />
+                  Your reports stay private
                 </li>
               </ul>
-              <a className="lp-sample-link" href="#sample-report">
-                See a sample report
-                <ArrowDown size={16} aria-hidden="true" />
-              </a>
             </div>
 
             <div className="lp-visual" aria-hidden="true">
-              <div className="lp-float one">
-                <span className="lp-float-label">Adaptive difficulty</span>
-                <span className="lp-level">
-                  <span className="lp-float-value">
-                    Level 4<small>/ 5</small>
-                    <span className="lp-up">▲</span>
-                  </span>
-                  <span className="lp-level-bars">
-                    {[1, 2, 3, 4, 5].map((level) => (
-                      <i
-                        key={level}
-                        className={
-                          level < 4 ? "done" : level === 4 ? "now" : undefined
-                        }
-                        style={{ height: 4 + level * 4 }}
-                      />
-                    ))}
-                  </span>
-                </span>
-                <small>Up from level 3 after a strong answer</small>
-              </div>
               <div className="lp-window">
                 <div className="lp-window-bar">
                   <span className="cluster" style={{ gap: 14 }}>
@@ -252,45 +470,31 @@ export default function Landing() {
                     </span>
                   </span>
                 </div>
-                <div className="lp-stage">
-                  <div className="lp-orb-wrap">
-                    <span className="lp-ripple" />
-                    <span className="lp-ripple" />
-                    <div className="orb" />
-                  </div>
-                  <p className="lp-speaker">
-                    <b>Interviewer</b> · <em>Listening</em>
-                  </p>
-                  <div className="lp-question">
-                    <span className="eyebrow" style={{ justifySelf: "center" }}>
-                      Technical · System Design
-                    </span>
-                    <h3>
-                      How would your design handle a sudden spike in traffic?
-                    </h3>
-                  </div>
-                  <div className="lp-answer">
-                    <Mic size={14} />
-                    <span className="lp-wave">
-                      {wave.map((height, index) => (
-                        <span
-                          key={index}
-                          style={
-                            {
-                              "--h": height + "px",
-                              "--d": -(index * 0.09).toFixed(2) + "s",
-                            } as React.CSSProperties
-                          }
-                        />
+                <div className="lp-call">
+                  <InterviewScene />
+                  <span className="lp-you">
+                    <Mic size={13} />
+                    You
+                    <span className="lp-you-bars">
+                      {[8, 14, 10, 16, 7].map((height, index) => (
+                        <i key={index} style={{ height }} />
                       ))}
                     </span>
-                    <span className="mono">01:12</span>
+                  </span>
+                  <div className="lp-pip">
+                    <div className="orb" />
+                    <span>AI interviewer</span>
+                    <small>Listening</small>
                   </div>
+                  <p className="lp-caption">
+                    <b>AI interviewer</b>
+                    How would your design handle a sudden spike in traffic?
+                  </p>
                 </div>
                 <div className="lp-progress">
                   <div className="lp-progress-head">
                     <span>
-                      Phase {current + 1} of {timeline.length} ·{" "}
+                      Part {current + 1} of {timeline.length} ·{" "}
                       <b>{timeline[current].label}</b>
                     </span>
                     <span className="lp-saved">
@@ -316,241 +520,71 @@ export default function Landing() {
                   </div>
                 </div>
               </div>
-              <div className="lp-float two">
-                <span className="lp-float-head">
-                  <span className="lp-float-label">Live signals</span>
-                  <small>vs. your baseline</small>
-                </span>
-                <span className="lp-signal">
-                  Gaze
-                  <svg viewBox="0 0 48 12" className="lp-spark">
-                    <line x1="0" y1="6" x2="48" y2="6" />
-                    <polyline points="0,6 6,5 12,6 18,4 24,6 30,5 36,7 42,6 48,6" />
-                  </svg>
-                  <b>steady</b>
-                </span>
-                <span className="lp-signal">
-                  Posture
-                  <svg viewBox="0 0 48 12" className="lp-spark">
-                    <line x1="0" y1="6" x2="48" y2="6" />
-                    <polyline points="0,5 8,5 14,6 20,9 26,7 32,5 40,5 48,5" />
-                  </svg>
-                  <b>upright</b>
-                </span>
-                <span className="lp-signal">
-                  Pace
-                  <span className="lp-range">
-                    <i />
-                  </span>
-                  <b>142 wpm</b>
-                </span>
-                <span className="lp-signal warn">
-                  Fillers
-                  <span className="lp-ticks">
-                    <i />
-                    <i />
-                  </span>
-                  <b>um ×2</b>
-                </span>
-              </div>
             </div>
           </div>
         </section>
 
-        <div className="lp-marquee">
-          <p className="lp-marquee-label">Practice for the role you want</p>
-          <div className="lp-marquee-track">
-            {[0, 1].map((copy) => (
-              <div
-                key={copy}
-                className="lp-marquee-group"
-                aria-hidden={copy === 1 ? true : undefined}
-              >
-                {roles.map((role) => (
-                  <span key={role}>{role}</span>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <section id="how-it-works" className="lp-section">
+        <section id="what-it-does" className="lp-section lp-alt">
           <div className="container">
-            <div className="lp-section-head">
-              <span className="eyebrow">How it works</span>
-              <h2 className="lp-h2">
-                From CV to <span className="grad-text">video-proof</span>{" "}
-                feedback.
-              </h2>
+            <div className="lp-section-head center" data-reveal>
+              <h2 className="lp-h2">What SkillMirror does</h2>
               <p className="lp-sub">
-                Four steps, one interview engine. The same flow powers practice
-                sessions and company interviews.
+                SkillMirror takes the role of the interviewer. You practice in a
+                realistic setting and see where to improve before the real
+                interview.
               </p>
             </div>
-            <div className="lp-steps">
-              {steps.map(([Icon, title, detail], index) => (
-                <article className="lp-step" key={title}>
-                  <div className="lp-step-top">
-                    <span className="lp-icon">
-                      <Icon size={22} aria-hidden="true" />
-                    </span>
-                    <span className="lp-step-num">0{index + 1}</span>
-                  </div>
+            <div className="lp-trust">
+              {does.map(([Icon, title, text]) => (
+                <article className="lp-trust-item" key={title} data-reveal>
+                  <span className="lp-icon">
+                    <Icon size={22} aria-hidden="true" />
+                  </span>
                   <h3>{title}</h3>
-                  <p>{detail}</p>
+                  <p>{text}</p>
                 </article>
               ))}
             </div>
           </div>
         </section>
 
-        <section id="what-we-measure" className="lp-section">
+        <section id="how-it-works" className="lp-section">
           <div className="container">
-            <div className="lp-section-head">
-              <span className="eyebrow">What we measure</span>
-              <h2 className="lp-h2">
-                Every answer. Every gesture.{" "}
-                <span className="grad-text">Every second.</span>
-              </h2>
+            <div className="lp-section-head" data-reveal>
+              <h2 className="lp-h2">How it works</h2>
               <p className="lp-sub">
-                SkillMirror listens to what you say and watches how you say it,
-                then ties every observation to the moment it happened.
+                Four steps, all in your browser. No software to install.
               </p>
             </div>
-            <div className="lp-measures">
-              <article className="lp-measure">
-                <div className="lp-viz" aria-hidden="true">
-                  <div className="lp-ladder">
-                    <div>
-                      Level 5<span>—</span>
-                    </div>
-                    <div className="now">
-                      Level 4<span>Now</span>
-                    </div>
-                    <div className="pass">
-                      Level 3<span>✓</span>
-                    </div>
-                    <div className="pass">
-                      Level 2<span>✓</span>
-                    </div>
-                    <div className="pass">
-                      Level 1<span>✓</span>
-                    </div>
+            <ol className="lp-steps">
+              {steps.map(([Icon, title, detail], index) => (
+                <li className="lp-step" key={title} data-reveal>
+                  <div className="lp-step-top">
+                    <span className="lp-icon">
+                      <Icon size={22} aria-hidden="true" />
+                    </span>
                   </div>
-                </div>
-                <span className="lp-icon">
-                  <Gauge size={22} aria-hidden="true" />
-                </span>
-                <h3>Technical ceiling</h3>
-                <p>Difficulty adapts after each answer.</p>
-              </article>
-              <article className="lp-measure">
-                <div className="lp-viz" aria-hidden="true">
-                  <svg className="lp-pose" viewBox="0 0 300 168">
-                    <g fill="none" stroke="#2fe08a" strokeWidth="1.5">
-                      <ellipse
-                        cx="150"
-                        cy="62"
-                        rx="30"
-                        ry="36"
-                        strokeOpacity="0.35"
-                        strokeDasharray="4 5"
-                      />
-                      <path
-                        d="M150 98v18M90 132l60-16 60 16M90 132l-14 34M210 132l14 34"
-                        strokeOpacity="0.75"
-                      />
-                      <path
-                        d="M138 56l-60-26M162 56l60-26"
-                        stroke="#7ef5c3"
-                        strokeOpacity="0.45"
-                        strokeDasharray="2 4"
-                      />
-                    </g>
-                    <g fill="#2fe08a">
-                      <circle cx="138" cy="56" r="3.5" />
-                      <circle cx="162" cy="56" r="3.5" />
-                      <circle cx="150" cy="72" r="3" />
-                      <circle cx="150" cy="116" r="3.5" />
-                      <circle cx="90" cy="132" r="4" />
-                      <circle cx="210" cy="132" r="4" />
-                      <circle cx="76" cy="166" r="3" />
-                      <circle cx="224" cy="166" r="3" />
-                    </g>
-                    <g fill="#7ef5c3">
-                      <circle cx="74" cy="28" r="5" fillOpacity="0.25" />
-                      <circle cx="74" cy="28" r="2.5" />
-                      <circle cx="226" cy="28" r="5" fillOpacity="0.25" />
-                      <circle cx="226" cy="28" r="2.5" />
-                    </g>
-                  </svg>
-                </div>
-                <span className="lp-icon">
-                  <ScanFace size={22} aria-hidden="true" />
-                </span>
-                <h3>Body language</h3>
-                <p>Gaze, posture and gestures relative to your baseline.</p>
-              </article>
-              <article className="lp-measure">
-                <div className="lp-viz" aria-hidden="true">
-                  <div className="lp-voice">
-                    <div className="lp-voice-head">
-                      <span>
-                        Pace <b>142 wpm</b>
-                      </span>
-                      <span>
-                        Fillers <b>2</b>
-                      </span>
-                    </div>
-                    <div className="lp-voice-bars">
-                      {voice.map((height, index) => (
-                        <span
-                          key={index}
-                          className={
-                            height === 0
-                              ? "pause"
-                              : index === 12
-                                ? "filler"
-                                : ""
-                          }
-                          style={
-                            {
-                              "--h": (height || 8) + "%",
-                            } as React.CSSProperties
-                          }
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <span className="lp-icon">
-                  <AudioLines size={22} aria-hidden="true" />
-                </span>
-                <h3>Voice and tone</h3>
-                <p>Speaking pace, pauses, fillers and delivery.</p>
-              </article>
-            </div>
+                  <h3>
+                    <span className="lp-step-num">{index + 1}</span>
+                    {title}
+                  </h3>
+                  <p>{detail}</p>
+                </li>
+              ))}
+            </ol>
           </div>
         </section>
 
-        <section id="sample-report" className="lp-section">
+        <section id="report" className="lp-section lp-deep">
           <div className="container lp-report">
-            <div className="stack" style={{ gap: 22 }}>
-              <span className="eyebrow">Sample report</span>
-              <h2 className="lp-h2">
-                Feedback you can <span className="grad-text">replay.</span>
-              </h2>
+            <div className="stack" style={{ gap: 22 }} data-reveal>
+              <h2 className="lp-h2">What&apos;s in your report</h2>
               <p className="lp-sub">
-                A sample score and timestamped coaching moment. Every note in
-                your report links back to the second it happened.
+                Each comment in the report is linked to the moment in the
+                interview where it happened, so you can watch it yourself.
               </p>
               <ul className="lp-checklist">
-                {[
-                  "Overall score with a clear hiring signal",
-                  "Technical ceiling across the competencies you were tested on",
-                  "Delivery insights from your voice and body language",
-                  "Key moments as video clips, each with a drill to practice",
-                ].map((item) => (
+                {reportItems.map((item) => (
                   <li key={item}>
                     <span className="lp-check">
                       <Check size={14} strokeWidth={3} aria-hidden="true" />
@@ -560,13 +594,13 @@ export default function Landing() {
                 ))}
               </ul>
             </div>
-            <div className="lp-report-card" aria-hidden="true">
+            <div className="lp-report-card" aria-hidden="true" data-reveal>
               <div className="lp-report-top">
                 <div className="stack-sm" style={{ gap: 4 }}>
-                  <span className="eyebrow">Interview report</span>
+                  <span className="eyebrow">Sample report</span>
                   <strong>Backend Engineer · 20 min</strong>
                 </div>
-                <span className="badge accent">Hire signal</span>
+                <span className="badge accent">Strong answers</span>
               </div>
               <div className="lp-score">
                 <div className="lp-ring">
@@ -619,127 +653,65 @@ export default function Landing() {
           </div>
         </section>
 
-        <section id="hiring" className="lp-section">
+        <section id="who-its-for" className="lp-section">
           <div className="container">
-            <div className="lp-hiring">
-              <div className="stack" style={{ gap: 22 }}>
-                <span className="eyebrow">For hiring teams</span>
-                <h2 className="lp-h2">
-                  Run real first-round interviews{" "}
-                  <span className="grad-text">with AI.</span>
-                </h2>
-                <p className="lp-sub">
-                  Publish an opening, share an invite link, and review
-                  structured reports with recordings, not gut feel.
-                </p>
-                <ul className="lp-checklist">
-                  {[
-                    "Your own must-ask questions or fully automatic interviews",
-                    "AI follow-ups labelled separately from your questions",
-                    "Side-by-side candidate comparison",
-                    "Fair-by-default body-language settings",
-                  ].map((item) => (
-                    <li key={item}>
-                      <span className="lp-check">
-                        <Check size={14} strokeWidth={3} aria-hidden="true" />
-                      </span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-                <div>
-                  <Link className="button lg" href="/signup?intent=hiring">
-                    Hire with AI interviews
-                    <ArrowRight size={18} aria-hidden="true" />
-                  </Link>
-                </div>
-              </div>
-              <div className="lp-compare" aria-hidden="true">
-                <div className="cluster between">
-                  <strong>Compare candidates</strong>
-                  <span className="badge">2 selected</span>
-                </div>
-                {candidates.map((candidate) => (
-                  <div
-                    key={candidate.label}
-                    className={"lp-compare-row" + (candidate.top ? " top" : "")}
-                  >
-                    <span className="avatar">{candidate.initials}</span>
-                    <div>
-                      <strong style={{ fontSize: 14 }}>
-                        {candidate.label}
-                      </strong>
-                      <div className="lp-mini-bars">
-                        {candidate.bars.map((value, index) => (
-                          <span
-                            key={index}
-                            style={
-                              { "--v": value + "%" } as React.CSSProperties
-                            }
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <span className="lp-score-chip">{candidate.score}</span>
+            <div className="lp-section-head center" data-reveal>
+              <h2 className="lp-h2">Who it&apos;s for</h2>
+            </div>
+            <div className="lp-audience">
+              {audiences.map(({ icon: Icon, title, points, cta, href }) => (
+                <article className="lp-audience-card" key={title} data-reveal>
+                  <span className="lp-icon">
+                    <Icon size={22} aria-hidden="true" />
+                  </span>
+                  <h3>{title}</h3>
+                  <ul className="lp-checklist">
+                    {points.map((point) => (
+                      <li key={point}>
+                        <span className="lp-check">
+                          <Check size={14} strokeWidth={3} aria-hidden="true" />
+                        </span>
+                        {point}
+                      </li>
+                    ))}
+                  </ul>
+                  <div>
+                    <Link className="button secondary" href={href}>
+                      {cta}
+                      <ArrowRight size={17} aria-hidden="true" />
+                    </Link>
                   </div>
-                ))}
-                <div className="lp-qa">
-                  <span className="badge">Your question</span>
-                  Walk me through a migration you led end to end.
-                  <span className="badge primary">⚡ AI follow-up</span>
-                  How did you roll it back when the error rate climbed?
-                </div>
-              </div>
+                </article>
+              ))}
             </div>
           </div>
         </section>
 
-        <section className="lp-section" style={{ paddingTop: 0 }}>
+        <section className="lp-section lp-alt">
           <div className="container">
-            <div className="lp-section-head center">
-              <span className="eyebrow">Privacy by design</span>
-              <h2 className="lp-h2">You stay in control of your data.</h2>
+            <div className="lp-section-head center" data-reveal>
+              <h2 className="lp-h2">Your data and privacy</h2>
             </div>
             <div className="lp-trust">
-              {[
-                [
-                  Eye,
-                  "Preview only during setup",
-                  "Camera preview is visible only during setup, so you can frame yourself without distraction.",
-                ],
-                [
-                  ShieldCheck,
-                  "Explained before every interview",
-                  "Recording retention and sharing are explained before every interview starts.",
-                ],
-                [
-                  Clock,
-                  "Recordings expire",
-                  "Recordings are retained for 30 days by default. Delete your data at any time from settings.",
-                ],
-              ].map(([Icon, title, text]) => {
-                const TrustIcon = Icon as typeof Eye;
-                return (
-                  <article className="lp-trust-item" key={String(title)}>
-                    <span className="lp-icon">
-                      <TrustIcon size={22} aria-hidden="true" />
-                    </span>
-                    <h3>{String(title)}</h3>
-                    <p>{String(text)}</p>
-                  </article>
-                );
-              })}
+              {privacy.map(([Icon, title, text]) => (
+                <article className="lp-trust-item" key={title} data-reveal>
+                  <span className="lp-icon">
+                    <Icon size={22} aria-hidden="true" />
+                  </span>
+                  <h3>{title}</h3>
+                  <p>{text}</p>
+                </article>
+              ))}
             </div>
           </div>
         </section>
 
-        <section id="faq" className="lp-section" style={{ paddingTop: 0 }}>
+        <section id="faq" className="lp-section">
           <div className="container">
-            <div className="lp-section-head center">
-              <span className="eyebrow">FAQ</span>
-              <h2 className="lp-h2">Questions, answered.</h2>
+            <div className="lp-section-head center" data-reveal>
+              <h2 className="lp-h2">Frequently asked questions</h2>
             </div>
-            <div className="lp-faq">
+            <div className="lp-faq" data-reveal>
               {faqs.map(([question, answer]) => (
                 <details key={question}>
                   <summary>
@@ -755,18 +727,10 @@ export default function Landing() {
 
         <section className="lp-section" style={{ paddingTop: 0 }}>
           <div className="container">
-            <div className="lp-cta-band">
-              <span className="lp-pill">
-                <Lock size={13} aria-hidden="true" style={{ marginLeft: 4 }} />
-                Practice reports are private to you
-              </span>
-              <h2 className="lp-h2">
-                Walk into your next interview{" "}
-                <span className="grad-text">already tested.</span>
-              </h2>
+            <div className="lp-cta-band" data-reveal>
+              <h2 className="lp-h2">Prepare for your next interview</h2>
               <p className="lp-sub">
-                Upload your CV, pick the role, and get pressure-tested in 10 or
-                20 minutes.
+                Set up a practice interview in a few minutes.
               </p>
               <div className="lp-cta" style={{ justifyContent: "center" }}>
                 <Link className="button lg" href="/signup">
@@ -791,21 +755,21 @@ export default function Landing() {
             <div className="stack" style={{ alignContent: "start" }}>
               <Brand />
               <p className="muted" style={{ maxWidth: 300 }}>
-                Pressure-tested interviews. Every answer, every gesture, every
-                second.
+                Practice job interviews and get detailed feedback on every
+                answer.
               </p>
             </div>
             <div>
               <h4>Product</h4>
               <ul>
                 <li>
+                  <a href="#what-it-does">What it does</a>
+                </li>
+                <li>
                   <a href="#how-it-works">How it works</a>
                 </li>
                 <li>
-                  <a href="#what-we-measure">What we measure</a>
-                </li>
-                <li>
-                  <a href="#sample-report">Sample report</a>
+                  <a href="#report">Your report</a>
                 </li>
               </ul>
             </div>
@@ -813,7 +777,7 @@ export default function Landing() {
               <h4>Teams</h4>
               <ul>
                 <li>
-                  <a href="#hiring">For hiring teams</a>
+                  <a href="#who-its-for">For hiring teams</a>
                 </li>
                 <li>
                   <Link href="/signup?intent=hiring">Create an opening</Link>
@@ -850,7 +814,7 @@ export default function Landing() {
           </div>
         </div>
       </footer>
-      <ScrollGuide />
+      <Reveal />
     </div>
   );
 }

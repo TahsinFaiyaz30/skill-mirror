@@ -17,16 +17,20 @@ export function LogoMark({ size = 30 }: { size?: number }) {
       focusable="false"
     >
       <defs>
+        <linearGradient id={id + "t"} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#262d40" />
+          <stop offset="1" stopColor="#12161f" />
+        </linearGradient>
         <linearGradient id={id + "b"} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#b4fbd8" />
-          <stop offset="1" stopColor="#1fc775" />
+          <stop offset="0" stopColor="#ffd27a" />
+          <stop offset="1" stopColor="#fd7c68" />
         </linearGradient>
         <linearGradient id={id + "r"} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#2fe08a" stopOpacity="0.5" />
-          <stop offset="1" stopColor="#2fe08a" stopOpacity="0" />
+          <stop offset="0" stopColor="#fd7c68" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#fd7c68" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <rect width="40" height="40" rx="11" fill="#0b1912" />
+      <rect width="40" height="40" rx="11" fill={"url(#" + id + "t)"} />
       <rect
         x="0.75"
         y="0.75"
@@ -34,8 +38,8 @@ export function LogoMark({ size = 30 }: { size?: number }) {
         height="38.5"
         rx="10.25"
         fill="none"
-        stroke="#2fe08a"
-        strokeOpacity="0.5"
+        stroke="#fd7c68"
+        strokeOpacity="0.45"
         strokeWidth="1.5"
       />
       {levels.map((height, index) => (
@@ -47,7 +51,7 @@ export function LogoMark({ size = 30 }: { size?: number }) {
             height={height}
             rx="1.6"
             fill={"url(#" + id + "b)"}
-            opacity={0.55 + index * 0.15}
+            opacity={0.6 + index * 0.13}
           />
           <rect
             x={8.25 + index * 6.5}
@@ -61,7 +65,7 @@ export function LogoMark({ size = 30 }: { size?: number }) {
       ))}
       <path
         d="M7 26h26"
-        stroke="#b4fbd8"
+        stroke="#ffd2bf"
         strokeWidth="1.4"
         strokeLinecap="round"
       />

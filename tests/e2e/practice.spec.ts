@@ -45,16 +45,16 @@ test("practice interview records answers and produces a private report in mock m
   await expect(
     page.getByRole("heading", { name: "No interviews yet" }),
   ).toBeVisible();
-  await expect(page.locator("html")).toHaveClass(/dark/);
-  await expect(page.locator("main")).toHaveScreenshot("dashboard-dark.png", {
+  await expect(page.locator("html")).not.toHaveClass(/dark/);
+  await expect(page.locator("main")).toHaveScreenshot("dashboard.png", {
     maxDiffPixelRatio: 0.01,
   });
   await page.getByRole("link", { name: "New interview" }).first().click();
-  await uploadCv(page);
-  await page.getByLabel("Company", { exact: true }).fill("Northstar Labs");
   await page.getByLabel("Role title", { exact: true }).fill("Backend Engineer");
+  await page.getByLabel("Company", { exact: true }).fill("Northstar Labs");
   await page.getByText("Quick 10 min").click();
-  await page.getByRole("button", { name: "Create interview" }).click();
+  await page.getByRole("button", { name: "Continue to CV" }).click();
+  await uploadCv(page);
   await expect(
     page.getByRole("heading", { name: "Your interview", exact: true }),
   ).toBeVisible();
@@ -78,7 +78,7 @@ test("practice interview records answers and produces a private report in mock m
   ).toBeVisible({ timeout: 60000 });
   const overview = page.locator("#overview"),
     dynamic = [overview.locator(".score-header p.muted")];
-  await expect(overview).toHaveScreenshot("report-dark.png", {
+  await expect(overview).toHaveScreenshot("report.png", {
     mask: dynamic,
     maxDiffPixelRatio: 0.01,
   });

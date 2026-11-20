@@ -1,9 +1,28 @@
 "use client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MotionConfig } from "framer-motion";
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider, useTheme } from "next-themes";
 import { useState } from "react";
 import { Toaster } from "sonner";
+
+function ThemedToaster() {
+  const { resolvedTheme } = useTheme();
+  return (
+    <Toaster
+      position="bottom-right"
+      theme={resolvedTheme === "dark" ? "dark" : "light"}
+      toastOptions={{
+        style: {
+          background: "var(--surface)",
+          border: "1px solid var(--border-strong)",
+          color: "var(--foreground)",
+          borderRadius: 14,
+          boxShadow: "var(--shadow)",
+        },
+      }}
+    />
+  );
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [query] = useState(
@@ -12,24 +31,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider
       attribute="class"
-      defaultTheme="dark"
-      forcedTheme="dark"
-      enableSystem={false}
+      defaultTheme="system"
+      enableSystem
       disableTransitionOnChange
     >
       <QueryClientProvider client={query}>
         <MotionConfig reducedMotion="user">{children}</MotionConfig>
-        <Toaster
-          position="bottom-right"
-          theme="dark"
-          toastOptions={{
-            style: {
-              background: "#0b1310",
-              border: "1px solid #283b31",
-              color: "#e9f3ed",
-            },
-          }}
-        />
+        <ThemedToaster />
       </QueryClientProvider>
     </ThemeProvider>
   );

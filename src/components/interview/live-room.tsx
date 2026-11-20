@@ -9,7 +9,6 @@ import {
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useStore } from "zustand";
-import { motion, useReducedMotion } from "framer-motion";
 import { Dialog } from "radix-ui";
 import { ArrowLeft, LoaderCircle, Mic, Repeat2, X } from "lucide-react";
 import { Brand } from "@/components/shell/brand";
@@ -40,28 +39,16 @@ function watchRoom(listener: () => void) {
   size.addEventListener("change", listener);
   return () => size.removeEventListener("change", listener);
 }
+// A still orb that only grows with the interviewer's voice level, so the
+// candidate can tell when it is speaking. No decorative motion.
 export function Orb({ stage, rms }: { stage: LiveStage; rms: number }) {
-  const reduced = useReducedMotion();
-  const scale =
-    stage === "LISTENING" && !reduced
-      ? [1, 1.03, 1]
-      : 1 + (reduced ? 0 : 0.25 * rms);
+  const scale = stage === "AI_SPEAKING" ? 1 + 0.2 * Math.min(1, rms) : 1;
   return (
-    <motion.div
+    <div
       className="orb room-orb"
       aria-hidden="true"
-      animate={{ scale, rotate: stage === "EVALUATING" && !reduced ? 360 : 0 }}
-      transition={{
-        scale: {
-          duration: stage === "LISTENING" ? 4 : 0.12,
-          repeat: stage === "LISTENING" && !reduced ? Infinity : 0,
-        },
-        rotate: {
-          duration: 6,
-          repeat: stage === "EVALUATING" && !reduced ? Infinity : 0,
-          ease: "linear",
-        },
-      }}
+      data-stage={stage}
+      style={{ transform: "scale(" + scale.toFixed(3) + ")" }}
     />
   );
 }
@@ -232,12 +219,9 @@ export function LiveRoom({
             {data.config.company && " · " + data.config.company.name}
           </p>
           {(directive || ready) && (
-            <motion.section
+            <section
               className="card stack room-question"
               key={isPresentation ? "presentation" : (directive?.seq ?? 0)}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.15 }}
             >
               <span className="small muted uppercase tracking-wider">
                 {directive?.cardLabel ?? "Interview room"}
@@ -283,7 +267,7 @@ export function LiveRoom({
               ) : (
                 directive?.questionText && <h2>{directive.questionText}</h2>
               )}
-            </motion.section>
+            </section>
           )}
           {error && !ready && (
             <p className="danger" role="alert">
