@@ -2,19 +2,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Dialog } from "radix-ui";
-import {
-  BriefcaseBusiness,
-  Building2,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  Plus,
-  Settings,
-  TrendingUp,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { Dialog, DropdownMenu } from "radix-ui";
+import { Building2, LogOut, Menu, Plus, Settings, X } from "lucide-react";
 import { Brand } from "./brand";
 import { localMock } from "@/lib/config/env";
 import { browserSupabase } from "@/lib/supabase/client";
@@ -40,113 +29,46 @@ export function initials(name: string, email: string) {
       : (words[0] ?? email).slice(0, 2);
   return letters.toUpperCase();
 }
-type Item = { href: string; label: string; icon: LucideIcon; match: boolean };
-type Group = { label: string; logoUrl?: string | null; items: Item[] };
+type Item = { href: string; label: string; match: boolean };
 
-// One list of destinations, shown as the desktop sidebar and the mobile drawer.
-function useGroups(org: CompanyBrand | null): Group[] {
+// One list of destinations, shown in the top bar and in the mobile drawer.
+function useItems(org: CompanyBrand | null): Item[] {
   const pathname = usePathname() ?? "";
-  const groups: Group[] = [
+  const items: Item[] = [
     {
-      label: "Practice",
-      items: [
-        {
-          href: "/dashboard",
-          label: "Dashboard",
-          icon: LayoutDashboard,
-          match:
-            pathname === "/dashboard" ||
-            (pathname.startsWith("/interview") &&
-              pathname !== "/interview/new"),
-        },
-        {
-          href: "/progress",
-          label: "Progress",
-          icon: TrendingUp,
-          match: pathname.startsWith("/progress"),
-        },
-      ],
+      href: "/dashboard",
+      label: "Dashboard",
+      match:
+        pathname === "/dashboard" ||
+        (pathname.startsWith("/interview") && pathname !== "/interview/new"),
+    },
+    {
+      href: "/progress",
+      label: "Progress",
+      match: pathname.startsWith("/progress"),
     },
   ];
   if (org)
-    groups.push({
-      label: "Hiring · " + org.name,
-      logoUrl: org.logoUrl,
-      items: [
-        {
-          href: "/hiring",
-          label: "Openings",
-          icon: BriefcaseBusiness,
-          match:
-            pathname.startsWith("/hiring") &&
-            !pathname.startsWith("/hiring/organization"),
-        },
-        {
-          href: "/hiring/organization",
-          label: "Organization",
-          icon: Building2,
-          match: pathname.startsWith("/hiring/organization"),
-        },
-      ],
-    });
-  groups.push({
-    label: "Account",
-    items: [
+    items.push(
       {
-        href: "/settings",
-        label: "Settings",
-        icon: Settings,
-        match: pathname.startsWith("/settings"),
+        href: "/hiring",
+        label: "Openings",
+        match:
+          pathname.startsWith("/hiring") &&
+          !pathname.startsWith("/hiring/organization"),
       },
-    ],
+      {
+        href: "/hiring/organization",
+        label: "Organization",
+        match: pathname.startsWith("/hiring/organization"),
+      },
+    );
+  items.push({
+    href: "/settings",
+    label: "Settings",
+    match: pathname.startsWith("/settings"),
   });
-  return groups;
-}
-function NavGroups({ groups }: { groups: Group[] }) {
-  return groups.map((group) => (
-    <div key={group.label} className="side-group">
-      <span className="nav-section">
-        {group.logoUrl && (
-          <Image
-            src={group.logoUrl}
-            alt=""
-            width={16}
-            height={16}
-            unoptimized
-          />
-        )}
-        {group.label}
-      </span>
-      {group.items.map(({ href, label, icon: Icon, match }) => (
-        <Link key={href} href={href} aria-current={match ? "page" : undefined}>
-          <Icon size={18} aria-hidden="true" />
-          {label}
-        </Link>
-      ))}
-    </div>
-  ));
-}
-function UserCard({ name, email }: { name: string; email: string }) {
-  return (
-    <div className="side-user">
-      <span className="avatar" aria-hidden="true">
-        {initials(name, email)}
-      </span>
-      <span className="side-user-text">
-        <strong>{name || "Your account"}</strong>
-        <small>{email}</small>
-      </span>
-      <button
-        type="button"
-        className="button ghost icon sm"
-        aria-label="Sign out"
-        title="Sign out"
-        onClick={() => void signOut()}
-      >
-        <LogOut size={17} aria-hidden="true" />
-      </button>
-    </div>
-  );
+  return items;
 }
 export function AppNav({
   name,
@@ -159,62 +81,125 @@ export function AppNav({
   org: CompanyBrand | null;
   company?: CompanyBrand | null;
 }) {
-  const groups = useGroups(org);
-  const creating = (usePathname() ?? "") === "/interview/new";
+  const items = useItems(org);
+  const links = items.map(({ href, label, match }) => (
+    <Link key={href} href={href} aria-current={match ? "page" : undefined}>
+      {label}
+    </Link>
+  ));
   return (
-    <>
-      <aside className="sidebar">
-        <Brand company={company} />
-        <Link
-          href="/interview/new"
-          className={"button side-cta" + (creating ? " current" : "")}
-          aria-current={creating ? "page" : undefined}
-        >
-          <Plus size={18} aria-hidden="true" />
-          New interview
-        </Link>
-        <nav className="side-nav" aria-label="Main">
-          <NavGroups groups={groups} />
-        </nav>
-        <UserCard name={name} email={email} />
-      </aside>
-      <header className="topbar">
-        <Brand company={company} />
-        <Dialog.Root>
-          <Dialog.Trigger
-            className="button secondary icon"
-            aria-label="Open navigation"
-          >
-            <Menu size={20} />
-          </Dialog.Trigger>
-          <Dialog.Portal>
-            <Dialog.Overlay className="dialog-overlay" />
-            <Dialog.Content className="drawer">
-              <div className="cluster between">
-                <Dialog.Title className="sr-only">Navigation</Dialog.Title>
-                <Brand />
-                <Dialog.Close
-                  className="button ghost icon"
-                  aria-label="Close navigation"
+    <header className="topnav">
+      <div className="container topnav-inner">
+        <div className="topnav-left">
+          <Brand company={company} />
+          <nav className="topnav-links" aria-label="Main">
+            {links}
+          </nav>
+        </div>
+        <div className="topnav-right">
+          <Link href="/interview/new" className="button sm topnav-cta">
+            <Plus size={16} aria-hidden="true" />
+            New interview
+          </Link>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger
+              className="button ghost icon"
+              aria-label="Account"
+            >
+              <span className="avatar" aria-hidden="true">
+                {initials(name, email)}
+              </span>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content className="menu" align="end" sideOffset={8}>
+                <div className="menu-head">
+                  <span className="avatar" aria-hidden="true">
+                    {initials(name, email)}
+                  </span>
+                  <div className="min-w-0">
+                    <strong>{name || "Your account"}</strong>
+                    <p className="muted small">{email}</p>
+                  </div>
+                </div>
+                <div className="menu-separator" />
+                <DropdownMenu.Item className="menu-item" asChild>
+                  <Link href="/settings">
+                    <Settings size={16} aria-hidden="true" />
+                    Account settings
+                  </Link>
+                </DropdownMenu.Item>
+                {org && (
+                  <DropdownMenu.Item className="menu-item" asChild>
+                    <Link href="/hiring/organization">
+                      {org.logoUrl ? (
+                        <Image
+                          src={org.logoUrl}
+                          alt=""
+                          width={16}
+                          height={16}
+                          unoptimized
+                        />
+                      ) : (
+                        <Building2 size={16} aria-hidden="true" />
+                      )}
+                      {org.name}
+                    </Link>
+                  </DropdownMenu.Item>
+                )}
+                <div className="menu-separator" />
+                <DropdownMenu.Item
+                  className="menu-item"
+                  onSelect={() => void signOut()}
                 >
-                  <X size={20} />
-                </Dialog.Close>
-              </div>
-              <Dialog.Description className="sr-only">
-                SkillMirror pages
-              </Dialog.Description>
-              <Link href="/interview/new" className="button side-cta">
-                <Plus size={18} aria-hidden="true" />
-                New interview
-              </Link>
-              <nav className="side-nav" aria-label="Mobile navigation">
-                <NavGroups groups={groups} />
-              </nav>
-              <UserCard name={name} email={email} />
-            </Dialog.Content>
-          </Dialog.Portal>
-        </Dialog.Root>
-      </header>
-    </>
+                  <LogOut size={16} aria-hidden="true" />
+                  Sign out
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
+          <Dialog.Root>
+            <Dialog.Trigger
+              className="button secondary icon topnav-menu"
+              aria-label="Open navigation"
+            >
+              <Menu size={20} />
+            </Dialog.Trigger>
+            <Dialog.Portal>
+              <Dialog.Overlay className="dialog-overlay" />
+              <Dialog.Content className="drawer">
+                <div className="cluster between">
+                  <Dialog.Title className="sr-only">Navigation</Dialog.Title>
+                  <Brand />
+                  <Dialog.Close
+                    className="button ghost icon"
+                    aria-label="Close navigation"
+                  >
+                    <X size={20} />
+                  </Dialog.Close>
+                </div>
+                <Dialog.Description className="sr-only">
+                  SkillMirror pages
+                </Dialog.Description>
+                <Link href="/interview/new" className="button">
+                  <Plus size={18} aria-hidden="true" />
+                  New interview
+                </Link>
+                <nav className="drawer-links" aria-label="Mobile navigation">
+                  {links}
+                </nav>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => void signOut()}
+                >
+                  <LogOut size={17} aria-hidden="true" />
+                  Sign out
+                </button>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
+        </div>
+      </div>
+    </header>
   );
 }
