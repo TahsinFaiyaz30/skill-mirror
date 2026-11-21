@@ -1,6 +1,10 @@
 import { gunzipSync } from "node:zlib";
 import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm";
-import { REPORT_LEASE_MS, usesFastReasoning } from "@/lib/config/constants";
+import {
+  REPORT_LEASE_MS,
+  RESCORE_TIMEOUT_MS,
+  usesFastReasoning,
+} from "@/lib/config/constants";
 import { correctedCertificate } from "@/lib/cert/issue";
 import type { Database } from "@/lib/db";
 import {
@@ -59,6 +63,8 @@ export const PROCESSING_STEPS = [
 // remaining steps straight away instead of waiting out the 290 s lease.
 export const PROCESSING_STEP_START_BUDGET_MS = 180_000;
 const TONE_TIMEOUT_MS = 45_000;
+const RESCORE_CHECKPOINT_PREFIX = "rescore:";
+type ProcessingStep = (typeof PROCESSING_STEPS)[number][0];
 const timed = (ms: number) =>
   String(Math.floor(ms / 60000)).padStart(2, "0") +
   ":" +
@@ -118,8 +124,36 @@ export async function processInterview(
     .update(interviewSessions)
     .set({ status: "processing", error: null })
     .where(sw);
-  const done = [...claimed.stepsDone],
+  const checkpoint = claimed.stepsDone.find((step) =>
+    step.startsWith(RESCORE_CHECKPOINT_PREFIX),
+  );
+  let rescoredThrough = checkpoint
+    ? Number(checkpoint.slice(RESCORE_CHECKPOINT_PREFIX.length))
+    : -1;
+  if (!Number.isSafeInteger(rescoredThrough)) rescoredThrough = -1;
+  const done = claimed.stepsDone.filter(
+      (step) => !step.startsWith(RESCORE_CHECKPOINT_PREFIX),
+    ),
     prefix = original.userId + "/" + id;
+  const canStart = (estimateMs = 0) =>
+    Date.now() - started + estimateMs <= PROCESSING_STEP_START_BUDGET_MS;
+  const pause = async (step: ProcessingStep) => {
+    const stepsDone =
+      rescoredThrough >= 0 && !done.includes("rescore")
+        ? [...done, RESCORE_CHECKPOINT_PREFIX + rescoredThrough]
+        : done;
+    const [released] = await database
+      .update(reports)
+      .set({ status: "queued", stepsDone, updatedAt: new Date() })
+      .where(and(rw, eq(reports.updatedAt, heartbeat)))
+      .returning({ progress: reports.progress });
+    return {
+      status: released ? "queued" : "running",
+      progress: released?.progress ?? 0,
+      step,
+      busy: !released,
+    };
+  };
   const file = prefix + "/words.json";
   const loadTurnRows = () =>
     database.select().from(turns).where(tw).orderBy(asc(turns.idx));
@@ -213,10 +247,7 @@ export async function processInterview(
       segments,
     );
   }
-  const steps: Record<
-    (typeof PROCESSING_STEPS)[number][0],
-    () => Promise<void>
-  > = {
+  const steps: Record<ProcessingStep, () => Promise<void | "pause">> = {
     verify_media: async () => {
       const check = (
         file: { path: string } | undefined,
@@ -461,15 +492,20 @@ export async function processInterview(
       if (!state) return;
       const items = (await loadTurnRows()).filter(
         (t) =>
+          t.idx > rescoredThrough &&
           t.scores &&
           (t.scores.scoringFailed ||
             (wordsIn(t.answerTranscriptFinal ?? "") > 0 &&
               wordsIn(t.answerTranscriptFinal ?? "") >=
                 1.3 * wordsIn(t.answerTranscriptLive ?? ""))),
       );
-      for (let offset = 0; offset < items.length; offset += 4)
+      for (let offset = 0; offset < items.length; offset += 4) {
+        // Allow the full provider timeout for each batch and resume after
+        // the last attempted turn when the next batch cannot fit.
+        if (!canStart(RESCORE_TIMEOUT_MS)) return "pause";
+        const batch = items.slice(offset, offset + 4);
         await Promise.all(
-          items.slice(offset, offset + 4).map(async (turn) => {
+          batch.map(async (turn) => {
             const item = {
               ...basicItem(turn.itemKind, turn.phase, turn.questionText),
               source: turn.questionSource,
@@ -522,6 +558,8 @@ export async function processInterview(
               .where(and(tw, eq(turns.idx, turn.idx)));
           }),
         );
+        rescoredThrough = batch[batch.length - 1].idx;
+      }
     },
     tone: async () => {
       if (off || original.aiMode === "mock") return;
@@ -719,28 +757,14 @@ export async function processInterview(
   try {
     for (const [key, progress] of PROCESSING_STEPS) {
       if (done.includes(key)) continue;
-      if (Date.now() - started > PROCESSING_STEP_START_BUDGET_MS) {
-        // Release the lease with the finished steps saved, so the next
-        // /process request can claim it at once and continue from here.
-        const [released] = await database
-          .update(reports)
-          .set({ status: "queued", updatedAt: new Date() })
-          .where(and(rw, eq(reports.updatedAt, heartbeat)))
-          .returning({ progress: reports.progress });
-        return {
-          status: released ? "queued" : "running",
-          progress: released?.progress ?? 0,
-          step: key,
-          busy: !released,
-        };
-      }
+      if (!canStart()) return await pause(key);
       const [lease] = await database
         .update(reports)
         .set({ step: key })
         .where(and(rw, eq(reports.updatedAt, heartbeat)))
         .returning({ id: reports.sessionId });
       if (!lease) return { status: "running", progress, step: key, busy: true };
-      await steps[key]();
+      if ((await steps[key]()) === "pause") return await pause(key);
       done.push(key);
       const next = new Date();
       if (key === "finalize") {

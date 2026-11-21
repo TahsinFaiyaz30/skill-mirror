@@ -29,7 +29,7 @@ import { addMember } from "@/lib/api/organization";
 import { createSession, getSession, planSession } from "@/lib/api/session";
 import { statusRoute } from "@/lib/api/reports";
 import { certificateBySlug, createCertificate } from "@/lib/api/practice";
-import { REPORT_LEASE_MS } from "@/lib/config/constants";
+import { REPORT_LEASE_MS, RESCORE_TIMEOUT_MS } from "@/lib/config/constants";
 import { publicEnv } from "@/lib/config/env";
 import {
   buildSessionConfig,
@@ -975,6 +975,83 @@ describe("report processing", () => {
         }),
         expect.objectContaining({ turnIdx: aligned.idx, source: "whisper" }),
       ]),
+    );
+  });
+
+  it("resumes a slow company rescore without repeating earlier batches", async () => {
+    const fixture = goldenFixture("off");
+    const config = {
+      ...fixture.session.config,
+      lengthMinutes: 45,
+      hardCapMs: 45 * 60_000,
+      maxStrategistCalls: 130,
+    };
+    services.userId = await user();
+    const session = freshSession(services.userId, {
+      config,
+      lengthMinutes: 45,
+      aiMode: "mock",
+      strategistState: startInterview({
+        config,
+        plan: fixture.session.plan!,
+        firstName: "Jamie",
+        company: fixture.session.company,
+        roleTitle: fixture.session.roleTitle,
+      }),
+    });
+    await database.insert(schema.interviewSessions).values(session);
+    const scored = fixture.turns.find((turn) => turn.scores)!;
+    await database.insert(schema.turns).values(
+      Array.from({ length: 25 }, (_, idx) => ({
+        ...scored,
+        idx,
+        id: randomUUID(),
+        sessionId: session.id,
+        scores: { ...scored.scores!, scoringFailed: true },
+      })),
+    );
+    await database.insert(schema.reports).values({
+      sessionId: session.id,
+      status: "queued",
+      stepsDone: ["verify_media", "transcribe", "align"],
+    });
+
+    const start = Date.now();
+    let elapsed = PROCESSING_STEP_START_BUDGET_MS - RESCORE_TIMEOUT_MS - 1_000;
+    const now = vi.spyOn(Date, "now").mockImplementation(() => start + elapsed);
+    now.mockReturnValueOnce(start);
+    // Each concurrent group of four takes its allowed provider timeout.
+    services.evaluateAnswer.mockImplementation(
+      async (_session, _state, input: StrategistInput) => {
+        if (input.turnIdx % 4 === 0) elapsed += RESCORE_TIMEOUT_MS;
+        return undefined;
+      },
+    );
+    try {
+      expect(await processInterview(services.database, session)).toMatchObject({
+        status: "queued",
+        step: "rescore",
+        busy: false,
+      });
+      expect(elapsed).toBeLessThan(295_000);
+      expect(services.evaluateAnswer).toHaveBeenCalledTimes(4);
+    } finally {
+      now.mockRestore();
+    }
+    services.evaluateAnswer.mockResolvedValue(undefined);
+    expect(await processInterview(services.database, session)).toMatchObject({
+      status: "completed",
+    });
+    expect(
+      services.evaluateAnswer.mock.calls.map(([, , input]) => input.turnIdx),
+    ).toEqual(Array.from({ length: 25 }, (_, idx) => idx));
+    const [report] = await database
+      .select()
+      .from(schema.reports)
+      .where(eq(schema.reports.sessionId, session.id));
+    expect(report.stepsDone).toContain("rescore");
+    expect(report.stepsDone.some((step) => step.startsWith("rescore:"))).toBe(
+      false,
     );
   });
 
